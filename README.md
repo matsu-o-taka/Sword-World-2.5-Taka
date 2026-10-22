@@ -2,7 +2,7 @@ I don't know how to code, I don't know how to write a readme. 90% of what you se
 
 I'm happy to fix anything I can, and I've learned a lot doing this. I hope the effort makes your games more enjoyable.
 
-=====
+_____________
 Daedalus
 ===============================================================================
 
@@ -12,5 +12,5 @@ In Foundry VTT, open Game Systems → Install System and paste this Manifest URL
 
 https://raw.githubusercontent.com/matsu-o-taka/Sword-World-2.5-Taka/main/system.json
 
-=====
+_____________
 O-Taka
