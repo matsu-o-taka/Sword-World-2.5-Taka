@@ -20,6 +20,7 @@ function defenseFor(actor, damageType) {
 }
 
 async function applyDamage({ actor, total, damageType, factor = 1 }) {
+  if (actor.type === "fellow") throw new Error("Fellows cannot take damage.");
   const raw = Math.max(0, Math.ceil((Number(total) || 0) * (Number(factor) === 0.5 ? 0.5 : 1)));
   const defense = Math.max(0, defenseFor(actor, damageType));
   const applied = Math.max(0, raw - defense);
@@ -43,6 +44,7 @@ async function requestDamage(button) {
   if (selected.length !== 1) return ui.notifications.warn("Select exactly one token before applying damage.");
   const actor = selected[0].actor;
   if (!actor) return ui.notifications.warn("The selected token has no actor.");
+  if (actor.type === "fellow") return ui.notifications.info("Fellows are immune to damage.");
   const payload = {
     action:"apply-damage",
     actorUuid:actor.uuid,

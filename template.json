@@ -2,6 +2,8 @@
   "Actor": {
     "types": [
       "character",
+      "npc",
+      "fellow",
       "monster"
     ],
     "character": {
@@ -125,6 +127,43 @@
         "waist": "",
         "feet": "",
         "other": ""
+      }
+    },
+    "npc": {
+      "biography": {
+        "title": "",
+        "age": "",
+        "gender": "",
+        "notes": ""
+      },
+      "npc": {
+        "race": "",
+        "residence": "",
+        "appearance": "",
+        "personality": "",
+        "motivation": ""
+      }
+    },
+    "fellow": {
+      "biography": {
+        "age": "",
+        "gender": ""
+      },
+      "fellow": {
+        "race": "",
+        "adventurerLevel": 0,
+        "mp": 0,
+        "classes": "",
+        "languages": "",
+        "introduction": "",
+        "wantsExperience": false,
+        "wantsRewards": false,
+        "actions": [
+          { "action": "", "dialogue": "", "value": "", "mpCost": 0, "effect": "" },
+          { "action": "", "dialogue": "", "value": "", "mpCost": 0, "effect": "" },
+          { "action": "", "dialogue": "", "value": "", "mpCost": 0, "effect": "" },
+          { "action": "", "dialogue": "", "value": "", "mpCost": 0, "effect": "" }
+        ]
       }
     },
     "monster": {

@@ -1,5 +1,7 @@
 import { SW25ActorSheet } from "./module/actor/actor-sheet.mjs";
 import { SW25MonsterSheet } from "./module/actor/monster-sheet.mjs";
+import { SW25NPCSheet } from "./module/actor/npc-sheet.mjs";
+import { SW25FellowSheet } from "./module/actor/fellow-sheet.mjs";
 import { SW25ItemSheet } from "./module/item/item-sheet.mjs";
 import { SW25Importer } from "./module/importer/sw25-importer.mjs";
 import { resolveAttackingClass, rollWeaponDamage } from "./module/rules/weapon-roll.mjs";
@@ -34,7 +36,9 @@ Hooks.once("init", () => {
       bar: ["hp", "mp"],
       value: ["xp.total", "currency.gamels"]
     },
-    monster: { bar: [], value: ["level", "initiative"] }
+    monster: { bar: [], value: ["level", "initiative"] },
+    npc: { bar: [], value: [] },
+    fellow: { bar: [], value: [] }
   };
 
   Actors.unregisterSheet("core", ActorSheet);
@@ -44,6 +48,14 @@ Hooks.once("init", () => {
   });
   Actors.registerSheet("sword-world-25", SW25MonsterSheet, {
     types: ["monster"],
+    makeDefault: true
+  });
+  Actors.registerSheet("sword-world-25", SW25NPCSheet, {
+    types: ["npc"],
+    makeDefault: true
+  });
+  Actors.registerSheet("sword-world-25", SW25FellowSheet, {
+    types: ["fellow"],
     makeDefault: true
   });
 
