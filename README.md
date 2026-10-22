@@ -4,7 +4,7 @@ I'm happy to fix anything I can, and I've learned a lot doing this. I hope the e
 
 _____________
 Daedalus
-===============================================================================
+_____________________________________________________________
 
 Updated for allowing race drop on character sheet from local race items.
 
