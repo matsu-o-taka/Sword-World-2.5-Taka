@@ -2,6 +2,6 @@ I don't know how to code, I don't know how to write a readme. 90% of what you se
 
 I'm happy to fix anything I can, and I've learned a lot doing this. I hope the effort makes your games more enjoyable.
 
-    Daedalus
+Daedalus
 
 Updated for allowing race drop on character sheet from local race items.
