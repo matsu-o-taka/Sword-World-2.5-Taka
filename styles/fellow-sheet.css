@@ -1,0 +1,194 @@
+/* Fellow-format actor sheet */
+.sw25-fellow-sheet {
+  box-sizing: border-box;
+  height: 100%;
+  padding: 10px;
+  overflow: auto;
+  color: #28231e;
+  background:
+    linear-gradient(rgba(246, 237, 211, 0.95), rgba(230, 214, 178, 0.95)),
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(75, 55, 35, 0.025) 3px 4px);
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.sw25-fellow-sheet input,
+.sw25-fellow-sheet textarea {
+  box-sizing: border-box;
+  min-width: 0;
+  border: 1px solid #75634d;
+  border-radius: 2px;
+  background: rgba(255, 252, 239, 0.82);
+  color: #28231e;
+}
+
+.sw25-fellow-page {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: 190px 145px minmax(360px, 1fr);
+  grid-template-areas:
+    "portrait profile profile"
+    "portrait introduction rewards"
+    "actions actions actions";
+  gap: 10px;
+  min-height: 740px;
+}
+
+.fellow-portrait-column { grid-area: portrait; }
+.fellow-profile-box { grid-area: profile; }
+.fellow-introduction-box { grid-area: introduction; }
+.fellow-rewards-box { grid-area: rewards; }
+.fellow-actions-box { grid-area: actions; min-height: 0; }
+
+.sw25-fellow-page .fellow-roll-button {
+  flex: 0 0 auto;
+  min-height: 24px;
+  margin: 0;
+  padding: 2px 8px;
+  border: 1px solid #4b4034;
+  border-radius: 2px;
+  background: linear-gradient(#695642, #493b2f);
+  color: #fff7df;
+  font-size: 10px;
+  font-weight: bold;
+  text-transform: none;
+}
+.sw25-fellow-page .fellow-roll-button i { margin-right: 3px; }
+
+.sw25-fellow-page .fellow-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px 12px;
+  padding: 10px 12px;
+}
+
+.sw25-fellow-page .fellow-profile-grid label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.sw25-fellow-page .fellow-profile-grid input {
+  width: 100%;
+  height: 27px;
+  padding: 3px 5px;
+  font-size: 12px;
+  text-transform: none;
+}
+
+.sw25-fellow-page .fellow-classes { grid-column: span 2; }
+.sw25-fellow-page .fellow-languages { grid-column: span 2; }
+
+.sw25-fellow-page .fellow-introduction-box textarea {
+  display: block;
+  width: calc(100% - 20px);
+  height: calc(100% - 46px);
+  min-height: 78px;
+  margin: 10px;
+  padding: 7px;
+  resize: vertical;
+  font: 12px/1.4 Georgia, "Times New Roman", serif;
+}
+
+.sw25-fellow-page .fellow-rewards-box .fellow-choice {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 10px 12px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.sw25-fellow-page .fellow-choice input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #574737;
+}
+
+.sw25-fellow-page .fellow-rewards-box p {
+  margin: 6px 12px;
+  color: #554b3f;
+  font-size: 10px;
+  font-style: italic;
+}
+
+.sw25-fellow-page .fellow-table-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 18px;
+  margin: 9px 12px 10px;
+}
+
+.sw25-fellow-page .fellow-table-toolbar .fellow-table-hint {
+  flex: 1 1 auto;
+  min-width: 300px;
+  margin: 0;
+  padding: 0 6px;
+  color: #554b3f;
+  font-size: 10px;
+  text-align: left;
+}
+
+.sw25-fellow-page .fellow-table-toolbar .fellow-roll-button {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.fellow-action-table-wrap {
+  width: calc(100% - 16px);
+  margin: 7px 8px 10px;
+  overflow-x: auto;
+}
+
+.fellow-action-table {
+  width: 100%;
+  min-width: 830px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 10px;
+}
+
+.fellow-action-table th,
+.fellow-action-table td {
+  padding: 4px;
+  border: 1px solid #75634d;
+  vertical-align: middle;
+}
+
+.fellow-action-table thead th {
+  height: 25px;
+  background: rgba(100, 95, 85, .15);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.fellow-action-table thead th:nth-child(1) { width: 48px; }
+.fellow-action-table thead th:nth-child(2) { width: 54px; }
+.fellow-action-table thead th:nth-child(3) { width: 20%; }
+.fellow-action-table thead th:nth-child(4) { width: 17%; }
+.fellow-action-table thead th:nth-child(5) { width: 64px; }
+.fellow-action-table thead th:nth-child(6) { width: 52px; }
+
+.fellow-action-table tbody tr { height: 76px; }
+.fellow-action-table tbody th { background: rgba(100, 95, 85, .08); font-size: 11px; }
+.fellow-action-table .fellow-fixed-value { text-align: center; font-size: 12px; font-weight: bold; }
+
+.fellow-action-table input,
+.fellow-action-table textarea {
+  display: block;
+  width: 100%;
+  height: 64px;
+  padding: 4px;
+  border: 1px solid rgba(117, 99, 77, .55);
+  background: rgba(255, 252, 239, .56);
+  font: 11px/1.3 Georgia, "Times New Roman", serif;
+}
+
+.fellow-action-table input { height: 28px; text-align: center; }
+.fellow-action-table input[type="number"] { padding: 2px; }

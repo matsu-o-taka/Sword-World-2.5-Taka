@@ -24,6 +24,85 @@
   overflow: hidden;
 }
 
+.sw25-npc-sheet {
+  box-sizing: border-box;
+  height: 100%;
+  padding: 10px;
+  overflow: auto;
+  color: #28231e;
+  background:
+    linear-gradient(rgba(246, 237, 211, 0.95), rgba(230, 214, 178, 0.95)),
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(75, 55, 35, 0.025) 3px 4px);
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.sw25-npc-sheet input,
+.sw25-npc-sheet textarea {
+  box-sizing: border-box;
+  border: 1px solid #75634d;
+  border-radius: 2px;
+  background: rgba(255, 252, 239, 0.82);
+  color: #28231e;
+}
+
+.sw25-npc-page {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: 180px minmax(170px, 1fr) minmax(150px, 1fr);
+  grid-template-areas:
+    "portrait identity identity"
+    "portrait appearance personality"
+    "portrait motivation notes";
+  gap: 10px;
+  min-height: 740px;
+}
+
+.npc-portrait-column { grid-area: portrait; }
+.npc-identity-box { grid-area: identity; }
+.npc-description-box { grid-area: appearance; }
+.npc-personality-box { grid-area: personality; }
+.npc-motivation-box { grid-area: motivation; }
+.npc-notes-box { grid-area: notes; }
+
+.npc-identity-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 14px;
+  padding: 12px;
+}
+
+.npc-identity-grid label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.npc-identity-grid input {
+  width: 100%;
+  min-height: 30px;
+  padding: 4px 6px;
+}
+
+.npc-identity-grid .npc-role-field { grid-column: span 2; }
+.npc-identity-grid .npc-residence-field { grid-column: 1 / -1; }
+
+.sw25-npc-page .paper-panel > textarea {
+  display: block;
+  width: calc(100% - 20px);
+  height: calc(100% - 42px);
+  min-height: 110px;
+  margin: 10px;
+  padding: 8px;
+  border: 1px solid rgba(117, 99, 77, .6);
+  background: rgba(255, 252, 239, 0.38);
+  font: 13px/1.45 Georgia, "Times New Roman", serif;
+  resize: vertical;
+}
+
 .sw25-character-sheet input,
 .sw25-character-sheet textarea,
 .sw25-character-sheet select,
@@ -637,6 +716,9 @@
 .sw25-chat-card { border:1px solid #5b4936; background:#f0e2bf; color:#28231e; padding:10px; }
 .sw25-chat-card h3 { margin:0 0 8px; border-bottom:1px solid #806d55; }
 .sw25-chat-card button { width:100%; min-height:32px; border:1px solid #5b4936; background:linear-gradient(#695642,#493b2f); color:#fff7df; font-weight:bold; }
+.sw25-chat-card .sw25-fellow-dialogue { margin:6px 0 2px; padding:3px 10px; border-left:3px solid #8a7357; color:#4a3b2c; font-style:italic; }
+.sw25-chat-card .sw25-fellow-dialogue::before { content:"\201C "; }
+.sw25-chat-card .sw25-fellow-dialogue::after { content:" \201D"; }
 
 @media (max-width: 900px) {
   .combat-layout { grid-template-columns:1fr; }

@@ -24,10 +24,14 @@ export class SW25ActorSheet extends ActorSheet {
     return "systems/sword-world-25/templates/actor/character-sheet.hbs";
   }
 
+  /**
+   * A race imported from the wiki is more than an owned Item: it initializes
+   * the character's languages, racial abilities, ability corrections, and
+   * background. Route dropped race Items through that same importer workflow.
+   */
   async _onDropItemCreate(itemData, event) {
     const dropped = Array.isArray(itemData) ? itemData : [itemData];
     const created = [];
-
     for (const data of dropped) {
       if (data?.type !== "race" || this.actor.type !== "character") {
         created.push(...await super._onDropItemCreate(data, event));
@@ -36,45 +40,42 @@ export class SW25ActorSheet extends ActorSheet {
 
       const importer = game.sw25?.importer;
       if (!importer) throw new Error("The Sword World 2.5 importer is not available.");
-
       const system = foundry.utils.deepClone(data.system || {});
       const sourceUrl = String(system.sourceUrl || "").trim();
-      let race;
 
+      // Reparse from the source when possible. This recovers structured
+      // background tables and racial abilities from compendiums created by
+      // older import macros, which only stored the flattened raw text.
+      let race;
       if (sourceUrl) {
         try {
           race = await importer.importUrl(sourceUrl, this.actor);
         } catch (error) {
-          console.warn(`Could not refresh dropped race ${data.name} from ${sourceUrl}; using stored data.`, error);
+          console.warn(`Sword World 2.5 | Could not refresh dropped race ${data.name} from ${sourceUrl}; using its stored data.`, error);
         }
       }
 
       if (!race) {
         const rawText = String(system.rawText || "");
         const abilitiesText = importer.extractRacialAbilitySection(rawText);
-        race = await importer.createRace({
-          name: String(data.name || "Imported Race"),
+        const parsed = {
+          name:String(data.name || "Imported Race"),
           sourceUrl,
-          description: String(system.description || ""),
-          languages: String(system.languages || ""),
-          restrictedClasses: String(system.restrictedClasses || ""),
-          lifespan: String(system.lifespan || ""),
-          soulscars: Number(system.soulscars || 0),
-          corrections: system.corrections || {},
-          backgrounds: String(system.backgrounds || ""),
-          backgroundTables: rawText
-            ? importer.parseBackgroundTablesMarkdown(rawText, data.name)
-            : [],
+          description:String(system.description || ""),
+          languages:String(system.languages || ""),
+          restrictedClasses:String(system.restrictedClasses || ""),
+          lifespan:String(system.lifespan || ""),
+          soulscars:Number(system.soulscars || 0),
+          corrections:system.corrections || {},
+          backgrounds:String(system.backgrounds || ""),
+          backgroundTables:rawText ? importer.parseBackgroundTablesMarkdown(rawText, data.name) : [],
           rawText,
-          abilities: abilitiesText
-            ? importer.extractAbilities(abilitiesText)
-            : []
-        }, this.actor);
+          abilities:abilitiesText ? importer.extractAbilities(abilitiesText) : []
+        };
+        race = await importer.createRace(parsed, this.actor);
       }
-
       if (race) created.push(race);
     }
-
     return created;
   }
 

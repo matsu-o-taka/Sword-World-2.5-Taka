@@ -1,0 +1,63 @@
+<form class="{{cssClass}} sw25-fellow-sheet sw25-official-sheet" autocomplete="off">
+  <div class="official-page sw25-fellow-page">
+    <section class="portrait-column fellow-portrait-column">
+      <div class="logo-box"><img class="official-logo" src="systems/sword-world-25/assets/sword-world-logo.png" alt="Sword World"></div>
+      <div class="portrait-frame">
+        <img class="profile-img" src="{{actor.img}}" data-edit="img" title="{{actor.name}}" alt="Fellow portrait">
+      </div>
+      <div class="name-plaque"><input type="text" name="name" value="{{actor.name}}" placeholder="Fellow Name"></div>
+    </section>
+
+    <section class="paper-panel fellow-profile-box">
+      <h2>Fellow Profile</h2>
+      <div class="fellow-profile-grid">
+        <label><span>Race</span><input type="text" name="system.fellow.race" value="{{system.fellow.race}}"></label>
+        <label><span>Age</span><input type="text" name="system.biography.age" value="{{system.biography.age}}"></label>
+        <label><span>Gender</span><input type="text" name="system.biography.gender" value="{{system.biography.gender}}"></label>
+        <label><span>Adventurer Level</span><input type="number" name="system.fellow.adventurerLevel" value="{{system.fellow.adventurerLevel}}" min="0"></label>
+        <label><span>MP</span><input type="number" name="system.fellow.mp" value="{{system.fellow.mp}}" min="0"></label>
+        <label class="fellow-classes"><span>Classes</span><input type="text" name="system.fellow.classes" value="{{system.fellow.classes}}" placeholder="Fighter 2, Scout 1"></label>
+        <label class="fellow-languages"><span>Languages</span><input type="text" name="system.fellow.languages" value="{{system.fellow.languages}}" placeholder="Trade Common (Speak/Read)"></label>
+      </div>
+    </section>
+
+    <section class="paper-panel fellow-introduction-box">
+      <h2>Self-Introduction</h2>
+      <textarea name="system.fellow.introduction" placeholder="A sentence or two that introduces this Fellow">{{system.fellow.introduction}}</textarea>
+    </section>
+
+    <section class="paper-panel fellow-rewards-box">
+      <h2>Adventure Rewards</h2>
+      <label class="fellow-choice"><input type="checkbox" name="system.fellow.wantsExperience" {{#if system.fellow.wantsExperience}}checked{{/if}}> Receive Experience Points</label>
+      <label class="fellow-choice"><input type="checkbox" name="system.fellow.wantsRewards" {{#if system.fellow.wantsRewards}}checked{{/if}}> Receive Rewards</label>
+      <p>Reputation is shared equally with the party.</p>
+    </section>
+
+    <section class="paper-panel fellow-actions-box">
+      <h2>Fellow Action Table</h2>
+      <div class="fellow-table-toolbar">
+        <p class="fellow-table-hint">Order an action, then roll 1d6; the Fellow carries it out only if the rolled row matches the ordered one. Otherwise the action is cancelled without spending MP.</p>
+        <button type="button" class="fellow-roll-button" data-action="roll-fellow-action"><i class="fas fa-dice"></i> Try Action (1d6)</button>
+      </div>
+      <div class="fellow-action-table-wrap">
+        <table class="fellow-action-table">
+          <thead>
+            <tr><th>1d</th><th>Result</th><th>Action</th><th>Dialogue</th><th>Value</th><th>MP</th><th>Effect</th></tr>
+          </thead>
+          <tbody>
+            {{#each fellowActions as |entry|}}
+            <tr>
+              <th>{{entry.dieLabel}}</th><td class="fellow-fixed-value">{{entry.resultValue}}</td>
+              <td><textarea name="system.fellow.actions.{{entry.index}}.action" placeholder="Action">{{entry.action}}</textarea></td>
+              <td><textarea name="system.fellow.actions.{{entry.index}}.dialogue" placeholder="Dialogue">{{entry.dialogue}}</textarea></td>
+              <td><input name="system.fellow.actions.{{entry.index}}.value" value="{{entry.value}}" placeholder="&#8212;"></td>
+              <td><input type="number" name="system.fellow.actions.{{entry.index}}.mpCost" value="{{entry.mpCost}}" min="0"></td>
+              <td><textarea name="system.fellow.actions.{{entry.index}}.effect" placeholder="Effect">{{entry.effect}}</textarea></td>
+            </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</form>
