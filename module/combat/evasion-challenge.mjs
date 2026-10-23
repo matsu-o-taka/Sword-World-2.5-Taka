@@ -38,7 +38,7 @@ function challengeActor() {
 }
 
 export function initializeEvasionChallenges() {
-  Hooks.on("renderChatMessage", (message, html) => {
+  Hooks.on("renderChatMessageHTML", (message, html) => {
     const challenge = message.getFlag(FLAG_SCOPE, FLAG_KEY);
     if (!challenge) return;
     html.find("[data-sw25-chat-action='roll-evasion-challenge']").on("click", async event => {

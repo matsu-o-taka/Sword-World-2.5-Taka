@@ -111,7 +111,7 @@ export function initializeRecoveryItems() {
       return item.update(patch);
     }
   });
-  Hooks.on("renderChatMessage", (_message, html) => {
+  Hooks.on("renderChatMessageHTML", (_message, html) => {
     html.find("[data-sw25-chat-action='roll-recovery-item']").on("click", event => {
       event.preventDefault();
       return rollRecoveryItem(event.currentTarget);
