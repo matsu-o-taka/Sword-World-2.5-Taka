@@ -41,26 +41,26 @@ Hooks.once("init", () => {
     fellow: { bar: [], value: [] }
   };
 
-  Actors.unregisterSheet("core", ActorSheet);
-  Actors.registerSheet("sword-world-25", SW25ActorSheet, {
+  foundry.documents.collections.Actors.unregisterSheet("core", foundry.appv1.sheets.ActorSheet);
+  foundry.documents.collections.Actors.registerSheet("sword-world-25", SW25ActorSheet, {
     types: ["character"],
     makeDefault: true
   });
-  Actors.registerSheet("sword-world-25", SW25MonsterSheet, {
+  foundry.documents.collections.Actors.registerSheet("sword-world-25", SW25MonsterSheet, {
     types: ["monster"],
     makeDefault: true
   });
-  Actors.registerSheet("sword-world-25", SW25NPCSheet, {
+  foundry.documents.collections.Actors.registerSheet("sword-world-25", SW25NPCSheet, {
     types: ["npc"],
     makeDefault: true
   });
-  Actors.registerSheet("sword-world-25", SW25FellowSheet, {
+  foundry.documents.collections.Actors.registerSheet("sword-world-25", SW25FellowSheet, {
     types: ["fellow"],
     makeDefault: true
   });
 
-  Items.unregisterSheet("core", ItemSheet);
-  Items.registerSheet("sword-world-25", SW25ItemSheet, {
+  foundry.documents.collections.Items.unregisterSheet("core", foundry.appv1.sheets.ItemSheet);
+  foundry.documents.collections.Items.registerSheet("sword-world-25", SW25ItemSheet, {
     types: ["race", "class", "feat", "ability", "weapon", "armour", "skill", "spell", "equipment"],
     makeDefault: true
   });
