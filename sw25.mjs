@@ -82,7 +82,7 @@ Hooks.once("ready", initializeEvasionChallenges);
 Hooks.once("ready", initializeRecoveryItems);
 Hooks.once("ready", initializeClassGrants);
 
-Hooks.on("renderChatMessage", (message, html) => {
+Hooks.on("renderChatMessageHTML", (message, html) => {
   if (message.getFlag("sword-world-25", "naturalPowerAdded")) {
     html.find("[data-sw25-chat-action='add-natural-power']").prop("disabled", true).html('<i class="fas fa-check"></i> MP Added');
   }

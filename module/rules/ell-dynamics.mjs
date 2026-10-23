@@ -1,0 +1,1 @@
+Hooks.on("renderChatMessageHTML", (message, html) => {
