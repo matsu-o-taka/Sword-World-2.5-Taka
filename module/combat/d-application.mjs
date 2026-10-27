@@ -1,1 +1,0 @@
-Hooks.on("renderChatMessageHTML", (_message, html) => {
