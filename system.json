@@ -1,0 +1,78 @@
+{
+  "id": "sword-world-25",
+  "title": "Sword World 2.5",
+  "description": "A Foundry VTT system for Sword World 2.5",
+  "version": "0.15.1",
+  "url": "https://github.com/matsu-o-taka/Sword-World-2.5-Taka",
+  "manifest": "https://raw.githubusercontent.com/matsu-o-taka/Sword-World-2.5-Taka/main/system.json",
+  "download": "https://github.com/matsu-o-taka/Sword-World-2.5-Taka/releases/latest/download/sword-world-25.zip",
+  "authors": [
+    {
+      "name": "Daedalus"
+    },
+    {
+      "name": "O-Taka"
+    }
+  ],
+  "compatibility": {
+    "minimum": "14",
+    "verified": "14"
+  },
+  "esmodules": ["sw25.mjs"],
+  "styles": [
+    {
+      "src": "styles/sw25.css"
+    },
+    {
+      "src": "styles/fellow-sheet.css"
+    }
+  ],
+  "documentTypes": {
+    "Actor": {
+      "character": {
+        "htmlFields": ["notes", "biography.notes"]
+      },
+      "monster": {
+        "htmlFields": ["description"]
+      },
+      "npc": {
+        "htmlFields": ["biography.notes", "npc.appearance", "npc.personality", "npc.motivation"]
+      },
+      "fellow": {
+        "htmlFields": ["fellow.introduction"]
+      }
+    },
+    "Item": {
+      "class": {
+        "htmlFields": ["description"]
+      },
+      "feat": {
+        "htmlFields": ["description"]
+      },
+      "ability": {
+        "htmlFields": ["description"]
+      },
+      "weapon": {
+        "htmlFields": ["description"]
+      },
+      "armour": {
+        "htmlFields": ["description"]
+      },
+      "skill": {
+        "htmlFields": ["description"]
+      },
+      "spell": {
+        "htmlFields": ["description"]
+      },
+      "equipment": {
+        "htmlFields": ["description"]
+      },
+      "race": {
+        "htmlFields": ["description"]
+      }
+    }
+  },
+  "initiative": "2d6 + @combat.initiative",
+  "primaryTokenAttribute": "hp",
+  "secondaryTokenAttribute": "mp"
+}

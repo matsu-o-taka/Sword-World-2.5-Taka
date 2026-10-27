@@ -1,0 +1,43 @@
+<form class="{{cssClass}} sw25-npc-sheet sw25-official-sheet sw25-theme-{{sheetStyle}}" autocomplete="off">
+  <div class="official-page sw25-npc-page">
+    <section class="portrait-column npc-portrait-column">
+      <div class="logo-box"><img class="official-logo" src="systems/sword-world-25/assets/sword-world-logo.png" alt="Sword World"></div>
+      <div class="sheet-appearance-control"><label for="sw25-sheet-style-{{actor.id}}">Style</label><select id="sw25-sheet-style-{{actor.id}}" data-action="set-sheet-style"><option value="paper" {{#if isPaperStyle}}selected{{/if}}>Paper</option><option value="adventurer" {{#if isAdventurerStyle}}selected{{/if}}>Adventurer</option></select></div>
+      <div class="portrait-frame">
+        <img class="profile-img" src="{{actor.img}}" data-edit="img" title="{{actor.name}}" alt="NPC portrait">
+      </div>
+      <div class="name-plaque"><input type="text" name="name" value="{{actor.name}}" placeholder="NPC Name"></div>
+    </section>
+
+    <section class="paper-panel npc-identity-box">
+      <h2>Identity</h2>
+      <div class="npc-identity-grid">
+        <label><span>Race</span><input type="text" name="system.npc.race" value="{{system.npc.race}}"></label>
+        <label><span>Age</span><input type="text" name="system.biography.age" value="{{system.biography.age}}"></label>
+        <label><span>Gender</span><input type="text" name="system.biography.gender" value="{{system.biography.gender}}"></label>
+        <label class="npc-role-field"><span>Role / Occupation</span><input type="text" name="system.biography.title" value="{{system.biography.title}}"></label>
+        <label class="npc-residence-field"><span>Residence / Location</span><input type="text" name="system.npc.residence" value="{{system.npc.residence}}"></label>
+      </div>
+    </section>
+
+    <section class="paper-panel npc-description-box">
+      <h2>Appearance</h2>
+      <textarea name="system.npc.appearance" placeholder="Appearance, clothing, distinguishing features">{{system.npc.appearance}}</textarea>
+    </section>
+
+    <section class="paper-panel npc-personality-box">
+      <h2>Personality</h2>
+      <textarea name="system.npc.personality" placeholder="Manner, attitudes, and notable traits">{{system.npc.personality}}</textarea>
+    </section>
+
+    <section class="paper-panel npc-motivation-box">
+      <h2>Goals and Motivations</h2>
+      <textarea name="system.npc.motivation" placeholder="Objectives, needs, secrets, or current concerns">{{system.npc.motivation}}</textarea>
+    </section>
+
+    <section class="paper-panel npc-notes-box">
+      <h2>Notes</h2>
+      <textarea name="system.biography.notes" placeholder="Additional background and session notes">{{system.biography.notes}}</textarea>
+    </section>
+  </div>
+</form>

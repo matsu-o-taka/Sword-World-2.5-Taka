@@ -1,0 +1,201 @@
+import { SW25ActorSheet } from "./module/actor/actor-sheet.mjs";
+import { SW25MonsterSheet } from "./module/actor/monster-sheet.mjs";
+import { SW25NPCSheet } from "./module/actor/npc-sheet.mjs";
+import { SW25FellowSheet } from "./module/actor/fellow-sheet.mjs";
+import { SW25ItemSheet } from "./module/item/item-sheet.mjs";
+import { SW25Importer } from "./module/importer/sw25-importer.mjs";
+import { resolveAttackingClass, rollWeaponDamage } from "./module/rules/weapon-roll.mjs";
+import { abilityBonus } from "./module/rules/weapon-damage.mjs";
+import { initializeSideInitiative } from "./module/combat/side-initiative.mjs";
+import { damageApplicationButton, initializeDamageApplication } from "./module/combat/damage-application.mjs";
+import { addNaturalPowerMP } from "./module/rules/spell-damage.mjs";
+import { initializeSpellEffects } from "./module/rules/spell-effects.mjs";
+import { initializeEvasionChallenges } from "./module/combat/evasion-challenge.mjs";
+import { criticalFailureHTML, markCriticalFailure } from "./module/rules/critical-failure.mjs";
+import { initializeRecoveryItems } from "./module/rules/recovery-items.mjs";
+import { initializeClassGrants } from "./module/rules/class-grants.mjs";
+import { initializeStandardScenes } from "./module/scenes/standard-scenes.mjs";
+
+Hooks.once("init", () => {
+  game.sw25 = { importer: SW25Importer };
+  console.log("Sword World 2.5 | Initializing");
+
+  // Keep the system stylesheet after Foundry's core theme styles. Foundry V14
+  // otherwise allows core form/button rules to win depending on load order.
+  const stylesheetPath = "systems/sword-world-25/styles/sw25.css";
+  const existingStylesheet = document.querySelector(`link[data-sw25-stylesheet]`);
+  if (!existingStylesheet) {
+    const stylesheet = document.createElement("link");
+    stylesheet.rel = "stylesheet";
+    stylesheet.href = stylesheetPath;
+    stylesheet.dataset.sw25Stylesheet = "true";
+    document.head.appendChild(stylesheet);
+  }
+
+  CONFIG.Actor.trackableAttributes = {
+    character: {
+      bar: ["hp", "mp"],
+      value: ["xp.total", "currency.gamels"]
+    },
+    monster: { bar: [], value: ["level", "initiative"] },
+    npc: { bar: [], value: [] },
+    fellow: { bar: [], value: [] }
+  };
+
+  foundry.documents.collections.Actors.unregisterSheet("core", foundry.appv1.sheets.ActorSheet);
+  foundry.documents.collections.Actors.registerSheet("sword-world-25", SW25ActorSheet, {
+    types: ["character"],
+    makeDefault: true
+  });
+  foundry.documents.collections.Actors.registerSheet("sword-world-25", SW25MonsterSheet, {
+    types: ["monster"],
+    makeDefault: true
+  });
+  foundry.documents.collections.Actors.registerSheet("sword-world-25", SW25NPCSheet, {
+    types: ["npc"],
+    makeDefault: true
+  });
+  foundry.documents.collections.Actors.registerSheet("sword-world-25", SW25FellowSheet, {
+    types: ["fellow"],
+    makeDefault: true
+  });
+
+  foundry.documents.collections.Items.unregisterSheet("core", foundry.appv1.sheets.ItemSheet);
+  foundry.documents.collections.Items.registerSheet("sword-world-25", SW25ItemSheet, {
+    types: ["race", "class", "feat", "ability", "weapon", "armour", "skill", "spell", "equipment"],
+    makeDefault: true
+  });
+
+  game.settings.register("sword-world-25", "standardScenesCreated", {
+    scope:"world",
+    config:false,
+    type:Boolean,
+    default:false
+  });
+});
+
+Hooks.on("preCreateActor", actor => {
+  if (actor.type === "character") actor.updateSource({ "prototypeToken.actorLink":true });
+});
+
+Hooks.on("preCreateToken", token => {
+  const actor = token.actor ?? game.actors.get(token.actorId);
+  if (actor?.type === "character") token.updateSource({ actorLink:true });
+});
+
+Hooks.once("ready", initializeSideInitiative);
+Hooks.once("ready", initializeDamageApplication);
+Hooks.once("ready", initializeSpellEffects);
+Hooks.once("ready", initializeEvasionChallenges);
+Hooks.once("ready", initializeRecoveryItems);
+Hooks.once("ready", initializeClassGrants);
+Hooks.once("ready", initializeStandardScenes);
+
+Hooks.on("renderItemDirectory", (_application, html) => {
+  if (!game.user.can("ITEM_CREATE")) return;
+  const root = html instanceof HTMLElement ? html : html?.[0];
+  if (!root || root.querySelector("[data-sw25-directory-import]")) return;
+  const actions = root.querySelector(".header-actions") || root.querySelector(".directory-header");
+  if (!actions) return;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "sw25-directory-import";
+  button.dataset.sw25DirectoryImport = "true";
+  button.innerHTML = '<i class="fas fa-file-import"></i> Import SW2.5 Item';
+  button.title = "Import an item from the Sword World 2.5 Reference Wiki";
+  button.addEventListener("click", event => {
+    event.preventDefault();
+    SW25Importer.open(null);
+  });
+  actions.append(button);
+});
+
+Hooks.on("renderChatMessageHTML", (message, html) => {
+  const $html = $(html);
+  if (message.getFlag("sword-world-25", "naturalPowerAdded")) {
+    $html.find("[data-sw25-chat-action='add-natural-power']").prop("disabled", true).html('<i class="fas fa-check"></i> MP Added');
+  }
+  $html.find("[data-sw25-chat-action='add-natural-power']").on("click", async event => {
+    event.preventDefault();
+    const button = event.currentTarget;
+    const actor = game.actors.get(button.dataset.actorId);
+    if (!actor?.isOwner) return ui.notifications.warn("You do not own the character receiving this MP.");
+    if (message.getFlag("sword-world-25", "naturalPowerAdded")) return ui.notifications.warn("This Natural Power result has already been added.");
+    button.disabled = true;
+    await addNaturalPowerMP(actor, Number(button.dataset.mp || 0));
+    await message.setFlag("sword-world-25", "naturalPowerAdded", true);
+    button.innerHTML = '<i class="fas fa-check"></i> MP Added';
+  });
+
+  $html.find("[data-sw25-chat-action='roll-spell-damage']").on("click", async event => {
+    event.preventDefault();
+    const button = event.currentTarget;
+    const actor = game.actors.get(button.dataset.actorId);
+    const spell = actor?.items.get(button.dataset.itemId);
+    const castingClass = actor?.items.get(button.dataset.classId);
+    if (!actor || !spell || !castingClass) return ui.notifications.warn("The actor, spell, or casting class could not be found.");
+    button.disabled = true;
+    const roll = await new Roll("2d6").evaluate();
+    const criticalFailure = await markCriticalFailure(actor, roll);
+    if (criticalFailure) {
+      await roll.toMessage({ speaker:ChatMessage.getSpeaker({ actor }), flavor:`<div class="sw25-chat-card"><h3>${foundry.utils.escapeHTML(spell.name)} Damage</h3>${criticalFailureHTML()}<p>No damage is dealt.</p></div>` });
+      return;
+    }
+    const diceTotal = Number(roll.total ?? 0);
+    const lookup = String(Math.min(12, Math.max(3, diceTotal)));
+    const tableValue = Number(spell.system.powerTable?.[lookup] ?? 0);
+    const magicPower = Number(castingClass.system.level ?? 0) + abilityBonus(actor.system, "intelligence");
+    const total = tableValue + magicPower;
+    const critical = Number(spell.system.critical ?? 0);
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor }),
+      content: `<div class="sw25-chat-card sw25-spell-power-result"><h3>${foundry.utils.escapeHTML(spell.name)} Damage</h3><p><strong>Power roll:</strong> ${diceTotal} → ${tableValue}</p><p><strong>Magic Power:</strong> ${magicPower}</p><p class="sw25-weapon-total"><strong>Total:</strong> ${total}</p>${damageApplicationButton(total, "magical")}${critical && diceTotal >= critical ? '<p class="sw25-critical">CRITICAL</p>' : ""}</div>`
+    });
+  });
+
+  $html.find("[data-sw25-chat-action='roll-critical-damage']").on("click", async event => {
+    event.preventDefault();
+    const button = event.currentTarget;
+    const actor = game.actors.get(button.dataset.actorId);
+    const weapon = actor?.items.get(button.dataset.itemId);
+    const attackingClass = actor && weapon
+      ? resolveAttackingClass(actor, weapon, button.dataset.classId)
+      : null;
+    if (!actor || !weapon || !attackingClass) {
+      ui.notifications.warn("The actor, weapon, or attacking class could not be found.");
+      return;
+    }
+    if (weapon.system?.artificerPowered) return ui.notifications.info("Gun damage is rolled through its bullet spell.");
+    button.disabled = true;
+    await rollWeaponDamage({
+      actor,
+      weapon,
+      attackingClass,
+      accumulatedPower: Number(button.dataset.accumulatedPower ?? 0)
+    });
+  });
+
+  $html.find("[data-sw25-chat-action='roll-weapon-damage']").on("click", async event => {
+    event.preventDefault();
+    const card = event.currentTarget.closest(".sw25-chat-card");
+    const actor = game.actors.get(card?.dataset.actorId);
+    const weapon = actor?.items.get(card?.dataset.itemId);
+    if (!actor || !weapon) {
+      ui.notifications.warn("The weapon or actor could not be found.");
+      return;
+    }
+    if (weapon.system?.artificerPowered) return ui.notifications.info("Gun damage is rolled through its bullet spell.");
+
+    const formula = weapon.system.damageFormula || "2d6";
+    try {
+      const roll = await new Roll(formula).evaluate();
+      await roll.toMessage({
+        speaker: ChatMessage.getSpeaker({ actor }),
+        flavor: `${weapon.name} Damage — Power ${Number(weapon.system.power ?? 0)}, Critical ${Number(weapon.system.critical ?? 10)}`
+      });
+    } catch (error) {
+      console.error("Sword World 2.5 | Invalid weapon damage formula", error);
+      ui.notifications.error(`Invalid damage formula: ${formula}`);
+    }
+  });
+});
