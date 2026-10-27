@@ -31,6 +31,10 @@ export class SW25FellowSheet extends ActorSheet {
     const context = await super.getData(options);
     context.actor = this.actor;
     context.system = this.actor.system;
+    const savedSheetStyle = String(this.actor.getFlag("sword-world-25", "sheetStyle") ?? "paper").toLowerCase();
+    context.sheetStyle = ["paper", "adventurer"].includes(savedSheetStyle) ? savedSheetStyle : "paper";
+    context.isPaperStyle = context.sheetStyle === "paper";
+    context.isAdventurerStyle = context.sheetStyle === "adventurer";
     const labels = ["1-2", "3-4", "5", "6"];
     const results = [7, 8, 9, 10];
     const actions = Array.isArray(this.actor.system.fellow?.actions) ? this.actor.system.fellow.actions : [];
@@ -45,6 +49,12 @@ export class SW25FellowSheet extends ActorSheet {
 
   activateListeners(html) {
     super.activateListeners(html);
+    html.find("[data-action='set-sheet-style']").on("change", async event => {
+      event.preventDefault();
+      const style = String(event.currentTarget.value || "paper").toLowerCase();
+      await this.actor.setFlag("sword-world-25", "sheetStyle", style === "adventurer" ? "adventurer" : "paper");
+      this.render(false);
+    });
     html.find("[data-action='roll-fellow-action']").on("click", event => {
       event.preventDefault();
       return this._onRollFellowAction();

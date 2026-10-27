@@ -576,6 +576,12 @@
 .sw25-official-sheet .magic-box { display:flex; flex-direction:column; min-height:0; }
 .sw25-official-sheet .magic-box .magic-list { flex:1 1 auto; min-height:0; overflow-y:auto; }
 .sw25-official-sheet .spell-level-heading { margin:0; padding:3px 6px; border-top:1px solid #777; border-bottom:1px solid #aaa; background:rgba(70,55,40,.1); font-size:10px; text-align:left; text-transform:uppercase; }
+.official-tabs .sheet-appearance-control,
+.sw25-npc-sheet .sheet-appearance-control,
+.sw25-fellow-sheet .sheet-appearance-control { display:flex; align-items:center; gap:4px; margin-left:auto; font-size:9px; font-weight:bold; text-transform:uppercase; white-space:nowrap; }
+.official-tabs .sheet-appearance-control select,.sw25-npc-sheet .sheet-appearance-control select,.sw25-fellow-sheet .sheet-appearance-control select { width:92px; height:27px; padding:1px 5px; font-size:10px; }
+.sw25-npc-sheet .portrait-column .sheet-appearance-control,
+.sw25-fellow-sheet .portrait-column .sheet-appearance-control { margin:3px auto 1px; }
 .sw25-official-sheet .class-feature-list { max-height:520px; overflow-y:auto; }
 .sw25-spell-power-result { border-top:1px solid #777; margin-top:6px; padding-top:4px; }
 .class-resource-summary,.alchemist-card-summary { grid-column:1 / -1; padding-top:30px; position:relative; }
@@ -905,6 +911,22 @@
 .ability-score-box{padding-bottom:5px}.ability-groups{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:8px 5px}.ability-group{text-align:center}.base-diamond{width:58px;height:58px;margin:0 auto -17px;transform:rotate(45deg);border:2px solid #555;background:#f4efe2;position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center}.base-diamond>*{transform:rotate(-45deg)}.base-diamond span{font-size:9px;text-transform:uppercase}.base-diamond input{width:34px;text-align:center;border:0;font-weight:bold}.ability-pair-official{display:grid;grid-template-columns:1fr 1fr;gap:2px}.ability-tower{display:flex;flex-direction:column;align-items:center}.adjust-diamond{width:34px;height:34px;transform:rotate(45deg);border:1px solid #555;background:#f4efe2;display:flex;flex-direction:column;align-items:center;justify-content:center}.adjust-diamond>*{transform:rotate(-45deg)}.adjust-diamond span{font-size:6px}.adjust-diamond input{width:23px;height:13px;text-align:center;border:0;font-size:9px}.growth-box{width:54px;margin-top:9px;border:1px solid #555;font-size:7px;text-transform:uppercase}.growth-box input{width:100%;height:19px;text-align:center;border:0}.score-octagon,.bonus-orb{display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px solid #555;background:#f4efe2}.score-octagon{width:66px;height:70px;clip-path:polygon(20% 0,80% 0,100% 20%,100% 80%,80% 100%,20% 100%,0 80%,0 20%)}.score-octagon span{font-size:8px;text-transform:uppercase}.score-octagon strong{font-size:20px}.bonus-orb{width:48px;height:48px;border-radius:50%;margin-top:-5px}.bonus-orb span{font-size:7px;text-transform:uppercase}.bonus-orb strong{font-size:16px}
 .inventory-box{display:flex;flex-direction:column}.inventory-lines{padding:4px;min-height:195px}.inventory-lines>div{display:flex;justify-content:space-between;border-bottom:1px solid #aaa;font-size:11px}.inventory-box textarea{height:105px;margin:3px 6px;border:1px solid #aaa}.money-line{display:flex;align-items:center;gap:8px;padding:5px}.money-line input{flex:1;text-align:right}.language-head,.language-line{display:grid;grid-template-columns:1fr 35px 35px;padding:2px 7px;border-bottom:1px solid #aaa;font-size:10px}.language-line input{margin:auto}.notes-box textarea{width:calc(100% - 10px);height:103px;margin:4px;border:0}
 .official-page-two{display:grid;grid-template-columns:300px 1fr 240px;grid-template-rows:150px 320px 230px 220px;gap:10px;grid-template-areas:"special movement hp" "access defense defense" "magic feats feats" "offense offense offense"}.special-box{grid-area:special}.movement-box{grid-area:movement}.hp-box{grid-area:hp}.accessories-box{grid-area:access}.defense-box{grid-area:defense}.magic-box{grid-area:magic}.feats-box{grid-area:feats}.offense-box{grid-area:offense}.special-grid{display:grid;grid-template-columns:1fr 110px;gap:4px;padding:6px}.special-grid label{display:flex;align-items:center;justify-content:space-between;font-size:11px}.special-grid input{width:40px;text-align:center}.special-grid button{font-size:9px}.movement-track{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:10px}.movement-track label{font-size:9px;text-align:center;text-transform:uppercase}.movement-track input{width:100%;font-size:20px;text-align:center}.movement-box>input{width:calc(100% - 12px);margin:6px}.resource-shield{margin:18px auto;width:150px;height:80px;clip-path:polygon(12% 0,88% 0,100% 25%,85% 100%,15% 100%,0 25%);border:3px solid #555;display:flex;align-items:center;justify-content:center;gap:4px;background:#f4efe2}.resource-shield input{width:50px;text-align:center;font-size:19px}.accessory-list>div{display:grid;grid-template-columns:70px 1fr;border-bottom:1px solid #aaa;padding:4px;font-size:11px}.defense-classes,.offense-summary{display:flex;justify-content:space-around;flex-wrap:wrap;padding:5px;border-bottom:1px solid #777;font-size:10px}.def-head,.defense-table>div,.weapon-head,.weapon-table>div{display:grid;align-items:center;border-bottom:1px solid #aaa;font-size:10px}.def-head,.defense-table>div{grid-template-columns:1fr 60px 60px 60px}.weapon-head,.weapon-table>div{grid-template-columns:1fr 80px 75px 65px 55px 50px}.def-head,.weapon-head{font-weight:bold;text-transform:uppercase}.defense-table>* >*,.weapon-table>* >*{padding:3px}.resistance-strip{display:flex;justify-content:flex-end;gap:5px;padding:8px}.resistance-strip button{min-width:100px}.mp-gem{display:flex;align-items:center;justify-content:center;gap:4px;padding:8px}.mp-gem input{width:55px;text-align:center;font-size:18px}.magic-list>div{display:grid;grid-template-columns:1fr 45px 45px 45px;border-bottom:1px solid #aaa;font-size:10px;align-items:center}.magic-list button{height:20px;margin:0;padding:0}.feat-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;padding:4px}.feat-grid>div{border-bottom:1px solid #aaa;min-height:24px}.additional-columns{display:grid;grid-template-columns:1fr 1fr}.additional-columns>div{padding:5px}.additional-columns>div:first-child{border-right:1px solid #777}.additional-columns h3{text-align:center}.offense-box{align-self:stretch}.utility-tab{padding:10px}.utility-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:10px}.utility-grid label{display:flex;flex-direction:column}.utility-item-list>div{display:grid;grid-template-columns:1fr 100px 35px;border-bottom:1px solid #999;padding:4px}
+
+/* Optional Adventurer character-sheet presentation. */
+.sw25-theme-adventurer { background:linear-gradient(rgba(235,239,230,.93),rgba(218,226,213,.93)),repeating-linear-gradient(0deg,transparent 0 3px,rgba(25,71,49,.025) 3px 4px); }
+.sw25-theme-adventurer .official-page { background:linear-gradient(rgba(246,247,239,.42),rgba(246,247,239,.32)),#f6f7ef; }
+.sw25-theme-adventurer .official-page-one { background:linear-gradient(rgba(246,247,239,.42),rgba(246,247,239,.32)),url("../assets/adventurer-sheet-background.png") center bottom / 100% auto no-repeat,#f6f7ef; }
+.sw25-theme-adventurer .official-page-two { background:linear-gradient(rgba(246,247,239,.42),rgba(246,247,239,.32)),url("../assets/adventurer-page-two-background.webp") center bottom / 100% auto no-repeat,#f6f7ef; }
+.sw25-theme-adventurer .sw25-npc-page,
+.sw25-theme-adventurer .sw25-fellow-page { background:linear-gradient(rgba(246,247,239,.42),rgba(246,247,239,.32)),url("../assets/adventurer-sheet-background.png") center bottom / 100% auto no-repeat,#f6f7ef; }
+.sw25-theme-adventurer .paper-panel { background:rgba(250,250,241,.62); backdrop-filter:blur(1px); }
+.sw25-theme-adventurer .official-page-one > .class-box,
+.sw25-theme-adventurer .official-page-one > .portrait-column,
+.sw25-theme-adventurer .official-page-one > .biography-box { position:relative; top:auto; z-index:1; align-self:stretch; height:auto; box-sizing:border-box; border-top:10px solid #214f3b; box-shadow:0 5px 9px rgba(20,43,31,.28); }
+.sw25-theme-adventurer .official-page-one > .portrait-column { background:rgba(246,247,239,.66); border-right:3px double #363330; border-left:3px double #363330; backdrop-filter:blur(1px); }
+.sw25-theme-adventurer .official-page-one > .class-box h2,
+.sw25-theme-adventurer .official-page-one > .biography-box h2 { background:#214f3b; color:#f1f5ea; border-bottom-color:#173a2c; text-shadow:0 1px 1px #10281e; }
+.sw25-theme-adventurer .name-plaque { background:rgba(242,246,235,.78); }
 
 /* v0.7.0.1 interactive official-sheet controls */
 .sw25-official-sheet .panel-add { float:right; width:22px; height:22px; min-height:0; padding:0; border:1px solid #403b35; border-radius:50%; background:#f5f0e5; color:#292622; }
@@ -2059,3 +2081,65 @@ body.sw25-side-combat-active .combatant-turn-marker,body.sw25-side-combat-active
 .combat-sidebar .combat-tracker .combatant.active { background:transparent !important; }
 .combat-sidebar .combat-tracker .combatant.active::before { content:none !important; display:none !important; border:0 !important; }
 .combat-sidebar .combat-tracker .combatant.active .token-initiative input { --input-background-color:transparent !important; background:transparent !important; }
+
+/* Adventurer theme: keep every sheet box translucent over the artwork. */
+form.sw25-official-sheet.sw25-theme-adventurer .paper-panel { background:rgba(247,246,235,.60); backdrop-filter:blur(1px); }
+form.sw25-official-sheet.sw25-theme-adventurer .paper-panel::before,
+form.sw25-official-sheet.sw25-theme-adventurer .paper-panel::after { background:rgba(246,247,239,.62); }
+form.sw25-official-sheet.sw25-theme-adventurer .paper-panel > h2,
+form.sw25-official-sheet.sw25-theme-adventurer .paper-panel > h3,
+form.sw25-official-sheet.sw25-theme-adventurer .class-feature-head,
+form.sw25-official-sheet.sw25-theme-adventurer .spell-level-heading,
+form.sw25-official-sheet.sw25-theme-adventurer .defense-table .def-head { background-color:rgba(222,216,203,.66); }
+form.sw25-official-sheet.sw25-theme-adventurer .official-page-one > .class-box h2,
+form.sw25-official-sheet.sw25-theme-adventurer .official-page-one > .biography-box h2 { background-color:rgba(33,79,59,.88); }
+form.sw25-official-sheet.sw25-theme-adventurer input,
+form.sw25-official-sheet.sw25-theme-adventurer textarea,
+form.sw25-official-sheet.sw25-theme-adventurer select { background-color:rgba(255,252,239,.34); }
+form.sw25-official-sheet.sw25-theme-adventurer .base-diamond,
+form.sw25-official-sheet.sw25-theme-adventurer .adjust-diamond,
+form.sw25-official-sheet.sw25-theme-adventurer .growth-box,
+form.sw25-official-sheet.sw25-theme-adventurer .temporary-box,
+form.sw25-official-sheet.sw25-theme-adventurer .score-octagon,
+form.sw25-official-sheet.sw25-theme-adventurer .bonus-orb,
+form.sw25-official-sheet.sw25-theme-adventurer .resource-shield,
+form.sw25-official-sheet.sw25-theme-adventurer .adventurer-orb,
+form.sw25-official-sheet.sw25-theme-adventurer .name-plaque,
+form.sw25-official-sheet.sw25-theme-adventurer .feat-details,
+form.sw25-official-sheet.sw25-theme-adventurer .work-skill-details,
+form.sw25-official-sheet.sw25-theme-adventurer .work-check-details { background-color:rgba(244,239,226,.64); }
+form.sw25-official-sheet.sw25-theme-adventurer .resource-heart::after,
+form.sw25-official-sheet.sw25-theme-adventurer .mp-crystal::after { background:rgba(238,231,214,.68); }
+form.sw25-official-sheet.sw25-theme-adventurer .panel-add,
+form.sw25-official-sheet.sw25-theme-adventurer .resistance-strip button,
+form.sw25-official-sheet.sw25-theme-adventurer .combat-weapon-row .weapon-trash { background-color:rgba(245,240,229,.56); }
+form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-abyss-gazer { background:linear-gradient(rgba(246,247,239,.38),rgba(246,247,239,.28)),url("../assets/abyss-gazer-background.png") left bottom / contain no-repeat,#f6f7ef; }
+form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-artificer { background:linear-gradient(rgba(246,247,239,.38),rgba(246,247,239,.28)),url("../assets/artificer-background.png") right bottom / contain no-repeat,#f6f7ef; }
+form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-sorcerer { background:linear-gradient(rgba(246,247,239,.38),rgba(246,247,239,.28)),url("../assets/sorcerer-background.webp") center 38% / cover no-repeat,#f6f7ef; }
+form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-bibliomancer { background:linear-gradient(rgba(246,247,239,.38),rgba(246,247,239,.28)),url("../assets/bibliomancer-background.png") left bottom / contain no-repeat,#f6f7ef; }
+form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-conjurer { background:linear-gradient(rgba(246,247,239,.38),rgba(246,247,239,.28)),url("../assets/conjurer-background.webp") right bottom / contain no-repeat,#f6f7ef; }
+form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-priest { background:linear-gradient(rgba(246,247,239,.38),rgba(246,247,239,.28)),url("../assets/priest-background.webp") left bottom / contain no-repeat,#f6f7ef; }
+form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-enhancer { background:linear-gradient(rgba(246,247,239,.38),rgba(246,247,239,.28)),url("../assets/enhancer-background.webp") left bottom / contain no-repeat,#f6f7ef; }
+form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-bard { background:linear-gradient(rgba(246,247,239,.38),rgba(246,247,239,.28)),url("../assets/bard-background.webp") center 32% / cover no-repeat,#f6f7ef; }
+form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-fairy-tamer { background:linear-gradient(rgba(246,247,239,.38),rgba(246,247,239,.28)),url("../assets/fairy-tamer-background.webp") center bottom / contain no-repeat,#f6f7ef; }
+form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-tactician { background:linear-gradient(rgba(246,247,239,.38),rgba(246,247,239,.28)),url("../assets/tactician-background.webp") center 35% / cover no-repeat,#f6f7ef; }
+form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-heritor { background:linear-gradient(rgba(246,247,239,.38),rgba(246,247,239,.28)),url("../assets/heritor-background.webp") left bottom / contain no-repeat,#f6f7ef; }
+form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-rider { background:linear-gradient(rgba(246,247,239,.38),rgba(246,247,239,.28)),url("../assets/adventurer-sheet-background.png") center bottom / 100% auto no-repeat,#f6f7ef; }
+form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-dark-hunter,
+form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-daemonologist { background:linear-gradient(rgba(246,247,239,.38),rgba(246,247,239,.28)),url("../assets/abyss-gazer-background.png") left bottom / contain no-repeat,#f6f7ef; }
+form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-alchemist,
+form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-geomancer { background:linear-gradient(rgba(246,247,239,.38),rgba(246,247,239,.28)),url("../assets/alchemist-background.png") center bottom / contain no-repeat,#f6f7ef; }
+form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-druid { background:linear-gradient(rgba(246,247,239,.38),rgba(246,247,239,.28)),url("../assets/druid-background.png") center bottom / 100% auto no-repeat,#f6f7ef; }
+
+.sw25-directory-import {
+  flex:0 0 auto;
+  width:auto;
+  white-space:nowrap;
+}
+
+.sw25-official-sheet [data-item-id][draggable="true"] {
+  cursor:grab;
+}
+.sw25-official-sheet [data-item-id][draggable="true"]:active {
+  cursor:grabbing;
+}
