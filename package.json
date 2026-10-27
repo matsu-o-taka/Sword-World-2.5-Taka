@@ -1,0 +1,9 @@
+{
+  "name": "sword-world-25-foundry",
+  "version": "0.15.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/check.mjs && node scripts/weapon-damage.test.mjs && node scripts/weapon-import.test.mjs && node scripts/class-feature-import.test.mjs && node scripts/spell-list.test.mjs"
+  }
+}
