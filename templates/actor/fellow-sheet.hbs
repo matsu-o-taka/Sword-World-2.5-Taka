@@ -1,7 +1,8 @@
-<form class="{{cssClass}} sw25-fellow-sheet sw25-official-sheet" autocomplete="off">
+<form class="{{cssClass}} sw25-fellow-sheet sw25-official-sheet sw25-theme-{{sheetStyle}}" autocomplete="off">
   <div class="official-page sw25-fellow-page">
     <section class="portrait-column fellow-portrait-column">
       <div class="logo-box"><img class="official-logo" src="systems/sword-world-25/assets/sword-world-logo.png" alt="Sword World"></div>
+      <div class="sheet-appearance-control"><label for="sw25-sheet-style-{{actor.id}}">Style</label><select id="sw25-sheet-style-{{actor.id}}" data-action="set-sheet-style"><option value="paper" {{#if isPaperStyle}}selected{{/if}}>Paper</option><option value="adventurer" {{#if isAdventurerStyle}}selected{{/if}}>Adventurer</option></select></div>
       <div class="portrait-frame">
         <img class="profile-img" src="{{actor.img}}" data-edit="img" title="{{actor.name}}" alt="Fellow portrait">
       </div>
