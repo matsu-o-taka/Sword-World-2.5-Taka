@@ -2008,14 +2008,18 @@ form.sw25-official-sheet .offense-selector > label:nth-of-type(2) input {
 .sw25-monster-sheet .monster-panel h2 { display:flex; align-items:center; justify-content:center; gap:6px; min-height:28px; margin:0; padding:2px 6px; border-bottom:1px solid #40382d; background:#c8bdab; font-size:14px; text-transform:uppercase; }
 .sw25-monster-sheet .monster-panel h2 button { width:auto; min-width:26px; height:23px; margin:0; padding:1px 6px; }
 .sw25-monster-sheet .monster-combat-head,.sw25-monster-sheet .monster-combat-row { display:grid; grid-template-columns:minmax(120px,1.5fr) 100px 100px 80px 60px 105px 105px 28px; gap:3px; align-items:center; min-height:28px; padding:2px 4px; border-bottom:1px solid #9d9385; text-align:center; }
+.sw25-monster-sheet .monster-main-combat-head,.sw25-monster-sheet .monster-main-combat-row { display:grid; grid-template-columns:26px minmax(100px,1.3fr) minmax(72px,.8fr) 90px 90px 70px 50px 90px 90px 26px; gap:3px; align-items:center; min-height:28px; padding:2px 4px; border-bottom:1px solid #9d9385; text-align:center; }
 .sw25-monster-sheet .monster-combat-head { font-size:9px; font-weight:bold; text-transform:uppercase; }
+.sw25-monster-sheet .monster-main-combat-head { font-size:9px; font-weight:bold; text-transform:uppercase; }
+.sw25-monster-sheet .monster-main-combat-row > input[type="checkbox"] { justify-self:center; width:15px; min-width:15px; margin:0; background:none; border:0; }
+.sw25-monster-sheet .monster-main-section-incomplete { margin:4px 8px; color:#a51d1d; font-weight:bold; }
 .sw25-monster-sheet .rollable-stat,.sw25-monster-sheet .paired { display:flex; align-items:center; justify-content:center; min-width:0; }
 .sw25-monster-sheet .rollable-stat button { flex:0 0 25px; width:25px; height:22px; margin:0; padding:0; }
 .sw25-monster-sheet .rollable-stat input { flex:1; text-align:center; }
 .sw25-evasion-result .sw25-evasion-success { color:#168238; font-size:18px; text-align:center; }
 .sw25-evasion-result .sw25-evasion-failure { color:#b3261e; font-size:18px; text-align:center; }
 .sw25-monster-sheet .paired input { width:42px; text-align:center; }
-.sw25-monster-sheet .monster-combat-row > button,.sw25-monster-sheet .monster-ability > button,.sw25-monster-sheet .monster-loot > div > button { width:25px; height:22px; margin:0; padding:0; }
+.sw25-monster-sheet .monster-combat-row > button,.sw25-monster-sheet .monster-main-combat-row > button,.sw25-monster-sheet .monster-ability > button,.sw25-monster-sheet .monster-loot > div > button { width:25px; height:22px; margin:0; padding:0; }
 .sw25-monster-sheet .monster-ability { position:relative; display:grid; grid-template-columns:1fr 28px 28px; gap:3px; padding:5px; border-bottom:1px solid #9d9385; }
 .sw25-monster-sheet .monster-ability > input { font-weight:bold; }
 .sw25-monster-sheet .monster-ability textarea { grid-column:1 / -1; min-height:58px; resize:vertical; }

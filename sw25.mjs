@@ -15,6 +15,7 @@ import { criticalFailureHTML, markCriticalFailure } from "./module/rules/critica
 import { initializeRecoveryItems } from "./module/rules/recovery-items.mjs";
 import { initializeClassGrants } from "./module/rules/class-grants.mjs";
 import { initializeStandardScenes } from "./module/scenes/standard-scenes.mjs";
+import { initializeMonsterKnowledge } from "./module/combat/monster-knowledge.mjs";
 
 Hooks.once("init", () => {
   game.sw25 = { importer: SW25Importer };
@@ -90,6 +91,7 @@ Hooks.once("ready", initializeEvasionChallenges);
 Hooks.once("ready", initializeRecoveryItems);
 Hooks.once("ready", initializeClassGrants);
 Hooks.once("ready", initializeStandardScenes);
+Hooks.once("ready", initializeMonsterKnowledge);
 
 Hooks.on("renderItemDirectory", (_application, html) => {
   if (!game.user.can("ITEM_CREATE")) return;

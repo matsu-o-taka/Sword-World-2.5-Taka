@@ -1,4 +1,4 @@
-import { parseMonsterPage } from "./monster-parser.mjs";
+import { parseMonsterPage, validateMonsterProfile } from "./monster-parser.mjs";
 import { parseClassSpecificItems, parseEquipmentTables } from "./equipment-parser.mjs";
 import { defaultFeatureDefenseModifier } from "../rules/feature-defense.mjs";
 
@@ -482,7 +482,10 @@ export class SW25Importer {
     if (slug.startsWith("monster:")) {
       if (!actor || actor.type !== "monster") throw new Error("Monster pages must be imported onto a Monster actor.");
       const parsed = parseMonsterPage(fetched.text, url);
-      await actor.update({ name: parsed.name, system: parsed.system });
+      validateMonsterProfile(parsed);
+      const updateData = { name: parsed.name };
+      for (const [field, value] of Object.entries(parsed.system)) updateData[`system.${field}`] = value;
+      await actor.update(updateData);
       actor.sheet?.render(false);
       return actor;
     }

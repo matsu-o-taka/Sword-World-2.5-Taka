@@ -854,11 +854,25 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
         evasion: this._sheetCalculated?.evasion, accuracy: this._sheetCalculated?.accuracy, magicPower: this._sheetCalculated?.magicPower
       };
       const modifier = Number(dynamic[check] ?? this.actor.system.combat?.[check] ?? 0);
+      const targetTokenUuids = check === "monsterKnowledge"
+        ? [...(game.user.targets || [])].map(target => target.document?.uuid).filter(Boolean)
+        : [];
       const roll = await new Roll(`2d6 + ${modifier}`).evaluate();
       const criticalFailure = await markCriticalFailure(this.actor, roll);
       await roll.toMessage({
         speaker: ChatMessage.getSpeaker({ actor: this.actor }),
-        flavor: `${labels[check] ?? "Check"}${criticalFailure ? criticalFailureHTML() : ""}`
+        flavor: `${labels[check] ?? "Check"}${criticalFailure ? criticalFailureHTML() : ""}`,
+        ...(check === "monsterKnowledge" ? {
+          flags: {
+            "sword-world-25": {
+              monsterKnowledge: {
+                successValue: Number(roll.total),
+                criticalFailure,
+                targetTokenUuids
+              }
+            }
+          }
+        } : {})
       });
       if (check === "magicPower") await rememberMagicPowerRoll(this.actor, roll, this.actor.system.combat?.magicClassId || "");
       if (check === "initiative") await recordPlayerInitiative(this.actor, roll.total);
