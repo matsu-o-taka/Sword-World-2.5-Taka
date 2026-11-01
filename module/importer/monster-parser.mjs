@@ -222,7 +222,9 @@ export function parseMonsterPage(input = "", url = "") {
         hp: { value: legacyStatisticValue(compact[5]), max: legacyStatisticValue(compact[5]) },
         mp: { value: legacyStatisticValue(compact[6]), max: legacyStatisticValue(compact[6]) },
         sourceValues: compact.map(sourceValue),
-        sectionLabel: sourceSectionLabel
+        sectionLabel: sourceSectionLabel,
+        section: sourceSectionLabel,
+        sourceStyle: sourceStyle
       });
     }
   }
@@ -237,6 +239,27 @@ export function parseMonsterPage(input = "", url = "") {
     usedSectionIds.add(id);
   });
   const mainSection = parseMainSection(field("Main Section"), []);
+
+  // Asignar isMainSection en cada entrada de combatStyles según la Main Section declarada.
+  // Sólo se marca una entrada como Main Section (la primera que coincida).
+  const mainSectionNames = new Set();
+  if (mainSection.type === "named" || mainSection.type === "all") {
+    for (const name of mainSection.names) {
+      if (name) mainSectionNames.add(normalizedSectionName(name));
+    }
+  }
+  if (mainSectionNames.size > 0) {
+    let mainSectionAssigned = false;
+    for (const cs of combatStyles) {
+      const matchesMain = mainSectionNames.has(normalizedSectionName(cs.section || ""));
+      if (matchesMain && !mainSectionAssigned) {
+        cs.isMainSection = true;
+        mainSectionAssigned = true;
+      } else {
+        cs.isMainSection = false;
+      }
+    }
+  }
 
   const lootHeader = rawLines.findIndex(line => /\b2d\b/i.test(line) && /\bLoot\b/i.test(line));
   const lootTable = [];
