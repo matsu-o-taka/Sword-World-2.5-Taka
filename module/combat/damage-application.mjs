@@ -16,19 +16,55 @@ function defenseFor(actor, damageType) {
       .reduce((sum, item) => sum + Number(item.system[key] ?? 0), 0);
   }
   if (damageType === "magical") return 0;
-  return Number(actor.system.combatStyles?.[0]?.defense ?? 0);
+  if (actor.type !== "monster") return 0;
+  return actor.system.combatStyles?.[0]?.defense;
 }
 
-async function applyDamage({ actor, total, damageType, factor = 1 }) {
+function numericCombatValue(value) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value !== "string" || !/^[+-]?\d+(?:\.\d+)?$/.test(value.trim())) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function monsterSectionLabel(style, index = 0) {
+  return style?.sectionLabel || style?.style || `Section ${index + 1}`;
+}
+
+export async function applyDamage({ actor, total, damageType, factor = 1 }) {
   if (actor.type === "fellow") throw new Error("Fellows cannot take damage.");
-  const raw = Math.max(0, Math.ceil((Number(total) || 0) * (Number(factor) === 0.5 ? 0.5 : 1)));
-  const defense = Math.max(0, defenseFor(actor, damageType));
+  const damageTotal = numericCombatValue(total);
+  if (damageTotal === null) throw new Error(`${actor.name} has an invalid damage total; damage was not applied.`);
+  const raw = Math.max(0, Math.ceil(damageTotal * (Number(factor) === 0.5 ? 0.5 : 1)));
+  let monsterStyle;
+  let currentMonsterHP;
+  let defense;
+  if (actor.type === "monster") {
+    monsterStyle = actor.system.combatStyles?.[0];
+    if (!monsterStyle) throw new Error(`${actor.name} has no combat-statistics row to receive damage.`);
+    const sectionLabel = monsterSectionLabel(monsterStyle);
+    currentMonsterHP = numericCombatValue(monsterStyle.hp?.value);
+    if (currentMonsterHP === null) {
+      throw new Error(`${actor.name} — ${sectionLabel} has non-numeric HP "${monsterStyle.hp?.value ?? ""}"; damage was not applied.`);
+    }
+    if (damageType !== "magical") {
+      const sourceDefense = defenseFor(actor, damageType);
+      defense = numericCombatValue(sourceDefense);
+      if (defense === null) {
+        throw new Error(`${actor.name} — ${sectionLabel} has non-numeric Defense "${sourceDefense ?? ""}"; damage was not applied.`);
+      }
+    } else {
+      defense = 0;
+    }
+  } else {
+    defense = numericCombatValue(defenseFor(actor, damageType));
+    if (defense === null) throw new Error(`${actor.name} has invalid Defense; damage was not applied.`);
+  }
+  defense = Math.max(0, defense);
   const applied = Math.max(0, raw - defense);
   if (actor.type === "monster") {
     const styles = foundry.utils.deepClone(Array.isArray(actor.system.combatStyles) ? actor.system.combatStyles : []);
-    if (!styles.length) throw new Error(`${actor.name} has no combat-statistics row to receive damage.`);
-    styles[0].hp ??= { value:0, max:0 };
-    styles[0].hp.value = Math.max(0, Number(styles[0].hp.value ?? 0) - applied);
+    styles[0].hp.value = Math.max(0, currentMonsterHP - applied);
     await actor.update({ "system.combatStyles": styles });
   } else {
     const current = Number(actor.system.hp?.value ?? 0);
@@ -52,7 +88,10 @@ async function requestDamage(button) {
     damageType:button.dataset.damageType === "magical" ? "magical" : "physical",
     factor:Number(button.dataset.damageFactor) === 0.5 ? 0.5 : 1
   };
-  if (actor.isOwner) return applyDamage({ actor, total:payload.total, damageType:payload.damageType, factor:payload.factor });
+  if (actor.isOwner) {
+    try { return await applyDamage({ actor, total:payload.total, damageType:payload.damageType, factor:payload.factor }); }
+    catch (error) { return ui.notifications.error(error.message || "Could not apply damage."); }
+  }
   if (!game.users.activeGM) return ui.notifications.error("An active GM is required to apply damage to that target.");
   game.socket.emit(SOCKET, payload);
   ui.notifications.info(`Damage sent to the GM for ${actor.name}.`);

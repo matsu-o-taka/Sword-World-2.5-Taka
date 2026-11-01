@@ -34,6 +34,23 @@ Three truncated legacy stub files that the base imports referenced but that neve
 - **Actor/Item sheet classes** — `ActorSheet` and `ItemSheet` globals replaced with `foundry.appv1.sheets.ActorSheet` and `foundry.appv1.sheets.ItemSheet` in `actor-sheet.mjs`, `monster-sheet.mjs`, `npc-sheet.mjs`, `fellow-sheet.mjs` and `item-sheet.mjs` to remove Foundry V14 deprecation warnings.
 - **Chat message HTML hook** — `renderChatMessageHTML` now wraps `html` in `$(html)` before calling `.find()`, fixing `html.find is not a function` errors when buttons like "Roll Damage" or "Add Natural Power" are rendered in chat.
 
+## v0.15.2 - Monster combat statistics and sections
+
+- **Monster Combat Statistics** — Fighting Styles from the monster compendium are displayed with separate editable Style and Section fields, alongside their Accuracy, Damage, Evasion, Defense, HP and MP.
+- **Main Section selection** — multi-section monsters can mark exactly one Combat Statistics row as the Main Section; a single row remains implicitly selected, and existing combined Style/Section records remain readable.
+- **Section-aware imports** — imported profiles retain per-section statistics, source notations and Main Section designations, with validation before updating an Actor.
+
+## Monster Actors
+
+- **Multi-section monsters** — imported profiles retain each section's individual statistics and preserve the Main Section as named, all, none, special, or unspecified.
+- **Special source values** — notations such as `-`, `※` and `※+20` are preserved as written rather than automatically treated as zero.
+- **Validated imports** — monster profiles and their section statistics are checked before an Actor is updated, so incomplete section data is not silently imported.
+- **Skill references** — unique-skill descriptions retain their original wording and Markdown link references.
+- **Combat Statistics compatibility** — existing monster records with combined Style/Section text remain readable, while the sheet presents these as separate fields and preserves each combat statistic.
+- **Cursed Artist's concealed Main Section** — for the imported [Cursed Artist profile](https://sw25.wikidot.com/monster:cursed-artist) (CR III p. 368), a Musician or Instrument section is selected once per scene token. The GM can resolve targeted Monster Knowledge rolls from their chat card; meeting the profile's Weakness reveals the selected section and posts its existing Weak Point text. Other monsters marked `Special` are not automatically assigned this behavior.
+
+The selection is stored in a JournalEntry with Foundry's default ownership set to `NONE`; the token flag contains only its Journal UUID until revelation. This permission design is covered by code and mock tests, but has **not** been verified with separate GM and player clients, so do not rely on secrecy until that live check is completed. Weak Point text is shown for the group to apply; the system does not derive damage modifiers from it. Section-specific HP damage, zero-HP Main Section handling, and Death Checks are not implemented.
+
 ## Installation
 
 In Foundry VTT, open Game Systems → Install System and paste this Manifest URL:

@@ -3,6 +3,7 @@ import { beginMonsterInitiative } from "../combat/side-initiative.mjs";
 import { damageApplicationButton } from "../combat/damage-application.mjs";
 import { staticAccuracy } from "../combat/evasion-challenge.mjs";
 import { criticalFailureHTML, markCriticalFailure } from "../rules/critical-failure.mjs";
+import { appendMonsterCombatStyle, getMainCombatStyleIndex, hasValidMainCombatStyle, mergeMonsterCombatStyleFields, prepareMonsterCombatStyles, readMonsterActorCombatStyles, selectMainCombatStyle } from "./monster-sheet-data.mjs";
 
 export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
   static get defaultOptions() {
@@ -17,6 +18,16 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
 
   get template() { return "systems/sword-world-25/templates/actor/monster-sheet.hbs"; }
 
+  async _onSubmit(event, options = {}) {
+    const combatStyles = readMonsterActorCombatStyles(this.actor);
+    if (!hasValidMainCombatStyle(combatStyles)) {
+      event.preventDefault();
+      ui.notifications.warn("Select exactly one Main Section before saving this monster.");
+      return false;
+    }
+    return super._onSubmit(event, options);
+  }
+
   _getSubmitData(updateData = {}) {
     const data = super._getSubmitData(updateData);
     // Foundry V14 does not safely rebuild arrays from dotted form paths such as
@@ -27,6 +38,15 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
       const prefix = `system.${collection}.`;
       const fields = Object.entries(data).filter(([key]) => key.startsWith(prefix));
       if (!fields.length) continue;
+      if (collection === "combatStyles") {
+        data[`system.${collection}`] = mergeMonsterCombatStyleFields(
+          readMonsterActorCombatStyles(this.actor),
+          fields.map(([key, value]) => [key.slice(prefix.length), value]),
+          (Array.isArray(this.actor.system.sections) ? this.actor.system.sections : []).map(section => section.name)
+        );
+        for (const [key] of fields) delete data[key];
+        continue;
+      }
       const list = foundry.utils.deepClone(Array.isArray(this.actor.system[collection]) ? this.actor.system[collection] : []);
       for (const [key, value] of fields) {
         foundry.utils.setProperty(list, key.slice(prefix.length), value);
@@ -43,7 +63,13 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
     context.system = this.actor.system;
     context.isGM = game.user.isGM;
     context.canRead = game.user.isGM || Boolean(this.actor.system.revealed);
-    context.combatStyles = (Array.isArray(this.actor.system.combatStyles) ? this.actor.system.combatStyles : []).map((entry, index) => ({ ...entry, index }));
+    const combatStyles = readMonsterActorCombatStyles(this.actor);
+    context.sections = Array.isArray(this.actor.system.sections) ? this.actor.system.sections : [];
+    context.combatStyles = prepareMonsterCombatStyles(
+      combatStyles,
+      context.sections.map(section => section.name)
+    );
+    context.mainCombatStyleIncomplete = combatStyles.length > 1 && getMainCombatStyleIndex(combatStyles) === null;
     context.uniqueSkills = (Array.isArray(this.actor.system.uniqueSkills) ? this.actor.system.uniqueSkills : []).map((entry, index) => ({ ...entry, index }));
     context.lootTable = (Array.isArray(this.actor.system.lootTable) ? this.actor.system.lootTable : []).map((entry, index) => ({ ...entry, index }));
     return context;
@@ -68,7 +94,7 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
     html.find("[data-action='roll-monster-damage']").on("click", async event => {
       event.preventDefault();
       const index = Number(event.currentTarget.dataset.index);
-      const style = this.actor.system.combatStyles?.[index];
+      const style = readMonsterActorCombatStyles(this.actor)[index];
       if (!style) return;
       try {
         const roll = await new Roll(monsterDamageFormula(style.damage)).evaluate();
@@ -76,9 +102,25 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
       } catch (error) { ui.notifications.error(`Invalid monster damage formula: ${style.damage}`); }
     });
 
+    html.find("[data-action='select-main-combat-style']").on("change", async event => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!game.user.isGM) return;
+      const selectedIndex = Number(event.currentTarget.dataset.index);
+      const currentStyles = readMonsterActorCombatStyles(this.actor);
+      const updatedStyles = selectMainCombatStyle(currentStyles, selectedIndex, event.currentTarget.checked);
+      if (!event.currentTarget.checked) {
+        event.currentTarget.checked = true;
+        return;
+      }
+      if (getMainCombatStyleIndex(updatedStyles) === getMainCombatStyleIndex(currentStyles)
+        && updatedStyles.every((style, index) => style.isMainSection === currentStyles[index]?.isMainSection)) return;
+      await this.actor.update({ "system.combatStyles": updatedStyles });
+    });
+
     html.find("[data-action='roll-monster-accuracy']").on("click", async event => {
       event.preventDefault();
-      const style = this.actor.system.combatStyles?.[Number(event.currentTarget.dataset.index)];
+      const style = readMonsterActorCombatStyles(this.actor)[Number(event.currentTarget.dataset.index)];
       if (!style) return;
       const modifier = Number(String(style.accuracy || "0").match(/-?\d+/)?.[0] || 0);
       const roll = await new Roll(`2d6 + ${modifier}`).evaluate();
@@ -88,7 +130,7 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
 
     html.find("[data-action='call-monster-evasion']").on("click", async event => {
       event.preventDefault();
-      const style = this.actor.system.combatStyles?.[Number(event.currentTarget.dataset.index)];
+      const style = readMonsterActorCombatStyles(this.actor)[Number(event.currentTarget.dataset.index)];
       if (!style) return;
       const target = staticAccuracy(style.accuracy);
       if (!Number.isFinite(target)) return ui.notifications.warn("This attack does not have a static Accuracy value in parentheses.");
@@ -153,11 +195,23 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
     });
 
     const mutate = async (collection, callback) => {
-      const list = foundry.utils.deepClone(Array.isArray(this.actor.system[collection]) ? this.actor.system[collection] : []);
+      const source = collection === "combatStyles"
+        ? readMonsterActorCombatStyles(this.actor)
+        : Array.isArray(this.actor.system[collection]) ? this.actor.system[collection] : [];
+      const list = foundry.utils.deepClone(source);
       callback(list);
       await this.actor.update({ [`system.${collection}`]: list });
     };
-    html.find("[data-action='add-monster-style']").on("click", event => { event.preventDefault(); return mutate("combatStyles", list => list.push({ style:"New Attack", accuracy:"0", damage:"2d", evasion:"0", defense:0, hp:{value:0,max:0}, mp:{value:0,max:0} })); });
+    html.find("[data-action='add-monster-style']").on("click", async event => {
+      event.preventDefault();
+      const currentStyles = readMonsterActorCombatStyles(this.actor);
+      await this.actor.update({
+        "system.combatStyles": appendMonsterCombatStyle(currentStyles, {
+          style:"New Attack", accuracy:"0", damage:"2d", evasion:"0", defense:0,
+          hp:{value:0,max:0}, mp:{value:0,max:0}, isMainSection:false
+        })
+      });
+    });
     html.find("[data-action='delete-monster-style']").on("click", event => { event.preventDefault(); return mutate("combatStyles", list => list.splice(Number(event.currentTarget.dataset.index), 1)); });
     html.find("[data-action='add-monster-skill']").on("click", event => { event.preventDefault(); return mutate("uniqueSkills", list => list.push({ title:"New Ability", description:"" })); });
     html.find("[data-action='delete-monster-skill']").on("click", event => { event.preventDefault(); return mutate("uniqueSkills", list => list.splice(Number(event.currentTarget.dataset.index), 1)); });

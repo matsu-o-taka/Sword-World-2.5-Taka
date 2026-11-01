@@ -186,6 +186,16 @@
       "willpower": "",
       "source": "",
       "description": "",
+      "sectionCount": "",
+      "sectionSource": "",
+      "sections": [],
+      "sectionParseErrors": [],
+      "mainSection": {
+        "type": "unspecified",
+        "sourceValue": "",
+        "names": [],
+        "associatedSkills": []
+      },
       "combatStyles": [],
       "uniqueSkills": [],
       "lootTable": []
