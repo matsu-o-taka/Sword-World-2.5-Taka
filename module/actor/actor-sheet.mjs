@@ -8,6 +8,12 @@ import { criticalFailureHTML, markCriticalFailure } from "../rules/critical-fail
 import { recoveryPowerTableHTML } from "../rules/recovery-items.mjs";
 import { characterHPMaximum } from "../rules/resources.mjs";
 import { featureDefenseModifier } from "../rules/feature-defense.mjs";
+import { SKILL_DEFINITION_MAP, SKILL_DEFINITIONS } from "../rules/skill-definitions.mjs";
+import { resolveSkillClass } from "../rules/skill-resolution.mjs";
+
+// Combat feat that grants Marksman access to Evasion calculation. Identified
+// by the feat item's canonical name (feats are matched by normalized name).
+const ARCHERS_GRACE_FEAT = "Archer's Grace";
 
 export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
   static get defaultOptions() {
@@ -271,7 +277,21 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     };
 
     context.classChoices = context.classes.map(item => ({ value: item.id, label: `${item.sheetDisplayName || item.name} (Lv ${Number(item.system.level ?? 0)})` }));
-    context.defenseClassChoices = context.classChoices.map(c => ({...c, selected:c.value === String(system.combat?.defenseClassId ?? "")}));
+    const allWarriorClasses = this._warriorClasses();
+    // Marksman does not grant Evasion natively. It becomes available only when
+    // the character has learned the Archer's Grace combat feat.
+    const hasArchersGrace = this._hasFeat(ARCHERS_GRACE_FEAT);
+    const warriorClasses = hasArchersGrace
+      ? allWarriorClasses
+      : allWarriorClasses.filter(item => String(item.name ?? "").trim().toLowerCase() !== "marksman");
+    const selectedDefenseClassId = warriorClasses.some(item => item.id === system.combat?.defenseClassId)
+      ? String(system.combat?.defenseClassId)
+      : String(warriorClasses[0]?.id || "");
+    context.defenseClassChoices = warriorClasses.map(item => ({
+      value: item.id,
+      label: `${item.name} (Lv ${Number(item.system.level ?? 0)})`,
+      selected: item.id === selectedDefenseClassId
+    }));
     context.offenseClassChoices = context.classes
       .filter(isWarriorClass)
       .map(item => ({
@@ -298,10 +318,36 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       .reduce((sum, item) => sum + Number(item.system.level ?? 0) * 3, 0) + abilities.spirit;
     context.calculated.sageLevel = context.classLevels.sage;
     context.calculated.riderLevel = context.classLevels.rider;
-    context.calculated.monsterKnowledgeClassLevel = Math.max(context.calculated.sageLevel, context.calculated.riderLevel);
+    // Monster Knowledge resolves through the same production resolver as the
+    // ordinary Skill Checks: automatic selection uses the normal associations
+    // (Sage / Rider, highest level), Dark Hunter is manual-only (Abyss
+    // Breaker, Daemons only — see the Monster Knowledge definition).
+    const monsterKnowledgeResolved = resolveSkillClass({
+      classes: context.classes,
+      def: SKILL_DEFINITION_MAP.get("monster-knowledge-intelligence"),
+      savedValue: system.combat?.monsterKnowledgeClassId
+    });
+    context.monsterKnowledgeOptions = monsterKnowledgeResolved.options;
+    context.calculated.monsterKnowledgeClassLevel = monsterKnowledgeResolved.level;
     context.calculated.scoutLevel = context.classLevels.scout;
     context.calculated.tacticianLevel = context.classLevels.tactician;
-    context.calculated.initiativeClassLevel = Math.max(context.calculated.scoutLevel, context.calculated.tacticianLevel);
+
+    // Initiative Class selector: offers only Scout and Tactician classes owned
+    // by the character, auto-selecting the highest-level one. Falls back
+    // automatically when the saved selection is no longer valid.
+    const initiativeClasses = context.classes.filter(item =>
+      /^(scout|tactician)$/i.test(String(item.name ?? "").trim())
+    );
+    const selectedInitiativeClassId = initiativeClasses.some(item => item.id === system.combat?.initiativeClassId)
+      ? String(system.combat?.initiativeClassId)
+      : String(initiativeClasses[0]?.id || "");
+    context.initiativeClassChoices = initiativeClasses.map(item => ({
+      value: item.id,
+      label: `${item.name} (Lv ${Number(item.system.level ?? 0)})`,
+      selected: item.id === selectedInitiativeClassId
+    }));
+    const initiativeClassItem = context.classes.find(item => item.id === selectedInitiativeClassId);
+    context.calculated.initiativeClassLevel = initiativeClassItem ? this._classLevel(initiativeClassItem) : 0;
     context.calculated.monsterKnowledgeBonus = Number(system.combat?.monsterKnowledgeBonus ?? 0);
     context.calculated.initiativeBonus = Number(system.combat?.initiativeBonus ?? 0);
     context.calculated.monsterKnowledge = (
@@ -310,8 +356,8 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
         : 0
     ) + context.calculated.monsterKnowledgeBonus;
     context.calculated.initiative = playerInitiativeModifier(
-      context.calculated.scoutLevel,
-      context.calculated.tacticianLevel,
+      context.calculated.initiativeClassLevel,
+      0,
       bonuses.agility,
       context.calculated.initiativeBonus
     );
@@ -323,7 +369,7 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     context.calculated.defense = equippedArmour.reduce((sum,item)=>sum+Number(item.system.defence ?? 0),0) + context.calculated.featureDefense;
     context.calculated.magicalDefense = equippedArmour.reduce((sum,item)=>sum+Number(item.system.magicalDefence ?? 0),0);
     context.calculated.armourEvasion = equippedArmour.reduce((sum,item)=>sum+Number(item.system.evasion ?? 0),0);
-    context.calculated.defenseClassLevel = selectedClassLevel(system.combat?.defenseClassId);
+    context.calculated.defenseClassLevel = selectedClassLevel(selectedDefenseClassId);
     const offenseClass = this.actor.items.get(system.combat?.offenseClassId);
     context.calculated.offenseClassLevel = isWarriorClass(offenseClass) ? this._classLevel(offenseClass) : 0;
     context.calculated.situationalEvasion = Number(system.combat?.situationalEvasion ?? 0);
@@ -423,63 +469,39 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       }))
     }));
 
-    const genericSkill = (name, time, ability, fixedClassName = "", fixedLevel = "", displayName = name) => {
-      const key = name.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + ability;
-      const savedClassId = system.skillClasses?.[key];
-      const classId = savedClassId !== undefined ? String(savedClassId) : (fixedClassName === "Adventurer" ? "adventurer" : "");
-      const workSkillId = classId.startsWith("work:") ? classId.slice(5) : "";
-      const workSkill = workSkillId ? workSkills.find(skill => skill.id === workSkillId) : null;
-      const level = workSkill ? Number(workSkill.level ?? 0) : (classId === "adventurer" ? context.calculated.adventurerLevel : selectedClassLevel(classId));
-      const options = [{value:"",label:"—",selected:!classId},{value:"adventurer",label:"Adventurer",selected:classId==="adventurer"}, ...context.classes.map(item=>({value:item.id,label:item.name,selected:item.id===classId})), ...workSkills.map(skill=>({value:`work:${skill.id}`,label:`Work: ${skill.name}`,selected:`work:${skill.id}`===classId}))];
-      const effectiveLevel = savedClassId !== undefined ? level : (fixedLevel || level);
-      return { name: displayName, time, ability, key, classId, level: effectiveLevel, mod: Number(bonuses[ability] ?? 0) + Number(effectiveLevel), options };
+    // Ordinary Skill Checks are built straight from the central catalogue:
+    // every name, time, ability and association comes from
+    // rules/skill-definitions.mjs; the class selection is resolved by
+    // rules/skill-resolution.mjs. Combat checks (Monster Knowledge) render in
+    // the combat panel instead of this list.
+    const skillAbilityOrder = ["dexterity", "agility", "strength", "intelligence", "spirit"];
+    const buildSkillEntry = def => {
+      const resolved = resolveSkillClass({
+        classes: context.classes,
+        def,
+        savedValue: system.skillClasses?.[def.key],
+        workSkills,
+        adventurerLevel: context.calculated.adventurerLevel
+      });
+      // When no class is selected the class-based result is zero (the ability
+      // modifier alone is never added).
+      const classLevelValue = resolved.classId ? resolved.level : 0;
+      return {
+        name: def.displayName ?? def.name,
+        time: def.time,
+        ability: def.ability,
+        key: def.key,
+        classId: resolved.classId,
+        level: classLevelValue,
+        mod: Number(bonuses[def.ability] ?? 0) + classLevelValue,
+        options: resolved.options,
+        restriction: (def.restrictions ?? []).join(" ")
+      };
     };
-    context.skillsByAbility = {
-      dexterity: [
-        genericSkill("Concealment", "1 min", "dexterity"),
-        genericSkill("Disable", "1 min", "dexterity", "", "", "Disable*"),
-        genericSkill("Disguise", "10 min", "dexterity"),
-        genericSkill("First Aid", "10 min", "dexterity"),
-        genericSkill("Pickpocket", "10 sec", "dexterity"),
-        genericSkill("Set Trap", "10 min", "dexterity", "", "", "Set Trap*")
-      ],
-      agility: [
-        genericSkill("Acrobatics", "1 min", "agility"),
-        genericSkill("Climb", "1 min", "agility"),
-        genericSkill("Follow", "10 min", "agility"),
-        genericSkill("Stealth", "1 min", "agility"),
-        genericSkill("Jump", "10 sec", "agility", "Adventurer", context.calculated.adventurerLevel),
-        genericSkill("Ride", "1 min", "agility", "Adventurer", context.calculated.adventurerLevel),
-        genericSkill("Swim", "1 min", "agility", "Adventurer", context.calculated.adventurerLevel),
-        genericSkill("Swim (Combat)", "10 sec", "agility", "Adventurer", context.calculated.adventurerLevel),
-        genericSkill("Tumble", "Instant", "agility")
-      ],
-      strength: [
-        genericSkill("Climb", "1 min", "strength", "Adventurer", context.calculated.adventurerLevel),
-        genericSkill("Strength", "10 sec", "strength", "Adventurer", context.calculated.adventurerLevel)
-      ],
-      intelligence: [
-        genericSkill("Appraisal", "10 min", "intelligence"),
-        genericSkill("Archaeology", "10 min", "intelligence"),
-        genericSkill("Cartography", "10 min", "intelligence", "", "", "Cartography*"),
-        genericSkill("Evade Trap", "Instant", "intelligence", "", "", "Evade Trap*"),
-        genericSkill("Evocation", "Instant", "intelligence"),
-        genericSkill("Herbology", "1 min", "intelligence"),
-        genericSkill("Insight", "10 sec", "intelligence", "Adventurer", context.calculated.adventurerLevel),
-        genericSkill("Investigation", "1 hour", "intelligence"),
-        genericSkill("Knowledge", "Instant", "intelligence"),
-        genericSkill("Listen", "10 sec", "intelligence"),
-        genericSkill("Medicine", "10 min", "intelligence"),
-        genericSkill("Perception", "Instant", "intelligence", "", "", "Perception*"),
-        genericSkill("Reference", "10 min", "intelligence"),
-        genericSkill("Search", "10 min", "intelligence", "", "", "Search*"),
-        genericSkill("Sense Danger", "Instant", "intelligence"),
-        genericSkill("Track", "1 min", "intelligence"),
-        genericSkill("Weakness", "Instant", "intelligence"),
-        genericSkill("Weather", "1 min", "intelligence")
-      ],
-      spirit: [genericSkill("Performance", "Instant", "spirit")]
-    };
+    context.skillsByAbility = Object.fromEntries(skillAbilityOrder.map(ability => [
+      ability,
+      SKILL_DEFINITIONS.filter(def => def.ability === ability && !def.combat).map(buildSkillEntry)
+    ]));
 
     this._sheetCalculated = context.calculated;
     return context;
@@ -734,7 +756,12 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       await this.actor.update({ [`system.skillClasses.${event.currentTarget.dataset.skillKey}`]: event.currentTarget.value });
     });
 
+    html.find("[data-action='select-monster-knowledge-class']").on("change", async event => {
+      await this.actor.update({ "system.combat.monsterKnowledgeClassId": event.currentTarget.value });
+    });
+
     html.find("[data-action='select-defense-class']").on("change", async event => this.actor.update({"system.combat.defenseClassId":event.currentTarget.value}));
+    html.find("[data-action='select-initiative-class']").on("change", async event => this.actor.update({"system.combat.initiativeClassId":event.currentTarget.value}));
     html.find("[data-action='select-offense-class']").on("change", async event => this.actor.update({"system.combat.offenseClassId":event.currentTarget.value}));
     html.find("[data-action='select-magic-class']").on("change", async event => this.actor.update({"system.combat.magicClassId":event.currentTarget.value}));
 
@@ -1102,6 +1129,12 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     return this.actor.items.filter(isWarriorClass);
   }
 
+  _hasFeat(featName) {
+    const key = value => String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+    const target = key(featName);
+    return (this.actor.items.filter(item => item.type === "feat") ?? []).some(item => key(item.name) === target);
+  }
+
   _artificerClass() {
     return this.actor.items.find(item =>
       item.type === "class" &&
@@ -1369,6 +1402,9 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
    * path: they must keep flowing through _onDropItemCreate, where a race
    * initializes languages, racial abilities, ability corrections, and
    * background via the importer.
+   * Spell Items additionally require a destination class association
+   * (system.classId, system.className, system.school) so they appear on
+   * the correct class spellcasting page.
    */
   async _onDropItem(event, data) {
     const fromDropData = Item.implementation?.fromDropData ?? Item.fromDropData;
@@ -1377,6 +1413,36 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     if (source.type === "race") return super._onDropItem(event, data);
     if (source.parent?.uuid === this.actor.uuid) return source;
 
+    // Spell Items are never transferred by drag & drop; always copy.
+    // Handle them before the generic move/copy dialog so they never show that prompt.
+    if (source.type === "spell") {
+      const destClass = await this._getSpellDestinationClass(source.name);
+      if (!destClass) return null; // Cancelled, no classes, or no valid destination
+
+      const itemData = source.toObject();
+      delete itemData._id;
+      itemData.system = itemData.system || {};
+      itemData.system.classId = destClass.id;
+      itemData.system.className = destClass.name;
+      itemData.system.school = destClass.name;
+
+      // Duplicate check: same spell name already associated with this class.
+      const existing = this.actor.items.find(item =>
+        item.type === "spell" &&
+        item.name.toLowerCase() === source.name.toLowerCase() &&
+        String(item.system.classId || "") === String(destClass.id)
+      );
+      if (existing) {
+        ui.notifications.info(`${source.name} is already known by ${destClass.name}.`);
+        return existing;
+      }
+
+      const [created] = await this.actor.createEmbeddedDocuments("Item", [itemData]);
+      ui.notifications.info(`${source.name} was copied to ${this.actor.name}.`);
+      return created;
+    }
+
+    // Generic Item handling (weapons, armour, equipment, etc.)
     let move = false;
     if (source.parent?.documentName === "Actor") {
       const choice = await new Promise(resolve => new Dialog({
@@ -1404,6 +1470,102 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     if (move) await source.delete();
     ui.notifications.info(`${source.name} was ${move ? "moved" : "copied"} to ${this.actor.name}.`);
     return created;
+  }
+
+  /**
+   * Returns true when the class Item's stored type is the wizard category.
+   * Uses the existing system.classType field; never the class name.
+   *
+   * @param {object} item - A class Item.
+   * @returns {boolean}
+   */
+  _isWizardClass(item) {
+    return String(item.system?.classType ?? "")
+      .replace(/-type\s+class$/i, "")
+      .trim()
+      .toLowerCase() === "wizard";
+  }
+
+  /**
+   * Determines the destination class for a dropped spell Item.
+   *
+   * Rules:
+   *  - Exactly one class page: automatically assign to that class.
+   *  - Multiple class pages with an active class page tab: assign to the active class.
+   *  - Multiple class pages without an active class page: show a selection dialog
+   *    offering only wizard-type classes.
+   *  - No class pages, or no wizard-type classes: warn and return null.
+   *
+   * @param {string} spellName - The name of the spell being dropped (for the dialog).
+   * @returns {Promise<object|null>} The destination class Item, or null if cancelled/none.
+   */
+  async _getSpellDestinationClass(spellName) {
+    const classes = this.actor.items.filter(item => item.type === "class");
+
+    if (classes.length === 0) {
+      ui.notifications.warn("This character has no class pages. Spells cannot be added without a class.");
+      return null;
+    }
+
+    // Spells can only be associated with wizard-type classes.
+    const wizardClasses = classes.filter(item => this._isWizardClass(item));
+
+    if (classes.length === 1) {
+      return classes[0];
+    }
+
+    // Multiple classes - check if a class page tab is currently active.
+    const activeTab = this._activeTab;
+    if (activeTab && activeTab.startsWith("class-")) {
+      const activeClassId = activeTab.slice("class-".length);
+      const activeClass = classes.find(item => item.id === activeClassId);
+      if (activeClass) return activeClass;
+    }
+
+    // Multiple classes, no active class page: show selection dialog (wizard classes only).
+    if (wizardClasses.length === 0) {
+      ui.notifications.warn("This character has no wizard classes. Spells can only be added to wizard classes.");
+      return null;
+    }
+
+    return await this._selectSpellDestinationClassDialog(wizardClasses, spellName);
+  }
+
+  /**
+   * Shows a dialog asking the user which class should receive a dropped spell.
+   *
+   * @param {object[]} classes - The character's class Items.
+   * @param {string} spellName - The name of the spell being dropped.
+   * @returns {Promise<object|null>} The selected class Item, or null if cancelled.
+   */
+  async _selectSpellDestinationClassDialog(classes, spellName) {
+    const options = classes.map(item =>
+      `<option value="${item.id}">${foundry.utils.escapeHTML(item.name)} (Lv ${Number(item.system.level ?? 0)})</option>`
+    ).join("");
+
+    const content = `<form>
+      <div class="form-group">
+        <label>Select destination class for "${foundry.utils.escapeHTML(spellName)}":</label>
+        <select name="classId">${options}</select>
+      </div>
+    </form>`;
+
+    return new Promise(resolve => new Dialog({
+      title: "Select Destination Class",
+      content,
+      buttons: {
+        select: {
+          label: "Select",
+          callback: html => {
+            const classId = html.find('[name="classId"]').val();
+            const selectedClass = classes.find(item => item.id === classId);
+            resolve(selectedClass || null);
+          }
+        },
+        cancel: { label: "Cancel", callback: () => resolve(null) }
+      },
+      close: () => resolve(null)
+    }).render(true));
   }
 
 }

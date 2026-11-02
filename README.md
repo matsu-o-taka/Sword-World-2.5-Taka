@@ -40,6 +40,14 @@ Three truncated legacy stub files that the base imports referenced but that neve
 - **Main Section selection** — multi-section monsters can mark exactly one Combat Statistics row as the Main Section; a single row remains implicitly selected, and existing combined Style/Section records remain readable.
 - **Section-aware imports** — imported profiles retain per-section statistics, source notations and Main Section designations, with validation before updating an Actor.
 
+## v0.16.0 - Skill checks, spell drops and combat class selectors
+
+- **Skill Checks** — the ordinary skill check catalogue was reorganized and its class selection centralized: each check offers only its associated classes, picks the highest-level one automatically, and keeps manual selections while they remain valid.
+- **New skill checks** — additional skills incorporated, with some resolution times adjusted to the rulebooks.
+- **Spell drag & drop** — dropping a spell onto a character now either sends it straight to the class page being viewed or opens a picker restricted to wizard-type classes; spells are never lost if the character has no eligible class.
+- **Defensive Combat Stats** — the Defense Class selector lists only warrior-type classes and selects one automatically; Marksman can also be used for Evasion once the Archer's Grace combat feat is learned.
+- **Initiative** — the manual Scout/Tactician level field was replaced by an "Initiative Class" picker offering only the character's Scout and Tactician classes, defaulting to the highest level.
+
 ## Monster Actors
 
 - **Multi-section monsters** — imported profiles retain each section's individual statistics and preserve the Main Section as named, all, none, special, or unspecified.
