@@ -48,6 +48,12 @@ Three truncated legacy stub files that the base imports referenced but that neve
 - **Defensive Combat Stats** — the Defense Class selector lists only warrior-type classes and selects one automatically; Marksman can also be used for Evasion once the Archer's Grace combat feat is learned.
 - **Initiative** — the manual Scout/Tactician level field was replaced by an "Initiative Class" picker offering only the character's Scout and Tactician classes, defaulting to the highest level.
 
+## v0.16.1 - Monster unique skills by section
+
+- **Unique Skills per monster section** — on multi-section monsters, each Unique Skill can now be assigned to a specific combat section or to "All Sections". Skills are displayed grouped by section on the monster sheet, with a section heading per group.
+- **Section assignment picker** — the GM can change a skill's section assignment from the sheet. If a skill was previously assigned to a section that no longer exists, it is flagged for reassignment and shows a warning until assigned to a current section or All Sections.
+- **Single-section monsters** — Unique Skills are not sectioned and apply to all sections, keeping the existing behavior unchanged.
+
 ## Monster Actors
 
 - **Multi-section monsters** — imported profiles retain each section's individual statistics and preserve the Main Section as named, all, none, special, or unspecified.
