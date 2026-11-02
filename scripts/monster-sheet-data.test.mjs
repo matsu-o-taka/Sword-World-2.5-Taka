@@ -2,10 +2,14 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
   appendMonsterCombatStyle,
+  createMonsterUniqueSkill,
   getMainCombatStyleIndex,
+  getMonsterSectionChoices,
   hasValidMainCombatStyle,
   mergeMonsterCombatStyleFields,
+  mergeMonsterUniqueSkillFields,
   prepareMonsterCombatStyles,
+  prepareMonsterUniqueSkillGroups,
   readMonsterActorCombatStyles,
   readMonsterCombatStyles,
   selectMainCombatStyle
@@ -330,5 +334,136 @@ assert.match(template, /<span>Style<\/span><span>Section<\/span>/);
 assert.match(template, /name="system\.combatStyles\.\{\{style\.index\}\}\.style" value="\{\{style\.styleName\}\}"/);
 assert.match(template, /name="system\.combatStyles\.\{\{style\.index\}\}\.section" value="\{\{style\.section\}\}"/);
 assert.match(template, /data-action="select-main-combat-style"/);
+assert.match(template, /uniqueSkillGroups as \|group\|/);
+assert.match(template, /data-action="choose-monster-skill-section"/);
+assert.doesNotMatch(template, /monster-skill-assignment">Section/);
 
-console.log("Monster sheet source-value and Main Section selection tests passed.");
+const sectionRecords = [
+  { id: "section-head", name: "Head" },
+  { id: "section-body", name: "Body" },
+  { id: "section-wing", name: "Wing" }
+];
+const sectionChoices = getMonsterSectionChoices(sectionRecords);
+assert.deepEqual(sectionChoices.map(section => section.id), ["section-head", "section-body", "section-wing"]);
+
+const legacyUniqueSkills = [
+  { title: "Shared legacy skill", description: "Shared details", references: [{ destination: "/skill:shared" }] },
+  { title: "Another legacy skill", description: "More details" }
+];
+const originalLegacyUniqueSkills = structuredClone(legacyUniqueSkills);
+const singleSectionChoices = getMonsterSectionChoices([sectionRecords[0]]);
+const singleSectionGroups = prepareMonsterUniqueSkillGroups(legacyUniqueSkills, singleSectionChoices);
+assert.equal(singleSectionGroups.length, 1);
+assert.equal(singleSectionGroups[0].id, "all");
+assert.equal(singleSectionGroups[0].showHeading, false);
+assert.deepEqual(singleSectionGroups[0].skills.map(skill => skill.title), [
+  "Shared legacy skill",
+  "Another legacy skill"
+]);
+assert.deepEqual(legacyUniqueSkills, originalLegacyUniqueSkills);
+assert.deepEqual(
+  createMonsterUniqueSkill(undefined, singleSectionChoices, { title: "New single-section skill" }),
+  { title: "New single-section skill", sectionScope: "all" }
+);
+
+const twoSectionSkills = [
+  { title: "Head skill", description: "Head details", sectionScope: "section", sectionId: "section-head" },
+  { title: "Shared skill", description: "Shared details", sectionScope: "all" },
+  { title: "Body skill", description: "Body details", sectionScope: "section", sectionId: "section-body" },
+  { title: "Legacy skill", description: "Old data" }
+];
+const twoSectionGroups = prepareMonsterUniqueSkillGroups(twoSectionSkills, sectionChoices.slice(0, 2));
+assert.deepEqual(twoSectionGroups.map(group => [group.id, group.showHeading, group.skills.map(skill => skill.title)]), [
+  ["all", true, ["Shared skill", "Legacy skill"]],
+  ["section-head", true, ["Head skill"]],
+  ["section-body", true, ["Body skill"]]
+]);
+assert.equal(twoSectionGroups[0].title, "All Sections");
+assert.equal(twoSectionGroups.flatMap(group => group.skills).length, twoSectionSkills.length);
+assert.deepEqual(
+  createMonsterUniqueSkill("section-body", sectionChoices.slice(0, 2), { title: "New body skill" }),
+  { title: "New body skill", sectionScope: "section", sectionId: "section-body" }
+);
+assert.deepEqual(
+  createMonsterUniqueSkill("all", sectionChoices.slice(0, 2), { title: "New shared skill" }),
+  { title: "New shared skill", sectionScope: "all" }
+);
+assert.equal(createMonsterUniqueSkill(null, sectionChoices.slice(0, 2), { title: "Cancelled" }), null);
+
+const threeSectionGroups = prepareMonsterUniqueSkillGroups([
+  ...twoSectionSkills,
+  { title: "Wing skill", description: "Wing details", sectionScope: "section", sectionId: "section-wing" }
+], sectionChoices);
+assert.deepEqual(threeSectionGroups.map(group => group.id), [
+  "all",
+  "section-head",
+  "section-body",
+  "section-wing"
+]);
+assert.deepEqual(
+  threeSectionGroups.find(group => group.id === "section-wing").skills.map(skill => skill.title),
+  ["Wing skill"]
+);
+assert.equal(threeSectionGroups.flatMap(group => group.skills).length, 5);
+assert.equal(sectionChoices.length, 3);
+
+const reassignedUniqueSkills = mergeMonsterUniqueSkillFields(twoSectionSkills, [
+  ["0.assignment", "section-body"],
+  ["0.title", "Renamed Head Skill"],
+  ["0.description", "Updated details"]
+], sectionChoices.slice(0, 2));
+assert.deepEqual(reassignedUniqueSkills[0], {
+  title: "Renamed Head Skill",
+  description: "Updated details",
+  sectionScope: "section",
+  sectionId: "section-body"
+});
+assert.equal(reassignedUniqueSkills[0].references, twoSectionSkills[0].references);
+assert.deepEqual(
+  prepareMonsterUniqueSkillGroups(reassignedUniqueSkills, sectionChoices.slice(0, 2))
+    .find(group => group.id === "section-body").skills.map(skill => skill.title),
+  ["Renamed Head Skill", "Body skill"]
+);
+
+const removedSectionSkill = {
+  title: "Former Wing skill",
+  description: "Keep these details",
+  sectionScope: "section",
+  sectionId: "section-wing",
+  sourceText: "Original source text",
+  references: [{ destination: "/skill:wing" }]
+};
+const afterSectionRemoval = prepareMonsterUniqueSkillGroups([removedSectionSkill], sectionChoices.slice(0, 2));
+assert.equal(afterSectionRemoval.length, 1);
+assert.equal(afterSectionRemoval[0].id, "all");
+assert.equal(afterSectionRemoval[0].skills[0].sectionAssignmentNeedsReview, true);
+assert.equal(afterSectionRemoval[0].skills[0].sectionAssignment, "");
+assert.equal(afterSectionRemoval[0].skills[0].sectionAssignmentChoices.some(choice => choice.selected), false);
+assert.throws(
+  () => mergeMonsterUniqueSkillFields([removedSectionSkill], [["0.assignment", ""]], sectionChoices.slice(0, 2)),
+  /must be assigned to an existing section or All Sections/
+);
+const reassignedRemovedSection = mergeMonsterUniqueSkillFields(
+  [removedSectionSkill],
+  [["0.assignment", "all"]],
+  sectionChoices.slice(0, 2)
+);
+assert.deepEqual(reassignedRemovedSection[0], {
+  title: "Former Wing skill",
+  description: "Keep these details",
+  sectionScope: "all",
+  sourceText: "Original source text",
+  references: [{ destination: "/skill:wing" }]
+});
+const oneSectionAfterRemoval = prepareMonsterUniqueSkillGroups([removedSectionSkill], [sectionRecords[0]]);
+assert.equal(oneSectionAfterRemoval.length, 1);
+assert.equal(oneSectionAfterRemoval[0].id, "all");
+assert.equal(oneSectionAfterRemoval[0].showHeading, false);
+const afterSectionAddition = prepareMonsterUniqueSkillGroups(twoSectionSkills, sectionChoices);
+assert.deepEqual(afterSectionAddition.map(group => group.id), [
+  "all",
+  "section-head",
+  "section-body"
+]);
+
+console.log("Monster sheet source-value, Main Section selection, and Unique Skill section tests passed.");

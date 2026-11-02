@@ -2020,8 +2020,12 @@ form.sw25-official-sheet .offense-selector > label:nth-of-type(2) input {
 .sw25-evasion-result .sw25-evasion-failure { color:#b3261e; font-size:18px; text-align:center; }
 .sw25-monster-sheet .paired input { width:42px; text-align:center; }
 .sw25-monster-sheet .monster-combat-row > button,.sw25-monster-sheet .monster-main-combat-row > button,.sw25-monster-sheet .monster-ability > button,.sw25-monster-sheet .monster-loot > div > button { width:25px; height:22px; margin:0; padding:0; }
-.sw25-monster-sheet .monster-ability { position:relative; display:grid; grid-template-columns:1fr 28px 28px; gap:3px; padding:5px; border-bottom:1px solid #9d9385; }
+.sw25-monster-sheet .monster-skill-section-heading { margin:0; padding:4px 8px; border-bottom:1px solid #9d9385; background:rgba(200,189,171,.55); font-size:12px; text-transform:uppercase; overflow-wrap:anywhere; }
+.sw25-monster-sheet .monster-ability { position:relative; display:grid; grid-template-columns:minmax(0,1fr) 28px 28px; gap:3px; align-items:center; padding:5px; border-bottom:1px solid #9d9385; }
+.sw25-monster-sheet .monster-ability.has-section-assignment { grid-template-columns:minmax(0,1fr) 28px 28px 28px; }
 .sw25-monster-sheet .monster-ability > input { font-weight:bold; }
+.sw25-monster-sheet .monster-skill-assignment-button.needs-review { color:#a51d1d; border-color:#a51d1d; }
+.sw25-monster-sheet .monster-skill-assignment-warning { grid-column:1 / -1; margin:2px 0; color:#8a382f; font-size:11px; font-weight:bold; }
 .sw25-monster-sheet .monster-ability textarea { grid-column:1 / -1; min-height:58px; resize:vertical; }
 .sw25-monster-sheet .monster-loot > div { display:grid; grid-template-columns:90px 1fr 28px; gap:4px; padding:3px 5px; border-bottom:1px solid #9d9385; }
 .sw25-monster-sheet .monster-description { width:100%; min-height:120px; resize:vertical; padding:6px; }

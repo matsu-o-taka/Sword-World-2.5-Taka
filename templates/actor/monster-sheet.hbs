@@ -38,7 +38,21 @@
       </div>{{/each}}
     </section>
 
-    <section class="monster-panel"><h2>Unique Skills {{#if isGM}}<button type="button" data-action="add-monster-skill"><i class="fas fa-plus"></i></button>{{/if}}</h2>{{#each uniqueSkills as |skill|}}<article class="monster-ability"><input name="system.uniqueSkills.{{skill.index}}.title" value="{{skill.title}}"><button type="button" data-action="post-monster-skill" data-index="{{skill.index}}" title="Post ability to chat"><i class="fas fa-comment"></i></button>{{#if ../isGM}}<button type="button" data-action="delete-monster-skill" data-index="{{skill.index}}" title="Delete ability"><i class="fas fa-trash"></i></button>{{/if}}<textarea name="system.uniqueSkills.{{skill.index}}.description">{{skill.description}}</textarea></article>{{/each}}</section>
+    <section class="monster-panel monster-unique-skills"><h2>Unique Skills {{#if isGM}}<button type="button" data-action="add-monster-skill"><i class="fas fa-plus"></i></button>{{/if}}</h2>
+      {{#each uniqueSkillGroups as |group|}}
+      {{#if group.showHeading}}<h3 class="monster-skill-section-heading">{{group.title}}</h3>{{/if}}
+      {{#each group.skills as |skill|}}
+      <article class="monster-ability {{#if skill.sectionAssignmentChoices.length}}has-section-assignment{{/if}}">
+        <input name="system.uniqueSkills.{{skill.index}}.title" value="{{skill.title}}">
+        {{#if @root.isGM}}{{#if skill.sectionAssignmentChoices.length}}<button type="button" class="monster-skill-assignment-button {{#if skill.sectionAssignmentNeedsReview}}needs-review{{/if}}" data-action="choose-monster-skill-section" data-index="{{skill.index}}" aria-label="Change section assignment: {{skill.sectionAssignmentLabel}}" title="Section: {{skill.sectionAssignmentLabel}}" {{#if skill.sectionAssignmentNeedsReview}}data-monster-skill-assignment-invalid{{/if}}><i class="fas fa-tag"></i></button>{{/if}}{{/if}}
+        <button type="button" data-action="post-monster-skill" data-index="{{skill.index}}" title="Post ability to chat"><i class="fas fa-comment"></i></button>
+        {{#if @root.isGM}}<button type="button" data-action="delete-monster-skill" data-index="{{skill.index}}" title="Delete ability"><i class="fas fa-trash"></i></button>{{/if}}
+        {{#if skill.sectionAssignmentNeedsReview}}<p class="monster-skill-assignment-warning">This skill's previous section is no longer available. Assign it to a current section or All Sections.</p>{{/if}}
+        <textarea name="system.uniqueSkills.{{skill.index}}.description">{{skill.description}}</textarea>
+      </article>
+      {{/each}}
+      {{/each}}
+    </section>
 
     <section class="monster-panel monster-loot"><h2>Loot Table <button type="button" data-action="roll-monster-loot"><i class="fas fa-dice-d6"></i> Roll Loot</button>{{#if isGM}}<button type="button" data-action="add-monster-loot"><i class="fas fa-plus"></i></button>{{/if}}</h2>{{#each lootTable as |entry|}}<div><input name="system.lootTable.{{entry.index}}.roll" value="{{entry.roll}}"><input name="system.lootTable.{{entry.index}}.loot" value="{{entry.loot}}">{{#if ../isGM}}<button type="button" data-action="delete-monster-loot" data-index="{{entry.index}}"><i class="fas fa-trash"></i></button>{{/if}}</div>{{/each}}</section>
     <section class="monster-panel"><h2>Description</h2><textarea class="monster-description" name="system.description">{{system.description}}</textarea><label>Source <input name="system.source" value="{{system.source}}"></label><label>Source URL <input name="system.sourceUrl" value="{{system.sourceUrl}}"></label></section>

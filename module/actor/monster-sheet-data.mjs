@@ -147,3 +147,109 @@ export function mergeMonsterCombatStyleFields(currentStyles = [], fields = [], s
   }
   return styles;
 }
+
+const normalizeSectionName = value => String(value ?? "").replace(/\s+x\s*.+$/i, "").trim();
+const sectionIdForName = name => `section-${encodeURIComponent(normalizeSectionName(name).toLowerCase())}`;
+
+export function getMonsterSectionChoices(sections = [], combatStyles = []) {
+  const sourceSections = Array.isArray(sections) && sections.length
+    ? sections
+    : readMonsterCombatStyles(combatStyles)
+      .map(style => normalizeSectionName(style.section || style.sectionLabel))
+      .filter(Boolean)
+      .filter((name, index, names) => names.findIndex(candidate => candidate.toLowerCase() === name.toLowerCase()) === index)
+      .map(name => ({ name, id: sectionIdForName(name) }));
+  const usedIds = new Set();
+  return sourceSections.map((section, index) => {
+    const name = String(section?.name ?? "").trim();
+    const baseId = String(section?.id || (name ? sectionIdForName(name) : `section-${index + 1}`));
+    let id = baseId;
+    let suffix = 2;
+    while (usedIds.has(id)) id = `${baseId}-${suffix++}`;
+    usedIds.add(id);
+    return {
+      id,
+      name: name || `Section ${index + 1}`,
+      label: name || `Section ${index + 1}`
+    };
+  });
+}
+
+export function createMonsterUniqueSkill(assignment, sectionChoices = [], skill = {}) {
+  if (sectionChoices.length <= 1) {
+    const { sectionId: _sectionId, ...withoutSectionId } = skill;
+    return { ...withoutSectionId, sectionScope: "all" };
+  }
+  if (assignment === "all") {
+    const { sectionId: _sectionId, ...withoutSectionId } = skill;
+    return { ...withoutSectionId, sectionScope: "all" };
+  }
+  const section = sectionChoices.find(choice => choice.id === assignment);
+  if (!section) return null;
+  return { ...skill, sectionScope: "section", sectionId: section.id };
+}
+
+export function prepareMonsterUniqueSkillGroups(skills = [], sectionChoices = []) {
+  const rows = Array.isArray(skills) ? skills : [];
+  const isMultiSection = sectionChoices.length > 1;
+  const groups = sectionChoices.map(section => ({
+    id: section.id,
+    title: section.name,
+    showHeading: isMultiSection,
+    skills: []
+  }));
+  const allSections = { id: "all", title: "All Sections", showHeading: isMultiSection, skills: [] };
+  const validIds = new Set(sectionChoices.map(section => section.id));
+
+  rows.forEach((skill, index) => {
+    const assignedSectionId = !isMultiSection
+      ? null
+      : skill?.sectionScope === "section" && validIds.has(skill.sectionId)
+        ? skill.sectionId
+        : null;
+    const group = assignedSectionId
+      ? groups.find(section => section.id === assignedSectionId)
+      : allSections;
+    const needsReview = skill?.sectionScope === "section" && !validIds.has(skill.sectionId);
+    const assignmentChoices = isMultiSection
+      ? [{ value: "all", label: "All Sections" }, ...sectionChoices.map(section => ({
+        value: section.id,
+        label: section.name
+      }))].map(choice => ({
+        ...choice,
+        selected: !needsReview && choice.value === (assignedSectionId || "all")
+      }))
+      : [];
+    group.skills.push({
+      ...skill,
+      index,
+      sectionAssignment: skill?.sectionScope === "section" && !validIds.has(skill.sectionId)
+        ? ""
+        : assignedSectionId || "all",
+      sectionAssignmentLabel: needsReview ? "Reassign section" : group.title,
+      sectionAssignmentChoices: assignmentChoices,
+      sectionAssignmentNeedsReview: needsReview
+    });
+  });
+
+  return [...(allSections.skills.length ? [allSections] : []), ...groups.filter(group => group.skills.length)];
+}
+
+export function mergeMonsterUniqueSkillFields(currentSkills = [], fields = [], sectionChoices = []) {
+  const skills = (Array.isArray(currentSkills) ? currentSkills : []).map(skill => ({ ...skill }));
+  for (const [path, value] of fields) {
+    const match = path.match(/^(\d+)\.(.+)$/);
+    if (!match) continue;
+    const index = Number(match[1]);
+    const propertyPath = match[2];
+    if (!skills[index]) continue;
+    if (propertyPath === "assignment") {
+      const assigned = createMonsterUniqueSkill(value, sectionChoices, skills[index]);
+      if (!assigned) throw new Error(`Unique Skill ${index + 1} must be assigned to an existing section or All Sections.`);
+      skills[index] = assigned;
+      continue;
+    }
+    setPath(skills[index], propertyPath, value);
+  }
+  return skills;
+}
