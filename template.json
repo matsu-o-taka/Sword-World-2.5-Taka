@@ -70,7 +70,8 @@
         "movementEnhancements": "",
         "defenseClassId": "",
         "offenseClassId": "",
-        "magicClassId": ""
+        "magicClassId": "",
+        "monsterKnowledgeClassId": ""
       },
       "xp": {
         "total": 0
@@ -225,6 +226,7 @@
       "shieldRestrictions": "",
       "classFeatures": "",
       "skillPackages": "",
+      "skillChecks": [],
       "rawText": ""
     },
     "feat": {

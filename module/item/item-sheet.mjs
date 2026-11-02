@@ -1,6 +1,7 @@
 import { abilityBonus } from "../rules/weapon-damage.mjs";
 import { isDoubleStomp, isNaturalPower, rollDoubleStompDamage, rollNaturalPower, rollSpecialSpellDamage, specialDamageBands, trackNaturalPowerSpending } from "../rules/spell-damage.mjs";
 import { isExhaustiveSucking, regenerationSpellData, requestRegenerationSpell, resolveExhaustiveSucking } from "../rules/spell-effects.mjs";
+import { classEditorSkillOptions } from "../rules/skill-resolution.mjs";
 
 export class SW25ItemSheet extends foundry.appv1.sheets.ItemSheet {
   static get defaultOptions() {
@@ -29,6 +30,11 @@ export class SW25ItemSheet extends foundry.appv1.sheets.ItemSheet {
     context.isSkill = this.item.type === "skill";
     context.isSpell = this.item.type === "spell";
     context.isEquipment = this.item.type === "equipment";
+
+    if (context.isClass) {
+      context.skillOptions = classEditorSkillOptions(context.system.skillChecks);
+    }
+
     return context;
   }
 

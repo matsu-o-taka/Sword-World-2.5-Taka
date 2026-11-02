@@ -39,6 +39,9 @@
       <label class="wide-field">Shield Restrictions <input type="text" name="system.shieldRestrictions" value="{{system.shieldRestrictions}}"></label>
       <label class="wide-field">Class Features <input type="text" name="system.classFeatures" value="{{system.classFeatures}}"></label>
       <label class="wide-field">Skill Packages <input type="text" name="system.skillPackages" value="{{system.skillPackages}}"></label>
+      <label class="wide-field">Skills Provided
+        <select name="system.skillChecks" multiple size="6">{{#each skillOptions as |option|}}<option value="{{option.value}}" title="{{option.title}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>{{/each}}</select>
+      </label>
     {{/if}}
 
     {{#if isFeat}}
