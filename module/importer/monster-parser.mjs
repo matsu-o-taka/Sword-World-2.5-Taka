@@ -3,7 +3,7 @@ const plain = value => String(value ?? "")
   .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
   .replace(/<br\s*\/?>/gi, "\n")
   .replace(/<[^>]+>/g, " ")
-  .replace(/&nbsp;|&#160;/gi, " ")
+  .replace(/&nbsp;|&#160;|&#32;|&#x20;/gi, " ")
   .replace(/[`*_~]/g, "")
   .replace(/[ \t]+/g, " ")
   .trim();
@@ -23,6 +23,18 @@ const markdownLinks = sourceText => [...String(sourceText ?? "").matchAll(/\[([^
 const numeric = value => Number(String(value ?? "").match(/-?\d+/)?.[0] ?? 0);
 const sourceValue = value => String(value ?? "").trim();
 const normalizedSectionName = value => sourceValue(value).replace(/\s+/g, " ").toLowerCase();
+const singularForm = name => /^[A-Za-z]+s$/.test(name) ? name.replace(/s$/, "") : name;
+const parenFreeStem = name => normalizedSectionName(String(name ?? "").replace(/\([^()]*\)/g, " "));
+const sectionNamesEquivalent = (left, right) => {
+  const leftName = normalizedSectionName(left);
+  const rightName = normalizedSectionName(right);
+  if (!leftName || !rightName) return false;
+  if (leftName === rightName) return true;
+  const leftStem = parenFreeStem(leftName);
+  const rightStem = parenFreeStem(rightName);
+  if (leftStem === rightStem) return true;
+  return leftStem === singularForm(rightStem) || rightStem === singularForm(leftStem);
+};
 const legacyStatisticValue = value => {
   const raw = sourceValue(value);
   return /^[+-]?\d+$/.test(raw) ? Number(raw) : raw;
@@ -140,7 +152,14 @@ export function parseMonsterPage(input = "", url = "") {
   const combatHeader = rawLines.findIndex(line => /Accuracy/i.test(line) && /Damage/i.test(line) && /Evasion/i.test(line) && /Defense/i.test(line) && /\bHP\b/i.test(line));
   const combatStyles = [];
   const declaredSections = parseSectionDeclaration(field("Sections"));
-  const sections = declaredSections.sections.map(section => ({ ...section, combatStyles: [] }));
+  const sections = [];
+  for (const declared of declaredSections.sections) {
+    const exactCount = /^\d+$/.test(declared.count) ? Number(declared.count) : 1;
+    const name = exactCount > 1 ? singularForm(declared.name) : declared.name;
+    for (let copy = 0; copy < exactCount; copy++) {
+      sections.push({ name, label: declared.label, count: declared.count, combatStyles: [] });
+    }
+  }
   const sectionParseErrors = [];
   const addInferredSection = (name, label = name) => {
     let section = sections.find(entry => normalizedSectionName(entry.name) === normalizedSectionName(name));
@@ -154,7 +173,8 @@ export function parseMonsterPage(input = "", url = "") {
     for (let index = combatHeader + 1; index < rawLines.length; index++) {
       const line = rawLines[index];
       const sourceLineNumber = sourceLines[index].lineNumber;
-      if (/^(?:#{1,6}|\*\s*\*\s*\*)/.test(line) || /Unique Skills|\bLoot\b/i.test(line)) break;
+      if (/^(?:#{1,6}|\*\s*\*\s*\*)/.test(plain(line)) || /Unique Skills|\bLoot\b/i.test(plain(line))) break;
+      if (/^(?:Sections|Main Section)\s*:/i.test(plain(line))) break;
       if (/^\s*\|?\s*:?-{2,}/.test(line)) continue;
       const cells = tableCells(line);
       if (/Accuracy|Fighting Style/i.test(cells.join(" "))) continue;
@@ -171,7 +191,7 @@ export function parseMonsterPage(input = "", url = "") {
         const stat = String.raw`(?:※(?:\s*[+-]\s*\d+)?|[-–—]|[-+]?\d+(?:\s*\(\s*[-+]?\d+\s*\))?|\d+d(?:6)?(?:\s*[+-]\s*\d+)?)`;
         const flat = flatLine.match(new RegExp(`^(.+?)\\s+(${stat})\\s+(${stat})\\s+(${stat})\\s+(${stat})\\s+(${stat})\\s+(${stat})$`, "i"));
         if (!flat) {
-          if (looksLikeCombatRow) {
+          if (looksLikeCombatRow && /[\p{L}]/u.test(compact[0] || "")) {
             sectionParseErrors.push(`line ${sourceLineNumber}: malformed combat row for ${sectionAnnotation || "unknown section"}; expected a style plus Accuracy, Damage, Evasion, Defense, HP and MP, got "${plain(line)}".`);
           }
           continue;
@@ -179,16 +199,22 @@ export function parseMonsterPage(input = "", url = "") {
         compact = flat.slice(1);
       }
       if (compact.length < 7) {
-        if (looksLikeCombatRow) {
+        if (looksLikeCombatRow && /[\p{L}]/u.test(compact[0] || "")) {
           sectionParseErrors.push(`line ${sourceLineNumber}: malformed combat row for ${sectionAnnotation || "unknown section"}; expected a style plus Accuracy, Damage, Evasion, Defense, HP and MP, got "${plain(line)}".`);
         }
         continue;
       }
+      if (!/[\p{L}]/u.test(String(compact[0] ?? ""))) continue;
       const sourceStyle = sourceValue(compact[0]);
-      const annotation = sourceStyle.match(/^(.*?)\s*\(([^()]*)\)\s*$/);
+      const matchSource = sourceStyle.replace(/\)\s+x\s*[^()]+$/i, ")");
+      const annotation = matchSource.match(/^(.*?)\s*\((.*)\)\s*$/);
       const sourceSectionLabel = annotation?.[2]?.trim() || "";
       const sourceSectionName = sourceSectionLabel.replace(/\s+x\s*.+$/i, "").trim();
       const attackStyle = annotation?.[1]?.trim() || sourceStyle;
+      const findSectionForName = name => {
+        const candidates = sections.filter(section => section.name && sectionNamesEquivalent(section.name, name));
+        return candidates.find(section => !section.combatStyles.length) || candidates[0] || null;
+      };
       const sourceHeaders = tableCells(rawLines[combatHeader]).filter(Boolean);
       const rawStatistics = parseSectionCombatStatistics([attackStyle, ...compact.slice(1)], sourceHeaders);
       rawStatistics.sourceStyle = sourceStyle;
@@ -198,7 +224,7 @@ export function parseMonsterPage(input = "", url = "") {
       let section;
       if (declaredSections.sections.length) {
         section = sourceSectionName
-          ? sections.find(entry => normalizedSectionName(entry.name) === normalizedSectionName(sourceSectionName))
+          ? findSectionForName(sourceSectionName)
           : sections.length === 1 ? sections[0] : null;
         if (!section) {
           sectionParseErrors.push(sourceSectionName
@@ -251,7 +277,7 @@ export function parseMonsterPage(input = "", url = "") {
   if (mainSectionNames.size > 0) {
     let mainSectionAssigned = false;
     for (const cs of combatStyles) {
-      const matchesMain = mainSectionNames.has(normalizedSectionName(cs.section || ""));
+      const matchesMain = [...mainSectionNames].some(name => sectionNamesEquivalent(cs.section || "", name));
       if (matchesMain && !mainSectionAssigned) {
         cs.isMainSection = true;
         mainSectionAssigned = true;
@@ -259,6 +285,15 @@ export function parseMonsterPage(input = "", url = "") {
         cs.isMainSection = false;
       }
     }
+  }
+
+  // Exact-count duplicates left without combat rows after attachment collapse
+  // back into the first record of the same name so every kept section keeps data.
+  for (let index = sections.length - 1; index > 0; index--) {
+    const section = sections[index];
+    if (!/^\d+$/.test(String(section.count || "")) || section.combatStyles.length) continue;
+    const first = sections.find(entry => entry !== section && sectionNamesEquivalent(entry.name, section.name));
+    if (first) sections.splice(index, 1);
   }
 
   const lootHeader = rawLines.findIndex(line => /\b2d\b/i.test(line) && /\bLoot\b/i.test(line));
@@ -297,7 +332,7 @@ export function parseMonsterPage(input = "", url = "") {
       const headingText = markdownHeading ? plain(markdownHeading[2]) : "";
       const isAllSectionsHeading = markdownHeading && /^All Sections$/i.test(headingText);
       const matchedSection = markdownHeading
-        ? sections.find(section => section.name && normalizedSectionName(section.name) === normalizedSectionName(headingText))
+        ? sections.find(section => section.name && sectionNamesEquivalent(section.name, headingText))
         : null;
       if (isAllSectionsHeading || matchedSection) {
         if (current) uniqueSkills.push(current);
@@ -416,9 +451,10 @@ export function validateMonsterProfile(parsed) {
     if (system.sections.length > 1 && !system.mainSection.sourceValue) {
       errors.push("mainSection: designation is required for a multi-section profile");
     } else if (["named", "all"].includes(system.mainSection.type)) {
-      const sectionNames = new Set(system.sections.map(section => section.name.toLowerCase()));
       for (const name of system.mainSection.names) {
-        if (!sectionNames.has(name.toLowerCase())) errors.push(`mainSection: "${name}" does not match a parsed section`);
+        if (!system.sections.some(section => sectionNamesEquivalent(section.name, name))) {
+          errors.push(`mainSection: "${name}" does not match a parsed section`);
+        }
       }
     }
   }
