@@ -6,6 +6,15 @@ A note from me: I am not a programmer. I am building and maintaining this fork a
 
 ![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sword--world--25%200.16.2%2B-blue)
 
+## v0.16.2 - Monster section identity and parser fixes (latest)
+
+- **Section Source Data panel removed** — internal debug panel removed; section identities, combat styles and Unique Skill associations preserved
+- **Duplicate-named sections** — monsters with multiple sections of the same name (Amphisbaena two "Head", Dragon Corpse two "Wing", Dullahan two "Horse") now get distinct section IDs
+- **Parser fixes** — `&#32;` spacer cells no longer misalign combat statistics (Spinel Hood); stats-only modifier rows skipped; `Sections:`/`Main Section:` footer lines no longer break parsing; nested style annotations such as `Play (Fingers (1-5))` and `Legs (Body) x 1-4` parse correctly
+- **Corrected compendium data** — Casting Hand, Amphisbaena (two independent Head sections), Dragon Corpse (Body + two Wing sections), Dullahan (two Horse sections, pseudo-skills removed), Plain Centipede (pseudo-skill "Body" removed), Spinel Hood (combat statistics fixed to wiki values)
+
+---
+
 ## v0.14.24
 
 - **Race Item Drop** - The first patch allows dropping race Items onto sheets. On a **character sheet** a dropped race Item runs the full race import (languages, racial abilities, ability corrections, and background). On the **Fellow sheet** the race Item's name is simply copied into the Race field.
