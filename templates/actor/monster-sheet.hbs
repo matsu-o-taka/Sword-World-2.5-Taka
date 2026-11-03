@@ -12,21 +12,6 @@
       <label class="wide">Weak Point<input name="system.weakPoint" value="{{system.weakPoint}}"></label><label>Initiative<span class="monster-initiative-control"><input type="number" name="system.initiative" value="{{system.initiative}}">{{#if isGM}}<button type="button" data-action="roll-monster-initiative" title="Roll side initiative"><i class="fas fa-dice-d6"></i></button>{{/if}}</span></label><label>Movement<input name="system.movementSpeed" value="{{system.movementSpeed}}"></label><label>Fortitude<span class="monster-check-control"><input name="system.fortitude" value="{{system.fortitude}}"><button type="button" data-action="roll-monster-resistance" data-check="fortitude" title="Roll Fortitude"><i class="fas fa-dice-d6"></i></button></span></label><label>Willpower<span class="monster-check-control"><input name="system.willpower" value="{{system.willpower}}"><button type="button" data-action="roll-monster-resistance" data-check="willpower" title="Roll Willpower"><i class="fas fa-dice-d6"></i></button></span></label>
     </section>
 
-    {{#if sections.length}}
-    <section class="monster-panel monster-section-data"><h2>Section Source Data</h2>
-      <p><strong>Main Section:</strong> {{system.mainSection.sourceValue}}{{#if system.mainSection.associatedSkills.length}} — {{#each system.mainSection.associatedSkills}}{{#unless @first}}, {{/unless}}{{this}}{{/each}}{{/if}}</p>
-      {{#if system.sectionSource}}<p><strong>Sections:</strong> {{system.sectionSource}}</p>{{/if}}
-      {{#each sections as |section|}}<article class="monster-section-record">
-        <h3>{{#if section.name}}{{section.name}}{{else}}Unspecified Section{{/if}}{{#if section.count}} × {{section.count}}{{/if}}</h3>
-        {{#if section.label}}<p>{{section.label}}</p>{{/if}}
-        <div class="monster-combat-head"><span>Fighting Style</span><span>Accuracy</span><span>Damage</span><span>Evasion</span><span>Defense</span><span>HP</span><span>MP</span></div>
-        {{#each section.combatStyles as |style|}}<div class="monster-combat-row">
-          <span>{{style.style}}</span><span>{{style.accuracy}}</span><span>{{style.damage}}</span><span>{{style.evasion}}</span><span>{{style.defense}}</span><span>{{style.hp}}</span><span>{{style.mp}}</span>
-        </div>{{/each}}
-      </article>{{/each}}
-    </section>
-    {{/if}}
-
     <section class="monster-panel"><h2>Combat Statistics {{#if isGM}}<button type="button" data-action="add-monster-style"><i class="fas fa-plus"></i></button>{{/if}}</h2>
       {{#if mainCombatStyleIncomplete}}<p class="monster-main-section-incomplete">Select exactly one Main Section.</p>{{/if}}
       <div class="monster-main-combat-head"><span>Main</span><span>Style</span><span>Section</span><span>Accuracy</span><span>Damage</span><span>Evasion</span><span>Defense</span><span>HP</span><span>MP</span><span></span></div>

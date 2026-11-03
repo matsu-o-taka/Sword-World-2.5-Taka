@@ -56,11 +56,20 @@ Three truncated legacy stub files that the base imports referenced but that neve
 - **Skill references** — unique-skill descriptions retain their original wording and Markdown link references.
 - **Combat Statistics compatibility** — existing monster records with combined Style/Section text remain readable, while the sheet presents these as separate fields and preserves each combat statistic.
 
+## v0.16.2 - Monster section identity and parser fixes
+
+- **Section Source Data panel removed** — the internal debug panel that exposed raw section source data on the monster sheet has been removed; section identities, combat styles and Unique Skill associations are preserved.
+- **Duplicate-named sections** — monsters whose wiki declares multiple sections with the same name (Amphisbaena two "Head", Dragon Corpse two "Wing", Dullahan two "Horse") now get distinct section IDs so each section keeps its own combat styles and Unique Skill assignments.
+- **Parser fixes** — `&#32;` spacer cells no longer misalign combat statistics (Spinel Hood); stats-only modifier rows are skipped; `Sections:`/`Main Section:` footer lines after the combat table no longer break parsing; nested style annotations such as `Play (Fingers (1-5))` and `Legs (Body) x 1-4` parse correctly.
+- **Corrected compendium data** — Casting Hand (sections "Fingers (1-5)" + "Wrist", style "Play", stats per wiki, Unique Skills scoped per wiki headings), Amphisbaena (two independent Head sections), Dragon Corpse (Body + two Wing sections), Dullahan (two Horse sections, pseudo-skills removed), Plain Centipede (pseudo-skill "Body" removed), Spinel Hood (combat statistics fixed to wiki values).
+
 ## v0.16.1 - Monster unique skills by section
 
 - **Unique Skills per monster section** — on multi-section monsters, each Unique Skill can now be assigned to a specific combat section or to "All Sections". Skills are displayed grouped by section on the monster sheet, with a section heading per group.
 - **Section assignment picker** — the GM can change a skill's section assignment from the sheet. If a skill was previously assigned to a section that no longer exists, it is flagged for reassignment and shows a warning until assigned to a current section or All Sections.
 - **Single-section monsters** — Unique Skills are not sectioned and apply to all sections, keeping the existing behavior unchanged.
+
+## Installation
 
 ## Installation
 
