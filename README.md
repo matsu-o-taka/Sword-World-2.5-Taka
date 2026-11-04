@@ -6,14 +6,10 @@ A note from me: I am not a programmer. I am building and maintaining this fork a
 
 ![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sword--world--25%200.16.3%2B-blue)
 
-## v0.16.3 - Species logic restoration and standard combat maps
+## v0.16.3 - Species logic for Monster Knowledge and standard combat maps
 
-- **Species field on monster sheet** — the `Species` input in the monster sheet header now displays and persists the actor's `system.species` value.
-- **Species logic restored** — `normalizeSpeciesId`, `speciesId`, `registerSpeciesWeakness`, `speciesWeaknessKnown`, `isSpeciesWeaknessKnown`, `getWeaknessRegistry`, `withdrawSpeciesWeakness`, `revealMonsterStats`, `revealMonsterWeakness`, `toggleMonsterStats` and `toggleMonsterWeakness` restored in `module/combat/monster-knowledge.mjs`; `parseWeaknessData` and `getMonsterWeaknessBonus` added to `module/combat/damage-application.mjs`; `characterEvasionParts` added to `module/combat/evasion-challenge.mjs`. Weakness knowledge is shared by species; statistics revelation remains per-actor.
-- **Default species assignment** — newly created and compendium-imported monsters without an explicit species default to their own name via the `preCreateActor` lifecycle hook (`sw25.mjs`); explicitly assigned species are never overwritten.
-- **Wiki species import** — the monster parser extracts the `Species` field from wiki pages (`module/importer/monster-parser.mjs`); the importer falls back to the monster's name when the wiki provides no species (`module/importer/sw25-importer.mjs`).
-- **Standard combat maps folder** — Combat A, Combat B and Coliseum scenes are created in a "Simplified Combat Battlefields" folder on first world setup; existing scenes are not moved afterward.
-- **Map normalization** — all standard combat maps use `.webp` format; Combat A (1200×1688) and Combat B (1709×1200) resized with short side ≈1200 px preserving aspect ratio; Coliseum keeps 794×1123 with grid 50.
+- **Species logic for Monster Knowledge** — new `system.species` field on monsters, used by Monster Knowledge to share weakness discoveries between monsters of the same species. The species name is shown on the monster sheet header and defaults to the monster's own name when not explicitly set (for newly created or compendium-imported monsters). Weakness knowledge is shared per species; statistics revelation remains per-actor.
+- **Standard combat maps** — Combat A, Combat B and Coliseum scenes created in a "Simplified Combat Battlefields" folder on first world setup; all maps normalized to `.webp` format with short side ≈1200 px (Combat A: 1200×1688, Combat B: 1709×1200, Coliseum: 794×1123 at grid 50). Existing scenes are not moved.- **Map normalization** — all standard combat maps use `.webp` format; Combat A (1200×1688) and Combat B (1709×1200) resized with short side ≈1200 px preserving aspect ratio; Coliseum keeps 794×1123 with grid 50.
 
 ## v0.16.2 - Monster section identity and parser fixes
 
