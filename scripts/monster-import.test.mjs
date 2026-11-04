@@ -13,10 +13,12 @@ const goblinSource = await readFile(new URL("./fixtures/monster-goblin.md", impo
 const hydraSource = await readFile(new URL("./fixtures/monster-hydra.md", import.meta.url), "utf8");
 const cursedArtistSource = await readFile(new URL("./fixtures/monster-cursed-artist.md", import.meta.url), "utf8");
 const barraganbukSource = await readFile(new URL("./fixtures/monster-barraganbuk.md", import.meta.url), "utf8");
+const speciesExampleSource = await readFile(new URL("./fixtures/monster-species-example.md", import.meta.url), "utf8");
 const goblin = parseMonsterPage(goblinSource, "https://sw25.wikidot.com/monster:goblin");
 const hydra = parseMonsterPage(hydraSource, "https://sw25.wikidot.com/monster:hydra");
 const cursedArtist = parseMonsterPage(cursedArtistSource, "https://sw25.wikidot.com/monster:cursed-artist");
 const barraganbuk = parseMonsterPage(barraganbukSource, "https://sw25.wikidot.com/monster:barraganbuk");
+const speciesExample = parseMonsterPage(speciesExampleSource, "https://sw25.wikidot.com/monster:species-example");
 
 assert.equal(validateMonsterProfile(goblin), true);
 assert.equal(goblin.system.sections.length, 1);
@@ -148,6 +150,14 @@ assert.deepEqual(barraganbuk.system.uniqueSkills.slice(5, 7).map(skill => skill.
 assert.deepEqual(barraganbuk.system.uniqueSkills.slice(7).map(skill => skill.sectionId), [
   "section-body", "section-body"
 ]);
+
+// Species extraction from wiki page
+assert.equal(speciesExample.system.species, "Goblin", "Wiki Species field is extracted");
+assert.equal(speciesExample.name, "Species Example");
+
+// Monsters without an explicit Species field have no species in parsed data
+assert.equal(goblin.system.species, "", "Goblin wiki page has no Species field");
+assert.equal(hydra.system.species, "", "Hydra wiki page has no Species field");
 assert.ok(barraganbuk.system.uniqueSkills.every(skill =>
   skill.sourceText && skill.titleSource && skill.descriptionSource !== undefined
 ));
@@ -411,5 +421,32 @@ try {
 assert.equal(singleSectionUpdate["system.combatStyles"].length, 1);
 assert.equal(singleSectionUpdate["system.combatStyles"][0].damage, "2d+2");
 assert.equal(singleSectionUpdate["system.sections"].length, 1);
+
+// Importer species assignment: wiki-provided species is stored
+let speciesImportUpdate;
+SW25Importer.fetchPage = async () => ({ kind: "markdown", text: speciesExampleSource });
+try {
+  await SW25Importer.importUrl("https://sw25.wikidot.com/monster:species-example", {
+    type: "monster",
+    update: async data => { speciesImportUpdate = data; }
+  });
+} finally {
+  SW25Importer.fetchPage = originalFetchPage;
+}
+assert.equal(speciesImportUpdate["system.species"], "Goblin", "Importer stores wiki-assigned species");
+
+// Importer species fallback: wiki without species defaults to monster name
+let fallbackImportUpdate;
+SW25Importer.fetchPage = async () => ({ kind: "markdown", text: goblinSource });
+try {
+  await SW25Importer.importUrl("https://sw25.wikidot.com/monster:goblin", {
+    type: "monster",
+    name: "Goblin",
+    update: async data => { fallbackImportUpdate = data; }
+  });
+} finally {
+  SW25Importer.fetchPage = originalFetchPage;
+}
+assert.equal(fallbackImportUpdate["system.species"], "Goblin", "Importer defaults species to monster name when wiki provides none");
 
 console.log("Monster parser/import validation tests passed.");

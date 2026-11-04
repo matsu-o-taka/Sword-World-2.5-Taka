@@ -1,20 +1,33 @@
 const STANDARD_SCENES = [
   {
     name:"Combat A",
-    width:3144,
-    height:4422,
-    src:"systems/sword-world-25/assets/maps/combat-a-map.png"
+    width:1200,
+    height:1688,
+    src:"systems/sword-world-25/assets/maps/combat-a-map.webp"
   },
   {
     name:"Combat B",
-    width:3192,
-    height:2242,
-    src:"systems/sword-world-25/assets/maps/combat-b-map.jpg"
+    width:1709,
+    height:1200,
+    src:"systems/sword-world-25/assets/maps/combat-b-map.webp"
+  },
+  {
+    name:"Coliseum",
+    width:794,
+    height:1123,
+    gridSize:50,
+    src:"systems/sword-world-25/assets/maps/coliseum-map.webp"
   }
 ];
 
 export async function initializeStandardScenes() {
   if (!game.user.isGM) return;
+
+  const folderName = "Simplified Combat Battlefields";
+  let folder = game.folders.find(f => f.name === folderName && f.type === "Scene");
+  if (!folder) {
+    [folder] = await Folder.createDocuments([{ name: folderName, type: "Scene", parent: null }]);
+  }
 
   const created = [];
   const repaired = [];
@@ -52,6 +65,7 @@ export async function initializeStandardScenes() {
     if (game.scenes.some(candidate => candidate.name.toLowerCase() === scene.name.toLowerCase())) continue;
     const [document] = await Scene.createDocuments([{
       name:scene.name,
+      folder: folder.id,
       navigation:true,
       active:false,
       width:scene.width,
@@ -63,7 +77,7 @@ export async function initializeStandardScenes() {
       }],
       grid:{
         type:CONST.GRID_TYPES.GRIDLESS,
-        size:100,
+        size:scene.gridSize ?? 100,
         distance:1,
         units:"m"
       },
@@ -77,7 +91,7 @@ export async function initializeStandardScenes() {
     }
   }
 
-  if (created.length) ui.notifications.info(`Added ${created.join(" and ")} to the Scenes directory.`);
+  if (created.length) ui.notifications.info(`Added ${created.join(" and ")} to the ${folderName} folder.`);
   else if (repaired.length && !game.settings.get("sword-world-25", "standardScenesCreated")) {
     ui.notifications.info(`Updated ${repaired.join(" and ")} with their bundled map images.`);
   }

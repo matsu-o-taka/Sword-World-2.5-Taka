@@ -14,10 +14,38 @@ export function characterEvasionModifier(actor) {
   const classLevel = Number(defenseClass?.system?.level ?? 0);
   const agility = abilityBonus(actor?.system, "agility");
   const situational = Number(actor?.system?.combat?.situationalEvasion ?? 0);
-  const armour = [...(actor?.items || [])]
-    .filter(item => item.type === "armour" && item.system.equipped)
-    .reduce((sum, item) => sum + Number(item.system.evasion ?? 0), 0);
+  let armourItems = [];
+  if (actor?.items) {
+    if (typeof actor.items.filter === "function") {
+      armourItems = actor.items.filter(item => item.type === "armour" && item.system.equipped);
+    } else if (Symbol.iterator in Object(actor.items)) {
+      armourItems = [...actor.items].filter(item => item.type === "armour" && item.system.equipped);
+    }
+  }
+  const armour = armourItems.reduce((sum, item) => sum + Number(item.system.evasion ?? 0), 0);
   return classLevel + agility + situational + armour;
+}
+
+export function characterEvasionParts(actor) {
+  const defenseClass = actor?.items?.get(actor.system.combat?.defenseClassId);
+  const classLevel = Number(defenseClass?.system?.level ?? 0);
+  const agility = abilityBonus(actor?.system, "agility");
+  const situational = Number(actor?.system?.combat?.situationalEvasion ?? 0);
+  let armourItems = [];
+  if (actor?.items) {
+    if (typeof actor.items.filter === "function") {
+      armourItems = actor.items.filter(item => item.type === "armour" && item.system.equipped);
+    } else if (Symbol.iterator in Object(actor.items)) {
+      armourItems = [...actor.items].filter(item => item.type === "armour" && item.system.equipped);
+    }
+  }
+  const armour = armourItems.reduce((sum, item) => sum + Number(item.system.evasion ?? 0), 0);
+  const parts = [];
+  if (classLevel) parts.push({ label: "Defense class level", value: classLevel });
+  if (agility) parts.push({ label: "Agility", value: agility });
+  if (situational) parts.push({ label: "Situational", value: situational });
+  if (armour) parts.push({ label: "Armour", value: armour });
+  return parts;
 }
 
 export const evasionSucceeded = (total, target) => Number(total) >= Number(target);

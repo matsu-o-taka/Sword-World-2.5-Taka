@@ -4,7 +4,16 @@ This is a fork of [Sword-World-2.5-Foundry](https://github.com/DaedaIus/Sword-Wo
 
 A note from me: I am not a programmer. I am building and maintaining this fork as a hobby, with the help of AI, purely as a fan of Sword World 2.5. I test everything as I go hoping it works, but expect rough edges.
 
-![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sword--world--25%200.16.2%2B-blue)
+![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sword--world--25%200.16.3%2B-blue)
+
+## v0.16.3 - Species logic restoration and standard combat maps
+
+- **Species field on monster sheet** — the `Species` input in the monster sheet header now displays and persists the actor's `system.species` value.
+- **Species logic restored** — `normalizeSpeciesId`, `speciesId`, `registerSpeciesWeakness`, `speciesWeaknessKnown`, `isSpeciesWeaknessKnown`, `getWeaknessRegistry`, `withdrawSpeciesWeakness`, `revealMonsterStats`, `revealMonsterWeakness`, `toggleMonsterStats` and `toggleMonsterWeakness` restored in `module/combat/monster-knowledge.mjs`; `parseWeaknessData` and `getMonsterWeaknessBonus` added to `module/combat/damage-application.mjs`; `characterEvasionParts` added to `module/combat/evasion-challenge.mjs`. Weakness knowledge is shared by species; statistics revelation remains per-actor.
+- **Default species assignment** — newly created and compendium-imported monsters without an explicit species default to their own name via the `preCreateActor` lifecycle hook (`sw25.mjs`); explicitly assigned species are never overwritten.
+- **Wiki species import** — the monster parser extracts the `Species` field from wiki pages (`module/importer/monster-parser.mjs`); the importer falls back to the monster's name when the wiki provides no species (`module/importer/sw25-importer.mjs`).
+- **Standard combat maps folder** — Combat A, Combat B and Coliseum scenes are created in a "Simplified Combat Battlefields" folder on first world setup; existing scenes are not moved afterward.
+- **Map normalization** — all standard combat maps use `.webp` format; Combat A (1200×1688) and Combat B (1709×1200) resized with short side ≈1200 px preserving aspect ratio; Coliseum keeps 794×1123 with grid 50.
 
 ## v0.16.2 - Monster section identity and parser fixes
 

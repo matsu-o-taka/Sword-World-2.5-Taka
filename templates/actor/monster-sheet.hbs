@@ -1,7 +1,7 @@
 <form class="{{cssClass}} sw25-monster-sheet" autocomplete="off">
   <header class="monster-header">
     <img src="{{actor.img}}" data-edit="img" title="{{actor.name}}">
-    <div><input class="monster-name" name="name" value="{{actor.name}}"><div class="monster-subtitle">Level <input type="number" name="system.level" value="{{system.level}}"> <input name="system.monsterType" value="{{system.monsterType}}" placeholder="Monster type"></div></div>
+    <div><input class="monster-name" name="name" value="{{actor.name}}"><div class="monster-subtitle">Level <input type="number" name="system.level" value="{{system.level}}"> <input name="system.species" placeholder="Monster Species" value="{{system.species}}"> <input name="system.monsterType" value="{{system.monsterType}}" placeholder="Monster type"></div></div>
     {{#if isGM}}<div class="monster-gm-actions"><button type="button" data-action="import-monster"><i class="fas fa-file-import"></i> Import</button><button type="button" class="reveal-monster {{#if system.revealed}}active{{/if}}" data-action="toggle-monster-reveal"><i class="fas {{#if system.revealed}}fa-eye-slash{{else}}fa-eye{{/if}}"></i> {{#if system.revealed}}Hide from Players{{else}}Reveal to Players{{/if}}</button></div>{{/if}}
   </header>
   {{#if canRead}}
