@@ -1,0 +1,34 @@
+<div class="sw25-roll-modifiers-body">
+  <p class="sw25-roll-modifiers-hint">Temporary modifiers apply only to this roll ({{diceFormula}}). Actor data and the sheet are not changed.</p>
+
+  <ul class="sw25-roll-modifiers-list">
+    {{#if parts.length}}
+    {{#each parts as |part|}}
+    <li class="sw25-modifier-row{{#unless part.enabled}} sw25-modifier-disabled{{/unless}}">
+      <label class="sw25-modifier-toggle"><input type="checkbox" data-modifier-toggle data-modifier-id="{{part.id}}" {{#if part.enabled}}checked{{/if}} title="Enable or disable this modifier"></label>
+      <input class="sw25-modifier-label" name="modifier-label-{{part.id}}" value="{{part.label}}" data-modifier-label data-modifier-id="{{part.id}}" {{#unless part.temporary}}readonly{{/unless}}>
+      {{#if part.temporary}}
+      <input class="sw25-modifier-value" type="text" value="{{part.value}}" data-modifier-value data-modifier-id="{{part.id}}" title="Modifier value (integer, may be negative)">
+      <button type="button" class="sw25-modifier-remove" data-modifier-remove data-modifier-id="{{part.id}}" title="Remove modifier"><i class="fas fa-times"></i></button>
+      {{else}}
+      <span class="sw25-modifier-value sw25-modifier-static" title="Permanent modifier from the system">{{part.value}}</span>
+      {{/if}}
+    </li>
+    {{/each}}
+    {{else}}
+    <li class="sw25-modifier-empty">No modifiers yet. Add a temporary modifier below.</li>
+    {{/if}}
+  </ul>
+
+  <div class="sw25-roll-modifiers-add">
+    <input type="text" name="add-modifier-label" placeholder="Source or reason (optional)">
+    <input type="text" name="add-modifier-value" placeholder="+2 / -1" title="Modifier value (integer, may be negative)">
+    <button type="button" data-modifiers-add><i class="fas fa-plus"></i> Add</button>
+  </div>
+
+  <footer class="sw25-roll-modifiers-footer">
+    <span class="sw25-roll-modifiers-total"><strong>Total:</strong> <strong>{{total}}</strong></span>
+    <button type="button" data-modifiers-cancel><i class="fas fa-ban"></i> Cancel</button>
+    <button type="button" class="sw25-modifiers-submit" data-modifiers-submit><i class="fas fa-dice-d6"></i> {{submitLabel}} <em>({{totalLabel}})</em></button>
+  </footer>
+</div>

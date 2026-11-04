@@ -401,6 +401,7 @@ export function parseMonsterPage(input = "", url = "") {
       monsterType: plain(levelMatch?.[2]),
       intelligence: field("Intelligence"), perception: field("Perception"), disposition: field("Disposition"),
       soulscars: numeric(field("Soulscars")), languages: field("Language"), habitat: field("Habitat"),
+      species: field("Species"),
       reputation: numeric(reputation), weakness: numeric(weakness), weakPoint: field("Weak Point"),
       initiative: numeric(field("Initiative")), movementSpeed: field("Movement Speed"),
       fortitude: field("Fortitude"), willpower: field("Willpower"), source: field("Source"), description,

@@ -485,6 +485,8 @@ export class SW25Importer {
       validateMonsterProfile(parsed);
       const updateData = { name: parsed.name };
       for (const [field, value] of Object.entries(parsed.system)) updateData[`system.${field}`] = value;
+      // Fallback: monsters without an explicit species default to their own name.
+      if (!updateData["system.species"]) updateData["system.species"] = parsed.name;
       await actor.update(updateData);
       actor.sheet?.render(false);
       return actor;
