@@ -1537,9 +1537,6 @@
 
 
 /* v0.7.0.26 weapon importer and damage rolling */
-.sw25-official-sheet .weapon-list {
-  padding: 4px;
-}
 .sw25-official-sheet .weapon-row {
   display: grid;
   grid-template-columns: minmax(130px, 1.5fr) 48px 48px 38px 42px 38px 52px 54px;
@@ -1960,15 +1957,13 @@ form.sw25-official-sheet .offense-selector > label input {
 
 /* v0.10.0 class-specific magic power and work skills */
 .sw25-official-sheet .official-page-two {
-  grid-template-rows:150px 220px 320px 230px 230px;
+  grid-template-rows:150px 220px 320px 230px;
   grid-template-areas:
     "special movement hp"
     "offense offense offense"
     "access defense defense"
-    "magic feats feats"
-    "weapons weapons weapons";
+    "magic feats feats";
 }
-.sw25-official-sheet .weapons-box { grid-area:weapons; min-height:0; overflow:auto; }
 .sw25-official-sheet .abilities-box,.sw25-official-sheet .work-skills-box { min-width:0; min-height:0; overflow:auto; }
 .page-two-magic-power { display:flex; align-items:center; gap:5px; padding:3px 5px; }
 .page-two-magic-power select { flex:1; min-width:0; height:26px; font-size:10px; }

@@ -39,16 +39,6 @@ function controlText(text, needle, label) {
   return text.slice(start, end + "</button>".length);
 }
 
-console.log("=== Character sheet attack button in Roll column ===");
-
-{
-  const iconTag = controlText(characterSheet, 'data-action="roll-weapon"', "character-sheet.hbs");
-  assert.match(iconTag, /fa-sword/, "Attack icon is the sword (attack) glyph");
-  assert.match(iconTag, /title=/, "Attack control has a tooltip");
-  assert.match(iconTag, /Attack/i, "Attack tooltip describes attacking");
-  assert.doesNotMatch(iconTag, /fa-dice-d6/, "Attack icon does not use the damage glyph");
-}
-
 // The independent weapon damage button must NOT be in the Roll column.
 assert.ok(
   !characterSheet.includes('data-action="roll-weapon-damage"'),
@@ -96,25 +86,6 @@ assert.ok(
   !actorSheet.includes("async _onRollWeaponDamage"),
   "_onRollWeaponDamage method removed from actor-sheet"
 );
-
-{
-  const attackHandlerStart = actorSheet.indexOf("async _onRollWeapon(");
-  assert.ok(attackHandlerStart >= 0, "actor-sheet defines _onRollWeapon");
-  const attackHandlerEnd = actorSheet.indexOf("  _onOpenFeatDialog(", attackHandlerStart);
-  const attackHandler = actorSheet.slice(
-    attackHandlerStart,
-    attackHandlerEnd > attackHandlerStart ? attackHandlerEnd : attackHandlerStart + 3000
-  );
-  assert.match(attackHandler, /resolveAttackTarget\(/, "attack handler resolves the target");
-  assert.match(attackHandler, /characterWeaponAttackFlow\(/, "attack handler runs the attack flow");
-  assert.match(attackHandler, /openRollModifiersDialog/, "attack handler opens the modifier dialog");
-  assert.match(attackHandler, /describeTargetFailure\(/, "attack handler explains target failures");
-  assert.match(
-    attackHandler,
-    /rollWeaponDamage\(\{/,
-    "attack handler rolls damage after a resolved hit (part of normal attack flow)"
-  );
-}
 
 console.log("=== Monster sheet accuracy and damage controls ===");
 

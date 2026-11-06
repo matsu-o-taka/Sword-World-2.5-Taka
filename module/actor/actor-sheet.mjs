@@ -514,7 +514,6 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
 
   activateListeners(html) {
     super.activateListeners(html);
-    html.find('[data-action="roll-weapon"]').on("click", this._onRollWeapon.bind(this));
     html.find('[data-action="delete-weapon"]').on("click", this._onDeleteWeapon.bind(this));
     html.find('[data-action="roll-attack"]').on("click", this._onRollAttack.bind(this));
 
@@ -928,29 +927,6 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       await rememberMagicPowerRoll(this.actor, roll, classItem.id);
     });
 
-    html.find("[data-action='post-weapon']").on("click", async event => {
-      event.preventDefault();
-      const itemId = event.currentTarget.closest("[data-item-id]")?.dataset.itemId;
-      const weapon = this.actor.items.get(itemId);
-      if (!weapon) return;
-      const formula = weapon.system.damageFormula || "2d6";
-      const gun = isGunWeapon(weapon);
-      const content = `
-        <div class="sw25-chat-card" data-actor-id="${this.actor.id}" data-item-id="${weapon.id}">
-          <h3>${foundry.utils.escapeHTML(weapon.name)}</h3>
-          <p><strong>Usage:</strong> ${foundry.utils.escapeHTML(weapon.system.usage || "—")}</p>
-          <p><strong>Accuracy:</strong> ${Number(weapon.system.accuracy ?? 0)} &nbsp; <strong>Power:</strong> ${Number(weapon.system.power ?? 0)} &nbsp; <strong>Critical:</strong> ${Number(weapon.system.critical ?? 10)}</p>
-          ${gun
-            ? "<p><strong>Damage:</strong> Determined by the bullet spell.</p>"
-            : `<p><strong>Damage Formula:</strong> ${foundry.utils.escapeHTML(formula)}</p>
-               <button type="button" data-sw25-chat-action="roll-weapon-damage"><i class="fas fa-dice-d6"></i> Roll Damage</button>`}
-        </div>`;
-      await ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ actor: this.actor }),
-        content
-      });
-    });
-
     html.find("[data-action='cast-spell']").on("click", async event => {
       event.preventDefault();
       const spell = this.actor.items.get(event.currentTarget.closest("[data-item-id]")?.dataset.itemId);
@@ -1306,25 +1282,6 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       speaker: ChatMessage.getSpeaker({ actor: this.actor }),
       content: `<div class="sw25-chat-card class-feature-card"><h3>${escape(item.name)}</h3>${item.system.metadata ? `<p>${escape(item.system.metadata)}</p>` : ""}${item.system.description ? `<p>${escape(item.system.description)}</p>` : ""}${notices.length ? `<p><em>${escape(notices.join("; "))}.</em></p>` : ""}</div>`
     });
-  }
-
-  async _onRollWeapon(event) {
-    event.preventDefault();
-    const row = event.currentTarget.closest("[data-item-id]");
-    const weapon = this.actor.items.get(row?.dataset.itemId);
-    if (!weapon) return;
-    if (isGunWeapon(weapon)) {
-      ui.notifications.info(`${weapon.name} damage is rolled through its bullet spell.`);
-      return;
-    }
-
-    const attackingClass = resolveAttackingClass(this.actor, weapon);
-    if (!attackingClass) {
-      const requirement = isGunWeapon(weapon) ? "an Artificer class" : "a selected warrior-type Attacking Class";
-      ui.notifications.warn(`${weapon.name} requires ${requirement}.`);
-      return;
-    }
-    await rollWeaponDamage({ actor: this.actor, weapon, attackingClass });
   }
 
   async _onRollAttack(event) {
