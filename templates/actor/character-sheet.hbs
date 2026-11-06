@@ -230,32 +230,6 @@
             {{/each}}
           </div>
         </section>
-
-        <section class="paper-panel weapons-box">
-          <h2>Weapons <button type="button" class="panel-add" data-action="add-weapon" title="Add weapon"><i class="fas fa-plus"></i></button></h2>
-          <div class="weapon-list">
-            <div class="weapon-row weapon-head">
-              <span>Name</span><span>Stance</span><span>Min STR</span><span>Acc</span><span>Power</span><span>Crit</span><span>Add. Dmg</span><span></span>
-            </div>
-            {{#each weapons as |item|}}
-              <div class="weapon-entry weapon-row" data-item-id="{{item.id}}">
-                <button type="button" class="paper-link weapon-roll" data-action="roll-weapon" title="Attack — rolls Accuracy (2d6) against the target's Evasion"><i class="fas fa-sword"></i> {{item.name}}</button>
-                <span>{{item.system.stance}}</span>
-                <span>{{item.system.minStrength}}</span>
-                <span>{{item.system.accuracy}}</span>
-                <span>{{item.system.power}}</span>
-                <span>{{item.system.critical}}</span>
-                <span>{{item.system.additionalDamage}}</span>
-                <span class="weapon-actions">
-                  <button type="button" data-action="edit-item" title="Edit weapon"><i class="fas fa-pen"></i></button>
-                  <button type="button" data-action="delete-weapon" title="Delete weapon"><i class="fas fa-trash"></i></button>
-                </span>
-              </div>
-            {{else}}
-              <p class="paper-empty">No weapons</p>
-            {{/each}}
-          </div>
-        </section>
         <section class="paper-panel offense-box"><h2>Offensive Combat Stats <button type="button" class="panel-add" data-action="add-weapon"><i class="fas fa-plus"></i></button></h2><div class="offense-selector"><label>Attacking Class<select data-action="select-offense-class"><option value="">—</option>{{#each offenseClassChoices as |choice|}}<option value="{{choice.value}}" {{#if choice.selected}}selected{{/if}}>{{choice.label}}</option>{{/each}}</select></label><label>Accuracy Mod <input type="number" name="system.combat.accuracyMod" value="{{system.combat.accuracyMod}}"></label><label>Accuracy <strong>{{calculated.accuracy}}</strong></label><label>Extra Damage <strong>{{calculated.extraDamage}}</strong></label><label>Additional Damage <input type="number" name="system.combat.additionalDamage" value="{{system.combat.additionalDamage}}"></label></div><div class="weapon-table">
           <div class="weapon-head">
             <span>Weapon</span><span>Stance</span><span>Min STR</span><span>Accuracy</span><span>Power</span><span class="power-result-heading">3</span><span class="power-result-heading">4</span><span class="power-result-heading">5</span><span class="power-result-heading">6</span><span class="power-result-heading">7</span><span class="power-result-heading">8</span><span class="power-result-heading">9</span><span class="power-result-heading">10</span><span class="power-result-heading">11</span><span class="power-result-heading">12</span><span>Crit</span><span>Add. Damage</span><span>Roll</span><span>Mods?</span><span>Delete</span>
