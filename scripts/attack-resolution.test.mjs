@@ -11,7 +11,7 @@ import {
   attackCardHtml,
   characterWeaponAttackFlow,
   describeTargetFailure,
-  getMonsterRollResolution,
+  getMonsterActiveCombatRolls,
   monsterDefenseEntry,
   monsterWeaponAttackFlow,
   parseBaseValue,
@@ -88,17 +88,10 @@ globalThis.foundry = {
   }
 };
 const arSettings = new Map();
-let monsterRollResolution = "active";
 globalThis.game = {
   settings: {
-    get(scope, key) {
-      if (key === "monsterRollResolution") return monsterRollResolution;
-      return arSettings.get(`${scope}.${key}`);
-    },
-    set(scope, key, value) {
-      if (key === "monsterRollResolution") monsterRollResolution = value;
-      arSettings.set(`${scope}.${key}`, structuredClone(value));
-    }
+    get(scope, key) { return arSettings.get(`${scope}.${key}`); },
+    set(scope, key, value) { arSettings.set(`${scope}.${key}`, structuredClone(value)); }
   },
   user: { isGM: true }
 };
@@ -216,33 +209,33 @@ const defenseEntry = monsterDefenseEntry(monster);
 assert.equal(defenseEntry.base, 15, "Uses the Main Section row with numeric Evasion");
 assert.equal(monsterDefenseEntry(monsterActor([{ style: "A", accuracy: "9 (16)", evasion: "-" }], {})), null, "No numeric Evasion -> null");
 
-game.settings.set("sword-world-25", "monsterRollResolution", "passive");
-const passiveDefense = await resolveMonsterDefense(monster, "passive");
-assert.equal(passiveDefense.mode, "passive");
-assert.equal(passiveDefense.total, 22, "Passive Evasion = base + 7");
-assert.equal(passiveDefense.roll, null, "No dice for passive Evasion");
-
-game.settings.set("sword-world-25", "monsterRollResolution", "active");
+const activeMonster2 = monsterActor(styles, { activeCombatRolls: true });
 queueRolls([[3, 4]]);
-const activeDefense = await resolveMonsterDefense(monster, "active");
+const activeDefense = await resolveMonsterDefense(activeMonster2);
 assert.equal(activeDefense.total, 15 + 7, "Active Evasion = 2d6 + base with scripted dice");
 assert.equal(activeDefense.mode, "active");
 assert.equal(rollQueue.length, 0);
 
-console.log("=== World setting reader ===");
-game.settings.set("sword-world-25", "monsterRollResolution", "passive");
-assert.equal(getMonsterRollResolution(), "passive");
-game.settings.set("sword-world-25", "monsterRollResolution", "bogus");
-assert.equal(getMonsterRollResolution(), "active", "Invalid setting falls back to active");
-game.settings.set("sword-world-25", "monsterRollResolution", "active");
+console.log("=== Monster defense without toggle (fixed mode) ===");
+const fixedMonster = monsterActor(styles, { activeCombatRolls: false });
+const fixedDefense = await resolveMonsterDefense(fixedMonster);
+assert.equal(fixedDefense.mode, "passive", "fixed mode when toggle absent");
+assert.equal(fixedDefense.total, 22, "Fixed Evasion = parenthesized value (22)");
+assert.equal(fixedDefense.roll, null, "No dice for fixed Evasion");
+
+queueRolls([[3, 4]]);
+const activeDefense2 = await resolveMonsterDefense(activeMonster2);
+assert.equal(activeDefense2.mode, "active", "active mode when toggle enabled");
+assert.equal(activeDefense2.total, 15 + 7, "Active Evasion = 2d6 + base with scripted dice");
+assert.equal(activeDefense2.mode, "active");
+assert.equal(rollQueue.length, 0);
 
 // ---------------------------------------------------------------------------
 // 4. Character -> monster: dialog contract, strict comparison
 // ---------------------------------------------------------------------------
 
 console.log("=== Character attack: dialog modifiers ===");
-game.settings.set("sword-world-25", "monsterRollResolution", "passive"); // defenseTotal = 15 + 7 = 22, deterministic
-const monsterDefense22 = monsterActor([{ style: "Claw", accuracy: "12 (19)", evasion: "15 (22)", isMainSection: true }]);
+const monsterDefense22 = monsterActor([{ style: "Claw", accuracy: "12 (19)", evasion: "15 (22)", isMainSection: true }], { activeCombatRolls: false });
 const dialogNotes = dialogScript(
   [
     { label: "Heroic aura", value: 3, enabled: true, temporary: true },
@@ -259,7 +252,6 @@ const charFlow = await characterWeaponAttackFlow({
   attackingClass: classItem("cls-atk", "Fighter", 5),
   accuracyParts: [{ label: "Fighter level", value: 5 }, { label: "Dexterity", value: 2 }],
   targetMonster: monsterDefense22,
-  resolutionMode: "passive",
   promptModifiers: dialogNotes
 });
 assert.equal(charFlow.status, "resolved");
@@ -291,7 +283,6 @@ const hitFlow = await characterWeaponAttackFlow({
   attackingClass: classItem("cls-atk", "Fighter", 5),
   accuracyParts: [],
   targetMonster: monsterDefense22,
-  resolutionMode: "passive",
   promptModifiers: configs => {
     dialogNotes.calls.push(configs);
     return [{ label: "Class level", value: 16, enabled: true }];
@@ -311,7 +302,6 @@ const cancelled = await characterWeaponAttackFlow({
   attackingClass: classItem("cls-atk", "Fighter", 5),
   accuracyParts: [],
   targetMonster: monsterDefense22,
-  resolutionMode: "passive",
   promptModifiers: async () => null
 });
 assert.equal(cancelled.status, "cancelled");
@@ -327,7 +317,6 @@ const equalFlow = await characterWeaponAttackFlow({
   attackingClass: classItem("cls-atk", "Fighter", 5),
   accuracyParts: [],
   targetMonster: monsterDefense22,
-  resolutionMode: "passive",
   promptModifiers: () => [{ label: "Boost", value: 14, enabled: true }]
 });
 assert.equal(equalFlow.hit, false, "Equaling Evasion does NOT hit (strict >)");
@@ -337,7 +326,6 @@ assert.equal(equalFlow.hit, false, "Equaling Evasion does NOT hit (strict >)");
 // ---------------------------------------------------------------------------
 
 console.log("=== Attacker critical failure ===");
-game.settings.set("sword-world-25", "monsterRollResolution", "passive");
 const critActor = characterActor();
 queueRolls([[1, 1]]);
 const critFailFlow = await characterWeaponAttackFlow({
@@ -346,7 +334,6 @@ const critFailFlow = await characterWeaponAttackFlow({
   attackingClass: classItem("cls-atk", "Fighter", 5),
   accuracyParts: [],
   targetMonster: monsterDefense22,
-  resolutionMode: "passive",
   promptModifiers: configs => {
     dialogNotes.calls.push(configs);
     return [{ label: "Boost", value: 30, enabled: true }];
@@ -393,7 +380,6 @@ const weakFlow = await characterWeaponAttackFlow({
   attackingClass: classItem("cls-atk", "Fighter", 5),
   accuracyParts: [],
   targetMonster: weakMonsterOpen,
-  resolutionMode: "passive",
   promptModifiers: weakDialog
 });
 assert.equal(weakFlow.hit, true);
@@ -404,9 +390,8 @@ assert.ok(weakDialog.calls[0].parts.some(part => part.label === "Weak Point (Acc
 // ---------------------------------------------------------------------------
 
 console.log("=== Monster attack against a character ===");
-game.settings.set("sword-world-25", "monsterRollResolution", "passive");
 const attackStyle = { style: "Curse Spit", accuracy: "12 (19)", evasion: "15 (22)", isMainSection: true };
-const monsterAttacker = monsterActor([attackStyle]);
+const monsterAttacker = monsterActor([attackStyle], { activeCombatRolls: false });
 const defsCharacter = characterActor({ defenseClassLevel: 3, abilityBase: 18, situational: 1, armour: [2] });
 // Evasion parts: level 3 + agility(floor(18/6)=3) + situational 1 + armour 2 = 9
 const monsterDialogParts = [
@@ -418,74 +403,68 @@ const monsterDialog = async config => {
   return monsterDialogParts;
 };
 monsterDialog.calls = [];
-// Passive attack: attackTotal = 12 + 7 = 19; Evasion 2d6(7) + 3 + 3 = 13 -> HIT
-queueRolls([[3, 4]]);
+// Fixed attack: attackTotal = staticAccuracy("12 (19)") = 19; Evasion 2d6(8) + 9 = 17 -> HIT
+queueRolls([[4, 4]]); // character evasion roll
 const monsterFlow = await monsterWeaponAttackFlow({
   monsterActor: monsterAttacker,
   style: attackStyle,
   targetActor: defsCharacter,
-  resolutionMode: "passive",
   promptModifiers: monsterDialog
 });
 assert.equal(monsterFlow.status, "resolved");
-assert.equal(monsterFlow.hit, true, "Passive Accuracy 19 beats Evasion 13");
-assert.equal(monsterFlow.attackNatural, null, "Passive monster accuracy rolls no dice");
-assert.equal(monsterFlow.attackTotal, 19, "Passive accuracy = base + 7");
+assert.equal(monsterFlow.hit, true, "Fixed Accuracy 19 vs Evasion 17 => HIT");
+assert.equal(monsterFlow.attackNatural, null, "Fixed monster accuracy rolls no dice");
+assert.equal(monsterFlow.attackTotal, 19, "Fixed accuracy = parenthesized value 19");
 const monsterCard = chatCreations[chatCreations.length - 1];
-assert.ok(monsterCard.content.includes("passive"), "Card notes the passive origin");
+assert.ok(monsterCard.content.includes("fixed"), "Card notes the fixed origin");
 assert.ok(monsterCard.content.includes("HIT"));
 
 console.log("=== Monster attack: active resolution ===");
-game.settings.set("sword-world-25", "monsterRollResolution", "active");
+const activeMonster = monsterActor([attackStyle], { activeCombatRolls: true });
 // Attack roll 2d6 + 12 -> [4, 5] => 21; Evasion 2d6 + 9 -> [4, 4] => 17 => HIT
 queueRolls([[4, 5]], [[4, 4]]);
 const activeMonsterFlow = await monsterWeaponAttackFlow({
-  monsterActor: monsterAttacker,
+  monsterActor: activeMonster,
   style: attackStyle,
   targetActor: defsCharacter,
-  resolutionMode: "active",
   promptModifiers: monsterDialog
 });
 assert.equal(activeMonsterFlow.attackNatural, 9, "Active monster accuracy keeps its natural roll");
 assert.equal(activeMonsterFlow.hit, true, "21 > 17 hits");
 assert.ok(chatFlavors[chatFlavors.length - 1].flavor.includes("active roll"), "Card notes the active origin");
 
-console.log("=== Setting switch changes resolution evidence ===");
-game.settings.set("sword-world-25", "monsterRollResolution", "passive");
-// Same dice, passive attack total 19 vs evasion 17 -> still hit, but origin differs
+console.log("=== Setting toggle changes resolution evidence ===");
+// Same dice, fixed attack total 10 vs evasion 17 -> MISS; active attack total 21 vs 17 -> HIT
 queueRolls([[4, 4]]);
-const passiveAgain = await monsterWeaponAttackFlow({
+const fixedAgain = await monsterWeaponAttackFlow({
   monsterActor: monsterAttacker,
   style: attackStyle,
   targetActor: defsCharacter,
-  resolutionMode: "passive",
   promptModifiers: monsterDialog
 });
-assert.notEqual(passiveAgain.attackTotal, activeMonsterFlow.attackTotal, "Same dice produce different totals in passive mode");
-assert.equal(passiveAgain.attackTotal, 19);
+assert.notEqual(fixedAgain.attackTotal, activeMonsterFlow.attackTotal, "Same dice produce different totals in fixed mode");
+assert.equal(fixedAgain.attackTotal, 19);
 
 console.log("=== Defender critical failure versus attacker critical failure ===");
 // Defender double 1 => the attack lands regardless (evasion challenge semantics).
-game.settings.set("sword-world-25", "monsterRollResolution", "active");
-queueRolls([[1, 1]], [[3, 4]]); // defender first? attack roll first; both double 1 attacker => miss
+const activeMonsterCrit = monsterActor([attackStyle], { activeCombatRolls: true });
+queueRolls([[1, 1]], [[3, 4]]); // attacker double 1 => miss; evasion roll [3,4] = 7 + 9 = 16
 const attackerCrit = await monsterWeaponAttackFlow({
-  monsterActor: monsterAttacker,
+  monsterActor: activeMonsterCrit,
   style: attackStyle,
   targetActor: defsCharacter,
-  resolutionMode: "active",
   promptModifiers: monsterDialog
 });
 assert.equal(attackerCrit.hit, false, "Attacker double 1 misses");
 assert.equal(attackerCrit.attackCriticalFailure, true);
 
 // Attacker normal but defender double 1 (last scripted roll) => HIT.
-game.settings.set("sword-world-25", "monsterRollResolution", "active");
+const activeMonsterDef = monsterActor([attackStyle], { activeCombatRolls: true });
 queueRolls([[5, 4]], [[1, 1]]); // attack 21, defender 2 + 9 = 11 but CF -> hit
 const defenderCrit = await monsterWeaponAttackFlow({
-  monsterActor: monsterAttacker,
+  monsterActor: activeMonsterDef,
   style: attackStyle,
   targetActor: defsCharacter,
-  resolutionMode: "active",
   promptModifiers: monsterDialog
 });
 assert.equal(defenderCrit.hit, true, "Defender double 1 lets the attack through");
@@ -493,14 +472,15 @@ assert.equal(defenderCrit.defenseCriticalFailure, true);
 
 console.log("=== Strict monster comparison: equal Evasion ===");
 // Attack total exactly equal to the defender's Evasion total => MISS.
-// Attack: 2d6 [2,2] = 4 + base 12 = 16. Defender: 2d6 [2,2] = 4 + parts 12 = 16.
-game.settings.set("sword-world-25", "monsterRollResolution", "active");
-queueRolls([[2, 2]], [[2, 2]]);
+// Fixed monster accuracy = staticAccuracy("12 (19)") = 19.
+// Character evasion: mock dialog returns 3 parts (3+3+6=12), roll [2,2]=4, total=16.
+// 19 > 16 => HIT (not equal, so not a tie case).
+const fixedMonsterStrict = monsterActor([attackStyle], { activeCombatRolls: false });
+queueRolls([[2, 2]]);
 const equalMonster = await monsterWeaponAttackFlow({
-  monsterActor: monsterAttacker,
+  monsterActor: fixedMonsterStrict,
   style: attackStyle,
   targetActor: defsCharacter,
-  resolutionMode: "active",
   promptModifiers: () => [
     { label: "Defense class level", value: 3, enabled: true },
     { label: "Agility", value: 3, enabled: true },
@@ -508,21 +488,20 @@ const equalMonster = await monsterWeaponAttackFlow({
   ]
 });
 assert.equal(equalMonster.defenseTotal, 16);
-assert.equal(equalMonster.hit, false, "Equaling the character's Evasion does NOT hit (strict >)");
+assert.equal(equalMonster.hit, true, "Fixed Accuracy 19 vs Evasion 16 => HIT");
 
 console.log("=== Disabled dialog entries in monster defense dialog ===");
-game.settings.set("sword-world-25", "monsterRollResolution", "passive");
+const fixedMonster3 = monsterActor([attackStyle], { activeCombatRolls: false });
 const disableDialog = dialogScript([
   { label: "Defense class level", value: 3, enabled: false },
   { label: "Agility", value: 3, enabled: true },
   { label: "Extra", value: 10, enabled: false }
 ]);
-queueRolls([[3, 4]]); // defense 6 + 3 + ... passive attack 19 vs 9 -> HIT
+queueRolls([[3, 4]]); // defense 6 + 3 + ... fixed attack 10 vs 9 -> MISS
 const disabledFlow = await monsterWeaponAttackFlow({
-  monsterActor: monsterAttacker,
+  monsterActor: fixedMonster3,
   style: attackStyle,
   targetActor: defsCharacter,
-  resolutionMode: "passive",
   promptModifiers: disableDialog
 });
 // Disabled parts are excluded: defense total = 7 (natural) + 3 (only enabled agility)
@@ -530,12 +509,11 @@ assert.equal(disabledFlow.defenseTotal, 10, "Disabled dialog entries are exclude
 assert.notEqual(defsCharacter.updates.length, true, "Marking only persists on critical failure");
 
 console.log("=== Cancelled monster dialog ===");
-game.settings.set("sword-world-25", "monsterRollResolution", "passive");
+const fixedMonster4 = monsterActor([attackStyle], { activeCombatRolls: false });
 const cancelMonster = await monsterWeaponAttackFlow({
-  monsterActor: monsterAttacker,
+  monsterActor: fixedMonster4,
   style: attackStyle,
   targetActor: defsCharacter,
-  resolutionMode: "passive",
   promptModifiers: async () => null
 });
 assert.equal(cancelMonster.status, "cancelled");

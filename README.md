@@ -4,7 +4,15 @@ This is a fork of [Sword-World-2.5-Foundry](https://github.com/DaedaIus/Sword-Wo
 
 A note from me: I am not a programmer. I am building and maintaining this fork as a hobby, with the help of AI, purely as a fan of Sword World 2.5. I test everything as I go hoping it works, but expect rough edges.
 
-![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sword--world--25%200.16.3%2B-blue)
+![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sword--world--25%200.17.0%2B-blue)
+
+## v0.17.0 - Monster active/passive evasion, weapon modifiers and damage resolution
+
+- **Monster active/passive evasion** — each monster has a per-actor `Active Combat Rolls` toggle on its sheet header. When enabled, Accuracy and Evasion resolve with real `2d6 + base` rolls; when disabled they use the fixed parenthesized value (base + 7). New monsters default to fixed rolls.
+- **Weapon attack modifiers** — the character attack opens a temporary modifier dialog (class level, Dexterity, Accuracy Mod, weapon accuracy). Each weapon has a per-weapon `Mods?` tick that opens or skips the dialog on every attack.
+- **Damage, critical hits and defense** — hitting a monster posts a "Roll Damage" button. Damage cards show total damage and `Apply Damage` reduces monster HP subtracting Defense. Critical hits (e.g. crit 10 on a 12) open a "Roll Damage Again" card carrying accumulated power to the next roll.
+- **Monster Knowledge and Weak Points** — Monster Knowledge shares weakness discoveries between monsters of the same species; a discovered "Accuracy" Weak Point grants the attacker a permanent accuracy bonus on attacks against that monster.
+- **Foundry V14 compatibility** — chat-hook HTML is normalized with `$(html)` before querying elements, fixing `html.find is not a function` on buttons rendered in chat ("Roll Damage", "Apply Damage", etc.).
 
 ## v0.16.3 - Species logic for Monster Knowledge and standard combat maps
 

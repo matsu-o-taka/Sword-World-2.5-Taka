@@ -197,6 +197,7 @@
         "names": [],
         "associatedSkills": []
       },
+      "activeCombatRolls": false,
       "combatStyles": [],
       "uniqueSkills": [],
       "lootTable": []
@@ -255,6 +256,7 @@
     },
     "weapon": {
       "equipped": false,
+      "modsEnabled": false,
       "usage": "",
       "accuracy": 0,
       "accuracyMod": 0,

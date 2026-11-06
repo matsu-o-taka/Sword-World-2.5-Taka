@@ -123,7 +123,10 @@ async function requestDamage(button) {
 
 export function initializeDamageApplication() {
   Hooks.on("renderChatMessage", (_message, html) => {
-    html.find("[data-sw25-chat-action='apply-damage']").on("click", event => {
+    // html may be a raw HTMLElement (Foundry v14) or a jQuery result: $()
+    // accepts both, and normalizes this hook to jQuery calls.
+    const $html = $(html);
+    $html.find("[data-sw25-chat-action='apply-damage']").on("click", event => {
       event.preventDefault();
       return requestDamage(event.currentTarget);
     });

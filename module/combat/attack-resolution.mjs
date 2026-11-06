@@ -7,9 +7,12 @@
 // Rules enforced here:
 //   - The compare is STRICT: the attack total must EXCEED the defender's
 //     Evasion. Equaling Evasion does not hit (SW2.5 core combat rule).
-//   - Monster Accuracy/Evasion are rolled (active) or taken as passive
-//     values (base + 7) according to the WORLD setting
-//     "monsterRollResolution", which only affects monsters.
+//   - Monster rolls are governed by the per-monster toggle
+//     `system.activeCombatRolls` (Addresses sheet UI + template.json):
+//       enabled  -> monster Accuracy/Evasion roll 2d6 + base (active)
+//       disabled -> monster uses its parenthesized value, base + 7 (fixed)
+//     The toggle defaults to disabled for monsters without the property.
+//     An explicit `resolutionMode` argument overrides the toggle.
 //   - A discovered Weak Point of category "Accuracy" grants the
 //     attacker a permanent accuracy modifier derived from the monster's
 //     own weakPoint data. Discovery lives in the world weakness registry
@@ -27,17 +30,18 @@ import { parseWeaknessData } from "./damage-application.mjs";
 import { speciesWeaknessKnown } from "./monster-knowledge.mjs";
 import { criticalFailureHTML, isCriticalFailure, markCriticalFailure, rollDiceResults } from "../rules/critical-failure.mjs";
 import { assembleRollFormula, enabledModifiersTotal, normalizeModifier, openRollModifiersDialog, signedValue } from "../rules/roll-modifiers.mjs";
-import { characterEvasionParts } from "./evasion-challenge.mjs";
+import { characterEvasionParts, staticAccuracy } from "./evasion-challenge.mjs";
 
-export const SYSTEM_ID = "sword-world-25";
-export const MONSTER_ROLL_RESOLUTION_SETTING = "monsterRollResolution";
-const SETTING_CHOICES = new Set(["active", "passive"]);
+// Per-monster toggle reader. Missing property means fixed mode (no rolls).
+export function getMonsterActiveCombatRolls(monster) {
+  return Boolean(monster?.system?.activeCombatRolls ?? false);
+}
 
-// Read the global monster roll resolution setting ("active" | "passive").
-// Invalid or missing values fall back to "active" so rolls always resolve.
-export function getMonsterRollResolution() {
-  const value = game?.settings?.get(SYSTEM_ID, MONSTER_ROLL_RESOLUTION_SETTING);
-  return SETTING_CHOICES.has(String(value) || "") ? String(value) : "active";
+// Read the active/fixed mode for a monster: an explicit override wins;
+// otherwise the per-monster toggle decides.
+function resolveMonsterRollMode(mode, monster) {
+  if (mode === "active" || mode === "passive") return mode;
+  return getMonsterActiveCombatRolls(monster) ? "active" : "passive";
 }
 
 // Base modifier from a monster statistic string such as "10 (17)" (stored as
@@ -129,16 +133,25 @@ export function weakPointAccuracyModifier(monster) {
   return { label: `Weak Point (${data.category})`, value: bonus };
 }
 
-// Monster defense value for a general attack, honouring the world setting.
-// Active: a real `2d6 + base` roll; Passive: base + 7 with no dice at all.
+// Fixed monster statistic: the parenthesized value of the stored string is
+// the authoritative fixed value (base + 7 as written at import time); when
+// the parenthesized presentation is absent, derive base + 7.
+function fixedValue(raw) {
+  return staticAccuracy(raw) ?? passiveValue(parseBaseValue(raw) ?? 0);
+}
+
+// Monster defense value for a general attack, honouring the per-monster
+// toggle (or an explicit `mode` argument).
+// Active: a real `2d6 + base` roll; Fixed: the parenthesized value with no
+// dice at all.
 // A double 1 on the active defense roll is a critical failure for the
 // defender (the attacker hits unless the attacker also fumbled).
 export async function resolveMonsterDefense(monster, mode) {
   const entry = monsterDefenseEntry(monster);
   if (!entry) return null;
   const base = entry.base;
-  if (mode === "passive") {
-    return { mode: "passive", base, total: passiveValue(base), roll: null, natural: null, criticalFailure: false };
+  if (resolveMonsterRollMode(mode, monster) === "passive") {
+    return { mode: "passive", base, total: fixedValue(entry.style?.evasion), roll: null, natural: null, criticalFailure: false };
   }
   const roll = await new Roll(assembleRollFormula("2d6", base)).evaluate();
   return {
@@ -217,14 +230,15 @@ const breakdownParts = modifiers => modifiers
  * @param {Array}   flow.accuracyParts    Permanent Accuracy parts of the
  *                                        character (labels included).
  * @param {Actor}   flow.targetMonster    Defending monster Actor.
- * @param {string}  [flow.resolutionMode] "active"/"passive" monster setting.
+ * @param {string}  [flow.resolutionMode] Optional "active"/"passive"
+ *                                        override; default is the monster's
+ *                                        activeCombatRolls toggle.
  * @param {Function} [flow.promptModifiers] Injectable dialog (tests).
  * @returns {Promise<object>} status + resolution details.
  */
 export async function characterWeaponAttackFlow({
   actor, weapon, attackingClass, accuracyParts, targetMonster,
-  resolutionMode = getMonsterRollResolution(),
-  promptModifiers = openRollModifiersDialog
+  resolutionMode, promptModifiers = openRollModifiersDialog
 } = {}) {
   if (targetMonster?.type !== "monster") return { status: "invalid-target" };
   const defense = await resolveMonsterDefense(targetMonster, resolutionMode);
@@ -274,7 +288,7 @@ export async function characterWeaponAttackFlow({
       defenderName: targetMonster?.name,
       defenseStatLabel: "Evasion",
       defenseOrigin: defense.mode === "passive"
-        ? `passive (base ${signedValue(defense.base)} + 7)`
+        ? `fixed (${signedValue(defense.total)})`
         : `active roll (2d6 ${signedValue(defense.base)})`,
       defenseNatural: defense.natural,
       defenseParts: [{ label: "Base Evasion", value: defense.base }],
@@ -288,6 +302,7 @@ export async function characterWeaponAttackFlow({
   return {
     status: "resolved",
     hit,
+    targetMonster,
     attackTotal: Number(roll.total),
     attackNatural: natural,
     defenseTotal: defense.total,
@@ -310,26 +325,27 @@ const isGunLikeWeapon = weapon => /^(gun|artificer)/i.test(String(weapon?.system
  * @param {Actor}  flow.monsterActor   Attacking monster Actor.
  * @param {object} flow.style          Combat style row of the attack.
  * @param {Actor}  flow.targetActor    Defending character Actor.
- * @param {string} [flow.resolutionMode] "active"/"passive" monster setting.
+ * @param {string} [flow.resolutionMode] Optional "active"/"passive"
+ *                                       override; default is the monster's
+ *                                       activeCombatRolls toggle.
  * @param {Function} [flow.promptModifiers] Injectable dialog (tests).
  * @returns {Promise<object>} status + resolution details.
  */
 export async function monsterWeaponAttackFlow({
-  monsterActor, style, targetActor,
-  resolutionMode = getMonsterRollResolution(),
-  promptModifiers = openRollModifiersDialog
+  monsterActor, style, targetActor, resolutionMode, promptModifiers = openRollModifiersDialog
 } = {}) {
   const attackBase = parseBaseValue(style?.accuracy);
   if (attackBase === null) return { status: "no-attack" };
   if (targetActor?.type !== "character") return { status: "invalid-target" };
 
+  const mode = resolveMonsterRollMode(resolutionMode, monsterActor);
   let attackNatural = null;
   let attackTotal;
   let attackRoll = null;
   let attackCriticalFailure = false;
-  if (resolutionMode === "passive") {
-    // Passive mode: no dice are invented for the monster's Accuracy.
-    attackTotal = passiveValue(attackBase);
+  if (mode === "passive") {
+    // Fixed mode: no dice are invented for the monster's Accuracy.
+    attackTotal = fixedValue(style?.accuracy);
   } else {
     attackRoll = await new Roll(assembleRollFormula("2d6", attackBase)).evaluate();
     attackNatural = rollDiceResults(attackRoll).reduce((sum, value) => sum + Number(value || 0), 0);
@@ -358,11 +374,11 @@ export async function monsterWeaponAttackFlow({
   // as the existing Evasion challenge); an attacking critical failure always
   // misses.
   const hit = !attackCriticalFailure && (evasionCriticalFailure || attackTotal > Number(evasionRoll.total));
-  const attackOrigin = resolutionMode === "passive"
-    ? `passive (base ${signedValue(attackBase)} + 7)`
+  const attackOrigin = mode === "passive"
+    ? `fixed (${signedValue(attackTotal)})`
     : `active roll (2d6 ${signedValue(attackBase)})`;
-  const resolutionNote = resolutionMode === "passive"
-    ? "Monster Accuracy resolved with its passive value (base + 7); no dice were rolled."
+  const resolutionNote = mode === "passive"
+    ? "Monster Accuracy resolved with its fixed value (base + 7); no dice were rolled."
     : "Monster Accuracy resolved with a real 2d6 roll.";
 
   const cardHtml = attackCardHtml({
@@ -394,7 +410,7 @@ export async function monsterWeaponAttackFlow({
       flavor: cardHtml
     });
   } else {
-    // Passive mode: no attack dice exist; publish the breakdown directly.
+    // Fixed mode: no attack dice exist; publish the breakdown directly.
     await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor: monsterActor }),
       content: cardHtml
@@ -404,12 +420,13 @@ export async function monsterWeaponAttackFlow({
   return {
     status: "resolved",
     hit,
+    targetActor,
     attackTotal,
     attackNatural,
+    attackRoll,
     defenseTotal: Number(evasionRoll.total),
     defenseMode: "active",
     defenseCriticalFailure: evasionCriticalFailure,
     attackCriticalFailure
   };
 }
-

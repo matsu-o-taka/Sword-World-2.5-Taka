@@ -10,6 +10,10 @@ import { characterHPMaximum } from "../rules/resources.mjs";
 import { featureDefenseModifier } from "../rules/feature-defense.mjs";
 import { SKILL_DEFINITION_MAP, SKILL_DEFINITIONS } from "../rules/skill-definitions.mjs";
 import { resolveSkillClass } from "../rules/skill-resolution.mjs";
+import { openRollModifiersDialog } from "../rules/roll-modifiers.mjs";
+import { getMonsterWeaknessBonus, damageApplicationButton } from "../combat/damage-application.mjs";
+import { characterWeaponAttackFlow, resolveAttackTarget, describeTargetFailure } from "../combat/attack-resolution.mjs";
+import { readMonsterActorCombatStyles } from "./monster-sheet-data.mjs";
 
 // Combat feat that grants Marksman access to Evasion calculation. Identified
 // by the feat item's canonical name (feats are matched by normalized name).
@@ -376,6 +380,7 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     context.calculated.evasion = context.calculated.defenseClassLevel + bonuses.agility + context.calculated.situationalEvasion + context.calculated.armourEvasion;
     context.calculated.accuracyMod = Number(system.combat?.accuracyMod ?? 0);
     context.calculated.accuracy = context.calculated.offenseClassLevel + bonuses.dexterity + context.calculated.accuracyMod;
+    context.calculated.extraDamage = context.calculated.offenseClassLevel + bonuses.strength + Number(system.combat?.additionalDamage ?? 0);
     context.calculated.magicPower = Number(this.actor.items.get(selectedMagicClassId)?.system.level ?? 0) + bonuses.intelligence;
     for (const tab of context.classTabs) {
       const classItem = context.classes.find(item => `class-${item.id}` === tab.id);
@@ -511,6 +516,7 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     super.activateListeners(html);
     html.find('[data-action="roll-weapon"]').on("click", this._onRollWeapon.bind(this));
     html.find('[data-action="delete-weapon"]').on("click", this._onDeleteWeapon.bind(this));
+    html.find('[data-action="roll-attack"]').on("click", this._onRollAttack.bind(this));
 
 
     const setActiveTab = tabName => {
@@ -779,6 +785,12 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       const item = this.actor.items.get(itemId);
       if (!item) return;
       await item.update({"system.equipped": event.currentTarget.checked});
+    });
+    html.find("[data-action='toggle-weapon-mods']").on("change", async event => {
+      const itemId = event.currentTarget.closest('.combat-weapon-row')?.dataset.itemId;
+      const item = this.actor.items.get(itemId);
+      if (!item) return;
+      await item.update({"system.modsEnabled": event.currentTarget.checked === true});
     });
     html.find("[data-action='delete-armour']").on("click", async event => {
       event.preventDefault();
@@ -1313,6 +1325,74 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       return;
     }
     await rollWeaponDamage({ actor: this.actor, weapon, attackingClass });
+  }
+
+  async _onRollAttack(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const row = event.currentTarget.closest("[data-item-id]");
+    const weapon = this.actor.items.get(row?.dataset.itemId);
+    if (!weapon) return;
+    if (isGunWeapon(weapon)) {
+      ui.notifications.info(`${weapon.name} damage is rolled through its bullet spell.`);
+      return;
+    }
+
+    const attackingClass = resolveAttackingClass(this.actor, weapon);
+    if (!attackingClass) {
+      const requirement = isGunWeapon(weapon) ? "an Artificer class" : "a selected warrior-type Attacking Class";
+      ui.notifications.warn(`${weapon.name} requires ${requirement}.`);
+      return;
+    }
+
+    // Resolver target usando el sistema de attack-resolution (usa game.user.targets)
+    const targetResult = resolveAttackTarget({
+      targets: game.user?.targets ?? [],
+      controlled: [...(canvas?.tokens?.controlled || [])]
+    });
+
+    if (targetResult.status !== "ok") {
+      ui.notifications.warn(describeTargetFailure(targetResult.status, "monster"));
+      return;
+    }
+
+    const targetMonster = targetResult.actor;
+    if (targetMonster.type !== "monster") {
+      ui.notifications.warn("The attack target must be a monster.");
+      return;
+    }
+
+    // Construir partes de Accuracy desde los valores del personaje
+    const baseAccuracy = this._sheetCalculated?.accuracy ?? 0;
+    const weaponAccuracy = Number(weapon.system?.accuracy ?? 0);
+
+    const accuracyParts = [
+      { label: "Class level", value: Number(attackingClass?.system?.level ?? 0), enabled: true, temporary: false },
+      { label: "Dexterity bonus", value: abilityBonus(this.actor.system, "dexterity"), enabled: true, temporary: false },
+      { label: "Accuracy Mod", value: Number(this.actor.system.combat?.accuracyMod ?? 0), enabled: true, temporary: false },
+      { label: "Weapon Accuracy", value: weaponAccuracy, enabled: true, temporary: false }
+    ];
+
+    const result = await characterWeaponAttackFlow({
+      actor: this.actor,
+      weapon,
+      attackingClass,
+      accuracyParts,
+      targetMonster,
+      promptModifiers: weapon.system?.modsEnabled === true
+        ? openRollModifiersDialog
+        : modifiersConfig => modifiersConfig.parts
+    });
+
+    if (result.status === "cancelled") return;
+    if (result.status === "no-defense") {
+      ui.notifications.warn("The target monster has no usable Evasion value.");
+      return;
+    }
+    if (result.status === "invalid-target") {
+      ui.notifications.warn("Invalid attack target.");
+      return;
+    }
   }
 
   async _openFeatDialog() {

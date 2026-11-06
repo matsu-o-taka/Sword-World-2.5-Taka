@@ -2,7 +2,9 @@ import { lootMatches, monsterDamageFormula } from "../importer/monster-parser.mj
 import { beginMonsterInitiative } from "../combat/side-initiative.mjs";
 import { damageApplicationButton } from "../combat/damage-application.mjs";
 import { staticAccuracy } from "../combat/evasion-challenge.mjs";
-import { criticalFailureHTML, markCriticalFailure } from "../rules/critical-failure.mjs";
+import { monsterWeaponAttackFlow, getMonsterActiveCombatRolls, describeTargetFailure } from "../combat/attack-resolution.mjs";
+import { openRollModifiersDialog } from "../rules/roll-modifiers.mjs";
+import { criticalFailureHTML, markCriticalFailure, rollDiceResults } from "../rules/critical-failure.mjs";
 import { appendMonsterCombatStyle, createMonsterUniqueSkill, getMainCombatStyleIndex, getMonsterSectionChoices, hasValidMainCombatStyle, mergeMonsterCombatStyleFields, mergeMonsterUniqueSkillFields, prepareMonsterCombatStyles, prepareMonsterUniqueSkillGroups, readMonsterActorCombatStyles, selectMainCombatStyle } from "./monster-sheet-data.mjs";
 
 function promptMonsterSkillSection(sectionChoices, currentAssignment = "", title = "Choose Unique Skill Section") {
@@ -181,26 +183,65 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
 
     html.find("[data-action='roll-monster-accuracy']").on("click", async event => {
       event.preventDefault();
+      // Accuracy initiates attacks (and the manual roll fallback); both are
+      // explicitly GM-initiated actions on the monster side.
+      if (!game.user.isGM) return;
       const style = readMonsterActorCombatStyles(this.actor)[Number(event.currentTarget.dataset.index)];
       if (!style) return;
-      const modifier = Number(String(style.accuracy || "0").match(/-?\d+/)?.[0] || 0);
-      const roll = await new Roll(`2d6 + ${modifier}`).evaluate();
-      const criticalFailure = await markCriticalFailure(this.actor, roll);
-      await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: this.actor }), flavor: `${this.actor.name} — ${style.style || "Attack"} Accuracy${criticalFailure ? criticalFailureHTML() : ""}` });
-    });
 
-    html.find("[data-action='call-monster-evasion']").on("click", async event => {
-      event.preventDefault();
-      const style = readMonsterActorCombatStyles(this.actor)[Number(event.currentTarget.dataset.index)];
-      if (!style) return;
-      const target = staticAccuracy(style.accuracy);
-      if (!Number.isFinite(target)) return ui.notifications.warn("This attack does not have a static Accuracy value in parentheses.");
-      const attackName = style.style || "Attack";
-      await ChatMessage.create({
-        speaker:ChatMessage.getSpeaker({ actor:this.actor }),
-        content:`<div class="sw25-chat-card sw25-evasion-challenge"><h3>${foundry.utils.escapeHTML(this.actor.name)} — ${foundry.utils.escapeHTML(attackName)}</h3><p>An Evasion Check is required.</p><button type="button" data-sw25-chat-action="roll-evasion-challenge"><i class="fas fa-shield-halved"></i> Roll Evasion</button></div>`,
-        flags:{ "sword-world-25":{ evasionChallenge:{ target, monsterName:this.actor.name, attackName } } }
-      });
+      // When one character is targeted, resolve a full monster attack against
+      // the target's Evasion using the monster's configured combat mode.
+      const targetList = [...(game.user?.targets || [])];
+      if (targetList.length === 1) {
+        const targetToken = targetList[0];
+        const targetActor = targetToken?.actor ?? targetToken?.document?.actor ?? null;
+        if (targetActor?.type === "character") {
+          const result = await monsterWeaponAttackFlow({
+            monsterActor: this.actor,
+            style,
+            targetActor,
+            promptModifiers: openRollModifiersDialog
+          });
+          if (result.status === "cancelled") return;
+          if (result.status === "no-attack") return ui.notifications.warn(`${style.style || "This attack"} has no usable Accuracy value.`);
+          if (result.status === "invalid-target") return ui.notifications.warn(describeTargetFailure("not-character"));
+          if (result.status === "no-defense") return ui.notifications.warn(describeTargetFailure("no-defense"));
+          return;
+        }
+        return ui.notifications.warn(describeTargetFailure("not-character"));
+      }
+      if (targetList.length > 1) return ui.notifications.warn(describeTargetFailure("multiple"));
+
+      // Manual accuracy roll (no target): respects fixed/active mode for display only.
+      const useActiveRolls = getMonsterActiveCombatRolls(this.actor);
+      let rollTotal, rollNatural, roll;
+      if (useActiveRolls) {
+        const modifier = Number(String(style.accuracy || "").match(/-?\d+/)?.[0] ?? null);
+        if (!Number.isFinite(modifier)) {
+          return ui.notifications.warn(`${style.style || "This attack"} has no usable Accuracy modifier.`);
+        }
+        roll = await new Roll(`2d6 + ${modifier}`).evaluate();
+        rollTotal = Number(roll.total);
+        rollNatural = rollDiceResults(roll).reduce((sum, value) => sum + Number(value || 0), 0);
+      } else {
+        const fixedValue = staticAccuracy(style.accuracy);
+        if (fixedValue === null) {
+          return ui.notifications.warn(`${style.style || "This attack"} has no usable fixed Accuracy value.`);
+        }
+        rollTotal = fixedValue;
+        rollNatural = null;
+        roll = null;
+      }
+      const criticalFailure = roll ? await markCriticalFailure(this.actor, roll) : false;
+      const escape = value => foundry.utils.escapeHTML(String(value ?? ""));
+      const flavor = roll
+        ? `${this.actor.name} — ${escape(style.style || "Attack")} Accuracy${criticalFailure ? criticalFailureHTML() : ""}`
+        : `${this.actor.name} — ${escape(style.style || "Attack")} Accuracy (fixed ${rollTotal})${criticalFailure ? criticalFailureHTML() : ""}`;
+      if (roll) {
+        await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: this.actor }), flavor });
+      } else {
+        await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: this.actor }), content: `<div>${flavor}</div>` });
+      }
     });
 
     html.find("[data-action='roll-monster-initiative']").on("click", async event => {

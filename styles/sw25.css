@@ -550,10 +550,12 @@
 }
 
 .official-tabs .tab-button {
-  flex: 0 1 140px !important;
+  flex: 0 1 150px !important;
   width: auto !important;
-  min-width: 105px;
+  min-width: 130px;
   max-width: 160px;
+  white-space: nowrap;
+  padding: 4px 10px;
 }
 .official-tabs .rest-controls { display:flex; align-items:center; gap:3px; margin-left:auto; }
 .official-tabs .rest-controls button { display:inline-flex; align-items:center; justify-content:center; gap:4px; width:auto; min-width:86px; height:27px; min-height:0; margin:2px 0 0; padding:2px 7px; font-size:9px; white-space:nowrap; }
@@ -947,7 +949,7 @@
 .sw25-official-sheet .consumable-lines input { width:44px; height:20px; text-align:center; }
 .sw25-official-sheet .accessory-table > div,.sw25-official-sheet .accessory-table label { display:grid; grid-template-columns:90px 1fr; border-bottom:1px solid #777; min-height:22px; align-items:center; }
 .sw25-official-sheet .accessory-table span,.sw25-official-sheet .accessory-table strong { padding:2px 5px; border-right:1px solid #777; }
-.sw25-official-sheet .accessory-table input { border:0; background:transparent; height:20px; }
+.sw25-official-sheet .accessory-table input { border:0; background:transparent; height:20px; width:100%; box-sizing:border-box; min-width:0; }
 .sw25-official-sheet .defense-selector,.sw25-official-sheet .offense-selector { display:flex; gap:10px; justify-content:space-between; align-items:center; padding:4px; border-bottom:1px solid #444; }
 .sw25-official-sheet .defense-selector select,.sw25-official-sheet .offense-selector select { min-width:170px; height:24px; }
 .sw25-official-sheet .defense-table .def-head,.sw25-official-sheet .defense-table > div:not(.def-head) { grid-template-columns:2fr .55fr .55fr .6fr .8fr; }
@@ -1598,7 +1600,7 @@
   height: 24px;
   margin: 0 auto;
   padding: 0;
-  border: 1px solid #777;
+  border: 0;
   background: rgba(255,255,255,.42);
   color: #5e1914;
   box-shadow: none;
@@ -1839,10 +1841,10 @@ form.sw25-official-sheet .weapon-table > .weapon-head,
 form.sw25-official-sheet .weapon-table > .combat-weapon-row {
   display: grid !important;
   grid-template-columns:
-    minmax(118px, 1fr)
-    46px 46px 52px 42px
-    repeat(10, 27px)
-    40px 52px 34px 34px !important;
+    minmax(80px, 1fr)
+    32px 36px 38px 44px
+    repeat(10, 24px)
+    32px 38px 32px 32px 32px !important;
   align-items: stretch !important;
   width: 100%;
   min-width: 0;
@@ -1878,24 +1880,22 @@ form.sw25-official-sheet .weapon-table .power-result-heading {
   font-size: 9px;
 }
 
-/* v0.7.6 immediate damage rolls and critical chaining */
-form.sw25-official-sheet .offense-selector > label:last-child {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  white-space: nowrap;
+form.sw25-official-sheet .offense-selector {
+  display:flex;
+  gap:10px;
+  justify-content:space-between;
+  align-items:center;
+  padding:4px;
+  border-bottom:1px solid #444;
 }
-form.sw25-official-sheet .offense-selector > label:last-child input {
-  width: 58px;
-  text-align: center;
-}
-form.sw25-official-sheet .offense-selector > label:nth-of-type(2) {
+form.sw25-official-sheet .offense-selector > label {
   display:flex;
   align-items:center;
   gap:5px;
   white-space:nowrap;
+  font-size:10px;
 }
-form.sw25-official-sheet .offense-selector > label:nth-of-type(2) input {
+form.sw25-official-sheet .offense-selector > label input {
   width:48px;
   text-align:center;
 }
@@ -2150,4 +2150,42 @@ form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-dr
 }
 .sw25-official-sheet [data-item-id][draggable="true"]:active {
   cursor:grabbing;
+}
+
+form.sw25-official-sheet .weapon-table button[data-action="roll-attack"] {
+  width: 24px;
+  height: 22px;
+  margin: 0 auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #292622;
+  box-shadow: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+form.sw25-official-sheet .weapon-table button[data-action="roll-attack"]:hover {
+  background: rgba(0,0,0,.08);
+  color: #292622;
+}
+
+/* Weapon table: Roll button and Mods? tick keep centred in their cells */
+form.sw25-official-sheet .weapon-table > .combat-weapon-row > button[data-action="roll-attack"] {
+  justify-self: center;
+}
+form.sw25-official-sheet .weapon-table > .combat-weapon-row > .weapon-mods-toggle {
+  justify-content: center;
+}
+form.sw25-official-sheet .weapon-table .combat-weapon-row .weapon-mods-toggle input {
+  appearance: auto;
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
