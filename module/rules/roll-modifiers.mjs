@@ -24,6 +24,14 @@ export function registerRollModifiersDialog(constructor) {
   dialogConstructor = constructor;
 }
 
+// Current dialog constructor: the class previously passed (successfully) to
+// registerRollModifiersDialog, or null when no UI entry point has loaded the
+// dialog module yet. Lets the system entry point fail fast at initialization
+// and lets integration tests verify the production registration itself.
+export function getRegisteredRollModifiersDialog() {
+  return dialogConstructor;
+}
+
 // Normalise a single modifier object. Missing labels get a numbered default;
 // values are coerced to finite numbers; enabled defaults to true.
 export function normalizeModifier(modifier = {}, index = 0) {

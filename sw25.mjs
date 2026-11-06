@@ -6,6 +6,7 @@ import { SW25ItemSheet } from "./module/item/item-sheet.mjs";
 import { SW25Importer } from "./module/importer/sw25-importer.mjs";
 import { resolveAttackingClass, rollWeaponDamage } from "./module/rules/weapon-roll.mjs";
 import { abilityBonus } from "./module/rules/weapon-damage.mjs";
+import { RollModifiersDialog } from "./module/apps/roll-modifiers-dialog.mjs";
 import { initializeSideInitiative } from "./module/combat/side-initiative.mjs";
 import { damageApplicationButton, initializeDamageApplication } from "./module/combat/damage-application.mjs";
 import { addNaturalPowerMP } from "./module/rules/spell-damage.mjs";

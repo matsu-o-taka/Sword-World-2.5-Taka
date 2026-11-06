@@ -67,9 +67,11 @@ function challengeActor() {
 
 export function initializeEvasionChallenges() {
   Hooks.on("renderChatMessageHTML", (message, html) => {
+    // Foundry v14 passes a raw HTMLElement to this hook: wrap it for jQuery.
+    const $html = $(html);
     const challenge = message.getFlag(FLAG_SCOPE, FLAG_KEY);
     if (!challenge) return;
-    html.find("[data-sw25-chat-action='roll-evasion-challenge']").on("click", async event => {
+    $html.find("[data-sw25-chat-action='roll-evasion-challenge']").on("click", async event => {
       event.preventDefault();
       const actor = challengeActor();
       if (!actor) return;

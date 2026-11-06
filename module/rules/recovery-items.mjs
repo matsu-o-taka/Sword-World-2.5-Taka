@@ -112,11 +112,13 @@ export function initializeRecoveryItems() {
     }
   });
   Hooks.on("renderChatMessageHTML", (_message, html) => {
-    html.find("[data-sw25-chat-action='roll-recovery-item']").on("click", event => {
+    // Foundry v14 passes a raw HTMLElement to this hook: wrap it for jQuery.
+    const $html = $(html);
+    $html.find("[data-sw25-chat-action='roll-recovery-item']").on("click", event => {
       event.preventDefault();
       return rollRecoveryItem(event.currentTarget);
     });
-    html.find("[data-sw25-chat-action='apply-recovery']").on("click", event => {
+    $html.find("[data-sw25-chat-action='apply-recovery']").on("click", event => {
       event.preventDefault();
       return applyRecovery(event.currentTarget);
     });

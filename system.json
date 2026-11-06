@@ -2,7 +2,7 @@
   "id": "sword-world-25",
   "title": "Sword World 2.5",
   "description": "A Foundry VTT system for Sword World 2.5",
-  "version": "0.16.3",
+  "version": "0.17.0",
   "url": "https://github.com/matsu-o-taka/Sword-World-2.5-Taka",
   "manifest": "https://raw.githubusercontent.com/matsu-o-taka/Sword-World-2.5-Taka/main/system.json",
   "download": "https://github.com/matsu-o-taka/Sword-World-2.5-Taka/releases/latest/download/sword-world-25.zip",
@@ -36,7 +36,12 @@
         "htmlFields": ["description"]
       },
       "npc": {
-        "htmlFields": ["biography.notes", "npc.appearance", "npc.personality", "npc.motivation"]
+        "htmlFields": [
+          "biography.notes",
+          "npc.appearance",
+          "npc.personality",
+          "npc.motivation"
+        ]
       },
       "fellow": {
         "htmlFields": ["fellow.introduction"]
