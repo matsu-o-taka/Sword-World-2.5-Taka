@@ -4,7 +4,16 @@ This is a fork of [Sword-World-2.5-Foundry](https://github.com/DaedaIus/Sword-Wo
 
 A note from me: I am not a programmer. I am building and maintaining this fork as a hobby, with the help of AI, purely as a fan of Sword World 2.5. I test everything as I go hoping it works, but expect rough edges.
 
-![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sword--world--25%200.17.0%2B-blue)
+![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sword--world--25%200.17.1%2B-blue)
+
+## v0.17.1 - Character Sheet UI Improvements
+
+Reorganized character sheet panels to improve usability and make better use of available space.
+
+- Moved Work Skills and Racial Abilities to Adventurer Data.
+- Removed their duplicate panels from Combat Data.
+- Expanded Weapons to full width in Combat Data.
+- Improved panel layout and spacing across both tabs.
 
 ## v0.17.0 - Monster active/passive evasion, weapon modifiers and damage resolution
 
