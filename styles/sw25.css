@@ -1049,12 +1049,15 @@
 .sw25.sheet.actor { min-height: 850px; }
 .official-page { min-height: 800px; }
 .official-page-one {
-  grid-template-rows: 330px 300px 160px;
+  grid-template-rows: 330px 300px 160px minmax(270px, auto);
   grid-template-areas:
     "classes portrait biography"
     "skills abilities inventory"
-    "skills lower inventory";
+    "skills lower inventory"
+    "work-skills racial-abilities inventory";
 }
+.work-skills-box { grid-area: work-skills; }
+.racial-abilities-box { grid-area: racial-abilities; }
 .skills-box {
   overflow: hidden;
   min-height: 0;
@@ -1957,16 +1960,15 @@ form.sw25-official-sheet .offense-selector > label input {
 
 /* v0.10.0 class-specific magic power and work skills */
 .sw25-official-sheet .official-page-two {
-  grid-template-rows:150px 320px 230px 220px 340px;
+  grid-template-rows:150px 220px 320px 230px 230px;
   grid-template-areas:
     "special movement hp"
+    "offense offense offense"
     "access defense defense"
     "magic feats feats"
-    "offense offense offense"
-    "weapons corner corner";
+    "weapons weapons weapons";
 }
 .sw25-official-sheet .weapons-box { grid-area:weapons; min-height:0; overflow:auto; }
-.sw25-official-sheet .page-two-corner { grid-area:corner; display:grid; grid-template-columns:minmax(210px,.7fr) minmax(380px,1.3fr); gap:10px; min-width:0; min-height:0; }
 .sw25-official-sheet .abilities-box,.sw25-official-sheet .work-skills-box { min-width:0; min-height:0; overflow:auto; }
 .page-two-magic-power { display:flex; align-items:center; gap:5px; padding:3px 5px; }
 .page-two-magic-power select { flex:1; min-width:0; height:26px; font-size:10px; }
