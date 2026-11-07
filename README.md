@@ -12,6 +12,7 @@ A note from me: I am not a programmer. I am building and maintaining this fork a
 - **Per-class resolution** — every eligible native Monster Knowledge class (Sage, Rider, Dark Hunter) is evaluated from the single shared roll, plus Druid or Daemonologist when manually selected through their spells. Effects (statistics, classification, Weak Point) are resolved independently per class, crediting which class achieved each effect.
 - **Automatic class tick** — the Monster Knowledge Class selector gains an "Automatic" tick (on by default). When ticked the best currently valid class is used and recalculated immediately whenever class levels change; picking a class in the dropdown unticks it and pins that manual choice until ticked again.
 - **Manual class visibility** — manually selecting a restricted class (e.g. Dark Hunter) against an ineligible target publishes the card showing that class's result as the main result with a restriction warning, instead of refusing in silence.
+- **Fixed monster sheet opening** — monster sheets failed to open after assigning a `species` because the `weaknessRegistry` game setting was never registered, causing `speciesWeaknessKnown()` to throw during sheet rendering. The setting is now registered at init.
 
 ## v0.17.1 - Character Sheet UI Improvements
 

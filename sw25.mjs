@@ -76,16 +76,16 @@ Hooks.once("init", () => {
     type:Boolean,
     default:false
   });
+  game.settings.register("sword-world-25", "weaknessRegistry", {
+    scope:"world",
+    config:false,
+    type:Array,
+    default:[]
+  });
 });
 
 Hooks.on("preCreateActor", actor => {
   if (actor.type === "character") actor.updateSource({ "prototypeToken.actorLink":true });
-  // Default species fallback: newly created and compendium-imported monsters
-  // without an explicit species use their own name as the species identifier.
-  // An explicitly assigned species is never overwritten.
-  if (actor.type === "monster" && !actor.system?.species) {
-    actor.updateSource({ "system.species": actor.name });
-  }
 });
 
 Hooks.on("preCreateToken", token => {
