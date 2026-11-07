@@ -17,10 +17,8 @@ import {
   parseBaseValue,
   passiveValue,
   resolveAttackTarget,
-  resolveMonsterDefense,
-  weakPointAccuracyModifier
+  resolveMonsterDefense
 } from "../module/combat/attack-resolution.mjs";
-import { speciesId, registerSpeciesWeakness } from "../module/combat/monster-knowledge.mjs";
 import { assembleRollFormula, signedValue } from "../module/rules/roll-modifiers.mjs";
 import { staticAccuracy } from "../module/combat/evasion-challenge.mjs";
 import { parseMonsterPage, validateMonsterProfile } from "../module/importer/monster-parser.mjs";
@@ -346,47 +344,7 @@ assert.equal(critActor.updates.length, 1, "Character critical failures persist t
 assert.equal(critActor.updates[0]["system.automaticFailureCount"], 1);
 
 // ---------------------------------------------------------------------------
-// 6. Weak Point accuracy modifier
-// ---------------------------------------------------------------------------
-
-console.log("=== Weak Point accuracy modifier ===");
-const weakMonsterClosed = monsterActor([{ style: "Claw", accuracy: "12 (19)", evasion: "15 (22)", isMainSection: true }], { weakPoint: "Accuracy +2", weaknessDiscovered: false, species: "Bestia Cerrada" });
-weakMonsterClosed.name = "Bestia Cerrada";
-const weakMonsterOpen = monsterActor([{ style: "Claw", accuracy: "12 (19)", evasion: "15 (22)", isMainSection: true }], { weakPoint: "Accuracy +2", weaknessDiscovered: true });
-weakMonsterOpen.name = "Abierto Test";
-await registerSpeciesWeakness(speciesId(weakMonsterOpen));
-assert.equal(weakPointAccuracyModifier(weakMonsterClosed), null, "Undiscovered Weak Point grants nothing");
-assert.deepEqual(weakPointAccuracyModifier(weakMonsterOpen), { label: "Weak Point (Accuracy)", value: 2 });
-const magicWeakMonster = monsterActor([{ style: "Claw", accuracy: "12 (19)", evasion: "15 (22)", isMainSection: true }], { weakPoint: "Magic Damage +3", weaknessDiscovered: true });
-magicWeakMonster.name = "Magia Test";
-await registerSpeciesWeakness(speciesId(magicWeakMonster));
-assert.equal(weakPointAccuracyModifier(magicWeakMonster), null, "Non-Accuracy categories grant no accuracy modifier");
-
-const weakSeen = { targetMonster: weakMonsterOpen };
-const weakDialogSeen = dialogScript([
-  { label: "Class level", value: 8, enabled: true, temporary: false },
-  { label: "Weak Point (Accuracy)", value: 2, enabled: true, temporary: false }
-]);
-queueRolls([[5, 4]]); // 9 + 8 + 2 = 19 <= 22 MISS... use bigger: value 18
-weakDialogSeen.calls.length = 0;
-const weakDialog = dialogScript([
-  { label: "Class level", value: 18, enabled: true },
-  { label: "Weak Point (Accuracy)", value: 2, enabled: true }
-]);
-queueRolls([[3, 3]]); // 6 + 18 + 2 = 26 > 22 HIT
-const weakFlow = await characterWeaponAttackFlow({
-  actor: characterActor(),
-  weapon: weaponItem,
-  attackingClass: classItem("cls-atk", "Fighter", 5),
-  accuracyParts: [],
-  targetMonster: weakMonsterOpen,
-  promptModifiers: weakDialog
-});
-assert.equal(weakFlow.hit, true);
-assert.ok(weakDialog.calls[0].parts.some(part => part.label === "Weak Point (Accuracy)" && part.value === 2), "Weak Point reaches the dialog as a Part");
-
-// ---------------------------------------------------------------------------
-// 7. Monster -> character attack (active and passive)
+// 6. Monster -> character attack (active and passive)
 // ---------------------------------------------------------------------------
 
 console.log("=== Monster attack against a character ===");

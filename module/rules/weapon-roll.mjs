@@ -1,6 +1,7 @@
 import { isGunWeapon, isWarriorClass, weaponDamageParts } from "./weapon-damage.mjs";
 import { damageApplicationButton } from "../combat/damage-application.mjs";
 import { criticalFailureHTML, markCriticalFailure } from "./critical-failure.mjs";
+import { resolveClassAssignment } from "./skill-resolution.mjs";
 
 export function resolveAttackingClass(actor, weapon, requestedClassId = "") {
   if (isGunWeapon(weapon)) {
@@ -8,8 +9,18 @@ export function resolveAttackingClass(actor, weapon, requestedClassId = "") {
       item.type === "class" && /^(artificer|マギテック)$/i.test(String(item.name).trim())
     ) ?? null;
   }
-  const selected = actor.items.get(requestedClassId || actor.system.combat?.offenseClassId);
-  return isWarriorClass(selected) ? selected : null;
+  // Attacking Class follows the SAME common class-assignment rule as every
+  // other class selector (skill-resolution.resolveClassAssignment): the
+  // requested/stored selection while it is still a valid warrior class,
+  // otherwise the highest-level owned warrior class. Roll time therefore
+  // always agrees with the Attacking Class shown on the sheet, and changes
+  // to class levels are picked up without stale selections.
+  const assignment = resolveClassAssignment({
+    classes: actor.items.filter(item => item.type === "class"),
+    eligible: isWarriorClass,
+    savedValue: requestedClassId || actor.system.combat?.offenseClassId || ""
+  });
+  return assignment.classId ? actor.items.get(assignment.classId) : null;
 }
 
 export async function rollWeaponDamage({ actor, weapon, attackingClass, accumulatedPower = 0 }) {

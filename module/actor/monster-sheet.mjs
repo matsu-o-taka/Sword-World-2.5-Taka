@@ -1,11 +1,11 @@
 import { lootMatches, monsterDamageFormula } from "../importer/monster-parser.mjs";
-import { beginMonsterInitiative } from "../combat/side-initiative.mjs";
 import { damageApplicationButton } from "../combat/damage-application.mjs";
 import { staticAccuracy } from "../combat/evasion-challenge.mjs";
 import { monsterWeaponAttackFlow, getMonsterActiveCombatRolls, describeTargetFailure } from "../combat/attack-resolution.mjs";
 import { openRollModifiersDialog } from "../rules/roll-modifiers.mjs";
 import { criticalFailureHTML, markCriticalFailure, rollDiceResults } from "../rules/critical-failure.mjs";
 import { appendMonsterCombatStyle, createMonsterUniqueSkill, getMainCombatStyleIndex, getMonsterSectionChoices, hasValidMainCombatStyle, mergeMonsterCombatStyleFields, mergeMonsterUniqueSkillFields, prepareMonsterCombatStyles, prepareMonsterUniqueSkillGroups, readMonsterActorCombatStyles, selectMainCombatStyle } from "./monster-sheet-data.mjs";
+import { rollMonsterKnowledge, findMonsterKnowledgeRoller, speciesWeaknessKnown } from "../combat/monster-knowledge.mjs";
 
 function promptMonsterSkillSection(sectionChoices, currentAssignment = "", title = "Choose Unique Skill Section") {
   const options = [
@@ -121,7 +121,10 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
     context.actor = this.actor;
     context.system = this.actor.system;
     context.isGM = game.user.isGM;
+    context.isOwner = Boolean(this.actor.isOwner);
+    context.canManage = game.user.isGM || Boolean(this.actor.isOwner);
     context.canRead = game.user.isGM || Boolean(this.actor.system.revealed);
+    context.weaknessKnown = speciesWeaknessKnown(this.actor);
     const combatStyles = readMonsterActorCombatStyles(this.actor);
     context.sections = Array.isArray(this.actor.system.sections) ? this.actor.system.sections : [];
     context.combatStyles = prepareMonsterCombatStyles(
@@ -244,14 +247,6 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
       }
     });
 
-    html.find("[data-action='roll-monster-initiative']").on("click", async event => {
-      event.preventDefault();
-      if (!game.user.isGM) return;
-      const initiative = Number(this.actor.system.initiative ?? 0);
-      await ChatMessage.create({ speaker:ChatMessage.getSpeaker({ actor:this.actor }), content:`<div class="sw25-chat-card"><h3>${foundry.utils.escapeHTML(this.actor.name)} Side Initiative</h3><p class="sw25-weapon-total"><strong>${initiative}</strong></p></div>` });
-      await beginMonsterInitiative(this.actor, initiative);
-    });
-
     html.find("[data-action='roll-monster-resistance']").on("click", async event => {
       event.preventDefault();
       const check = event.currentTarget.dataset.check;
@@ -286,14 +281,22 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
       await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: this.actor }), content: `<div class="sw25-chat-card"><h3>${foundry.utils.escapeHTML(this.actor.name)} Loot</h3><p><strong>2d:</strong> ${total}</p><ul>${rows}</ul></div>`, rolls: [roll] });
     });
 
-    html.find("[data-action='toggle-monster-reveal']").on("click", async event => {
+    html.find("[data-action='roll-monster-knowledge']").on("click", async event => {
       event.preventDefault();
-      if (!game.user.isGM) return;
-      const reveal = !Boolean(this.actor.system.revealed);
-      const ownership = foundry.utils.deepClone(this.actor.ownership || {});
-      ownership.default = reveal ? CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER : CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE;
-      await this.actor.update({ "system.revealed": reveal, ownership });
-      ui.notifications.info(reveal ? `${this.actor.name} is now readable by players.` : `${this.actor.name} is hidden from players.`);
+      // Roller resolution: one selected character token, one targeted
+      // character token, or the assigned character — so the GM can roll for
+      // any player character as needed.
+      const roller = findMonsterKnowledgeRoller();
+      if (roller.actor) {
+        await rollMonsterKnowledge({ actor: roller.actor, targetMonster: this.actor, shiftKey: true });
+        return;
+      }
+      if (roller.status === "ambiguous") {
+        ui.notifications.warn("Select exactly one character token to roll Monster Knowledge.");
+        return;
+      }
+      // No active character or selection: publish a chat request so any player can roll with their own character.
+      await this._publishMonsterKnowledgeRequest();
     });
 
     const mutate = async (collection, callback) => {
@@ -366,5 +369,22 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
     html.find("[data-action='delete-monster-skill']").on("click", event => { event.preventDefault(); return mutate("uniqueSkills", list => list.splice(Number(event.currentTarget.dataset.index), 1)); });
     html.find("[data-action='add-monster-loot']").on("click", event => { event.preventDefault(); return mutate("lootTable", list => list.push({ roll:"2-12", loot:"New Loot" })); });
     html.find("[data-action='delete-monster-loot']").on("click", event => { event.preventDefault(); return mutate("lootTable", list => list.splice(Number(event.currentTarget.dataset.index), 1)); });
+  }
+
+  async _publishMonsterKnowledgeRequest() {
+    const monster = this.actor;
+    if (!monster || monster.type !== "monster") return;
+    const content = `
+      <div class="sw25-chat-card sw25-mk-request-card" data-mk-monster-uuid="${monster.uuid}">
+        <h3>Monster Knowledge — ${foundry.utils.escapeHTML(monster.name)}</h3>
+        <p>Make a roll to discover information about this monster.</p>
+        <button type="button" data-sw25-chat-action="roll-monster-knowledge-request" data-mk-monster-uuid="${monster.uuid}">
+          <i class="fas fa-search"></i> Roll Monster Knowledge
+        </button>
+      </div>`;
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: monster }),
+      content
+    });
   }
 }

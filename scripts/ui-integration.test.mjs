@@ -107,7 +107,7 @@ console.log("=== Monster sheet accuracy and damage controls ===");
 {
   const accuracyHandler = monsterModule.slice(
     monsterModule.indexOf("[data-action='roll-monster-accuracy']"),
-    monsterModule.indexOf("[data-action='roll-monster-initiative']")
+    monsterModule.indexOf("[data-action='roll-monster-resistance']")
   );
   const gmGate = accuracyHandler.indexOf("if (!game.user.isGM) return;");
   assert.ok(gmGate >= 0, "Accuracy handler is GM-gated");
@@ -160,11 +160,18 @@ assert.ok(
   "Extra Damage formula: offenseClassLevel + strength bonus + additionalDamage"
 );
 
-// The offenseClassLevel itself comes from the offensive class level
+// The offenseClassLevel comes from the common class assignment resolution
+// (saved selection while valid, else the highest-level eligible warrior
+// class), consistent with every other class selector in the system.
 assert.match(
   actorSheet,
-  /isWarriorClass\(offenseClass\)\s*\?\s*this\._classLevel\(offenseClass\)/,
-  "Offense class level is the warrior class level"
+  /offenseResolved\s*=\s*resolveClassAssignment\(/,
+  "Offense class selection uses the common class-assignment resolver"
+);
+assert.match(
+  actorSheet,
+  /offenseClassLevel\s*=\s*offenseResolved\.level/,
+  "Offense class level is the resolved warrior class level"
 );
 
 console.log("ui-integration: all checks passed");

@@ -5,6 +5,8 @@ import { SW25FellowSheet } from "./module/actor/fellow-sheet.mjs";
 import { SW25ItemSheet } from "./module/item/item-sheet.mjs";
 import { SW25Importer } from "./module/importer/sw25-importer.mjs";
 import { resolveAttackingClass, rollWeaponDamage } from "./module/rules/weapon-roll.mjs";
+import { rollMonsterKnowledge, findMonsterKnowledgeRoller } from "./module/combat/monster-knowledge.mjs";
+import { initializeConcealedMainSection } from "./module/combat/concealed-main-section.mjs";
 import { abilityBonus } from "./module/rules/weapon-damage.mjs";
 import { RollModifiersDialog } from "./module/apps/roll-modifiers-dialog.mjs";
 import { initializeSideInitiative } from "./module/combat/side-initiative.mjs";
@@ -16,7 +18,7 @@ import { criticalFailureHTML, markCriticalFailure } from "./module/rules/critica
 import { initializeRecoveryItems } from "./module/rules/recovery-items.mjs";
 import { initializeClassGrants } from "./module/rules/class-grants.mjs";
 import { initializeStandardScenes } from "./module/scenes/standard-scenes.mjs";
-import { initializeMonsterKnowledge } from "./module/combat/monster-knowledge.mjs";
+
 
 Hooks.once("init", () => {
   game.sw25 = { importer: SW25Importer };
@@ -98,7 +100,7 @@ Hooks.once("ready", initializeEvasionChallenges);
 Hooks.once("ready", initializeRecoveryItems);
 Hooks.once("ready", initializeClassGrants);
 Hooks.once("ready", initializeStandardScenes);
-Hooks.once("ready", initializeMonsterKnowledge);
+Hooks.once("ready", initializeConcealedMainSection);
 
 Hooks.on("renderItemDirectory", (_application, html) => {
   if (!game.user.can("ITEM_CREATE")) return;
@@ -206,5 +208,36 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
       console.error("Sword World 2.5 | Invalid weapon damage formula", error);
       ui.notifications.error(`Invalid damage formula: ${formula}`);
     }
+  });
+
+  $html.find("[data-sw25-chat-action='roll-monster-knowledge-request']").on("click", async event => {
+    event.preventDefault();
+    const button = event.currentTarget;
+    const monsterUuid = button.dataset.mkMonsterUuid;
+    let monster = null;
+    if (typeof fromUuid === "function") {
+      monster = await fromUuid(monsterUuid);
+    } else {
+      monster = game.actors.get(monsterUuid);
+    }
+    if (!monster || monster.type !== "monster") {
+      ui.notifications.warn("The target monster could not be found.");
+      return;
+    }
+    // Roller resolution: one selected character token, one targeted character
+    // token, or the user's assigned character. This lets the GM roll for a
+    // specific player character (or a tokenized PC) as needed.
+    const roller = findMonsterKnowledgeRoller();
+    if (!roller.actor) {
+      ui.notifications.warn(roller.status === "ambiguous"
+        ? "Select exactly one character token to make this Monster Knowledge roll."
+        : "No active character assigned. Assign a character or select one character token first.");
+      return;
+    }
+    await rollMonsterKnowledge({
+      actor: roller.actor,
+      targetMonster: monster,
+      shiftKey: Boolean(event.shiftKey)
+    });
   });
 });

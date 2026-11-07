@@ -1585,6 +1585,64 @@
   font-size: 1.1em;
 }
 
+/* Monster Knowledge roll card: single message per roll; Foundry renders the
+   dice result, and the card shows the main prominent result (the class
+   achieving the highest applicable effect), the outcome verdict and every
+   individual class result. */
+.sw25-mk-roll-card .sw25-mk-total {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  margin: 8px 0 0;
+  text-align: center;
+}
+.sw25-mk-roll-card .sw25-mk-total-value {
+  font-size: 2.4em;
+  font-weight: 700;
+  line-height: 1;
+}
+.sw25-mk-roll-card .sw25-mk-total-label {
+  font-size: 0.85em;
+  opacity: 0.8;
+}
+.sw25-mk-roll-card .sw25-mk-class-results {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 4px 6px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sw25-mk-roll-card .sw25-mk-class-result {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.9em;
+}
+.sw25-mk-roll-card .sw25-mk-class-value {
+  font-weight: 600;
+}
+.sw25-mk-roll-card .sw25-mk-warning {
+  margin: 6px 0 0;
+  padding: 5px 8px;
+  text-align: center;
+  font-size: 0.9em;
+  color: #8a1e1e;
+  border: 1px solid #a33;
+  background: rgba(138, 30, 30, 0.1);
+}
+.sw25-mk-roll-card .sw25-mk-verdict {
+  margin: 6px 0 0;
+  padding: 5px 8px;
+  text-align: center;
+  text-transform: uppercase;
+}
+.sw25-mk-roll-card .sw25-mk-success { color:#185f2a; border:1px solid #28743b; }
+.sw25-mk-roll-card .sw25-mk-partial { color:#8a6d1a; border:1px solid #b59230; }
+.sw25-mk-roll-card .sw25-mk-fail { color:#8a1e1e; border:1px solid #a33; }
+
 
 /* v0.7.0.29 captured sword parser and visible Combat weapon deletion */
 .sw25-official-sheet .weapon-table > div {
@@ -1991,6 +2049,9 @@ form.sw25-official-sheet .offense-selector > label input {
 .sw25-monster-sheet .monster-name { height:36px; border:0; border-bottom:2px solid #40382d; background:transparent; font-size:25px; font-weight:bold; }
 .sw25-monster-sheet .monster-subtitle { display:flex; align-items:center; gap:6px; margin-top:5px; font-weight:bold; text-transform:uppercase; }
 .sw25-monster-sheet .monster-subtitle input[type="number"] { width:52px; }
+.sw25-monster-sheet .monster-subtitle .monster-knowledge-button { flex:0 0 28px; width:28px; height:24px; margin:0; padding:0; }
+.sw25-monster-sheet .monster-subtitle .monster-knowledge-button i { margin:0; line-height:1; }
+.sw25-monster-sheet .monster-subtitle .monster-toggle-label { margin-left:auto; }
 .sw25-monster-sheet .monster-gm-actions { display:flex; flex-direction:column; gap:5px; }
 .sw25-monster-sheet .monster-gm-actions button { width:145px; margin:0; }
 .sw25-monster-sheet .reveal-monster.active { color:#185f2a; border-color:#28743b; }

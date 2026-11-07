@@ -99,7 +99,6 @@ import {
   getMonsterActiveCombatRolls,
   characterWeaponAttackFlow,
   monsterWeaponAttackFlow,
-  weakPointAccuracyModifier,
 } from "../module/combat/attack-resolution.mjs";
 import { staticAccuracy } from "../module/combat/evasion-challenge.mjs";
 import { parseWeaknessData } from "../module/combat/damage-application.mjs";

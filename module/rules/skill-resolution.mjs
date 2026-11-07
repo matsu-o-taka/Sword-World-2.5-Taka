@@ -1,8 +1,11 @@
-// Class resolution for Skill Checks.
+// Class/resolution for Skill Checks and the COMMON class-assignment rule.
 //
 // Pure data-in/data-out logic shared by the character sheet and reviewed by
 // tests. Classes are resolved from the character's class Items, never from
 // array order: the automatic selection is computed explicitly by level.
+// The same rule backs every class selector in the system (Skill Checks,
+// Monster Knowledge, Initiative, Defense, Attacking and Magic Classes) so
+// assignments are recalculated uniformly when any class changes.
 //
 // Association model (per skill definition):
 //   classes.normal     — class names available for manual AND automatic use.
@@ -22,13 +25,23 @@
 // association into an automatic one.
 //
 // Explicit "no class" is stored as "none" so it can be distinguished from the
-// absence of a saved selection (undefined or legacy ""), which falls back to
-// the automatic selection.
+// absence of a saved selection (undefined or legacy ""), which means
+// AUTOMATIC mode: the best currently valid class is assigned on every
+// evaluation and recalculates when any class changes. The character sheet
+// exposes that mode as a tick checkbox next to the Monster Knowledge Class
+// dropdown (checked = automatic); picking a class stores its id and unticks
+// the checkbox, pinning that class until the user ticks again. The literal
+// "auto" (only ever stored by the short-lived option of the same name) is
+// read back as automatic mode for compatibility.
 
 import { SKILL_DEFINITIONS, SKILL_DEFINITION_MAP } from "./skill-definitions.mjs";
 
 export const ADVENTURER_SELECTION = "adventurer";
 export const NONE_SELECTION = "none";
+// Explicit "follow the best valid class" choice (recalculated on every
+// evaluation, e.g. when class levels change). Legacy ""/undefined behaves
+// the same way, but this marker persists the user's intent in the Actor data.
+export const AUTO_SELECTION = "auto";
 
 const normalizeName = value => String(value ?? "").trim().toLowerCase();
 
@@ -108,15 +121,17 @@ export function resolveSkillClass({ classes = [], def, savedValue, workSkills = 
   if (savedValue === NONE_SELECTION) {
     explicitNone = true;
     classId = "";
-  } else if (adventurerMode && savedValue === ADVENTURER_SELECTION) {
+  } else if (adventurerMode && (savedValue === ADVENTURER_SELECTION || !savedValue)) {
     classId = ADVENTURER_SELECTION;
-    preserved = true;
+    preserved = savedValue === ADVENTURER_SELECTION;
   } else if (typeof savedValue === "string"
     && savedValue.startsWith("work:")
     && workSkillExists(workSkills, savedValue)) {
     classId = String(savedValue);
     preserved = true;
-  } else if (savedValue) {
+  } else if (savedValue && savedValue !== AUTO_SELECTION) {
+    // Saved explicit pick (class id / "work:<id>"): preserved while it is
+    // still valid, otherwise fall back to the automatic assignment.
     const saved = all.find(item => String(item.id) === String(savedValue));
     if (saved && (anyMode || normal.includes(saved) || manual.includes(saved))) {
       classId = String(saved.id);
@@ -125,11 +140,15 @@ export function resolveSkillClass({ classes = [], def, savedValue, workSkills = 
       classId = autoClassId();
     }
   } else {
+    // Absent selection or the legacy "auto" marker: automatic mode. The best
+    // currently valid class is derived NOW, on every evaluation (sheet render
+    // and roll) — it never waits for a class change to recalculate.
     classId = autoClassId();
   }
 
   // Option list: explicit "—", Adventurer (only where applicable), eligible
-  // classes (highest level first) and Work Skills.
+  // classes (highest level first), Work Skills. The automatic mode is exposed
+  // by the character sheet's tick checkbox, not by an option here.
   const options = [
     { value: NONE_SELECTION, label: "—", selected: classId === "" },
     ...(adventurerMode ? [{ value: ADVENTURER_SELECTION, label: "Adventurer", selected: classId === ADVENTURER_SELECTION }] : []),
@@ -162,6 +181,52 @@ export function resolvedSkillLevel({ classId, classes = [], workSkills = [], adv
   }
   const item = (classes ?? []).find(candidate => String(candidate?.id) === classId);
   return Math.max(0, Number(item?.system?.level ?? 0) || 0);
+}
+
+/**
+ * COMMON class-assignment resolution — the single rule shared by every class
+ * selector in the system (Skill Checks and Monster Knowledge through
+ * `resolveSkillClass`, Initiative/Defense/Attacking/Magic Classes through
+ * this function, attacking weapon rolls through `resolveAttackingClass`):
+ *
+ *   - The saved selection is preserved ONLY while it still exists and is
+ *     eligible; otherwise the HIGHEST-LEVEL eligible class is assigned
+ *     automatically (level-descending, order-independent, name tiebreak).
+ *   - Nothing is stamped into the Actor document: assignments are re-derived
+ *     at evaluation time (every sheet render and every roll), so any change
+ *     to a class Item — level, name or deletion — is picked up at the next
+ *     evaluation. Foundry v14 automatically re-renders open Actor sheets on
+ *     embedded document changes (ClientDocument
+ *     _onCreate/_onUpdate/_onDeleteDescendantDocuments → render(false)),
+ *     which makes the re-derivation immediate on class level changes.
+ *
+ * @param {Array}    classes    Candidate class Items (any order).
+ * @param {string}   [savedValue] Stored class id, or ""/undefined for auto.
+ * @param {Function} [eligible] Optional predicate narrowing the eligibility
+ *                              (warrior, wizard, Scout/Tactician, …).
+ * @returns {{ classId: string, level: number, preserved: boolean,
+ *            auto: boolean, options: Array<{value,label,selected}> }}
+ */
+export function resolveClassAssignment({ classes = [], savedValue = "", eligible = null } = {}) {
+  const all = (classes ?? []).filter(Boolean);
+  const admitted = eligible ? all.filter(eligible) : all;
+  const ranked = [...admitted].sort(byLevelDesc);
+  const auto = ranked[0] ?? null;
+  const saved = savedValue ? all.find(item => String(item.id) === String(savedValue)) : null;
+  const valid = Boolean(saved && admitted.includes(saved));
+  const selected = valid ? saved : auto;
+
+  return {
+    classId: selected ? String(selected.id) : "",
+    level: selected ? Math.max(0, Number(selected.system?.level ?? 0) || 0) : 0,
+    preserved: valid,
+    auto: !valid,
+    options: ranked.map(item => ({
+      value: String(item.id),
+      label: `${item.name} (Lv ${Math.max(0, Number(item.system?.level ?? 0) || 0)})`,
+      selected: selected === item
+    }))
+  };
 }
 
 /**

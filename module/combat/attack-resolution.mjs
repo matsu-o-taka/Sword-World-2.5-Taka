@@ -13,11 +13,9 @@
 //       disabled -> monster uses its parenthesized value, base + 7 (fixed)
 //     The toggle defaults to disabled for monsters without the property.
 //     An explicit `resolutionMode` argument overrides the toggle.
-//   - A discovered Weak Point of category "Accuracy" grants the
-//     attacker a permanent accuracy modifier derived from the monster's
-//     own weakPoint data. Discovery lives in the world weakness registry
-//     (Monster Knowledge) and applies to the attack roll, never to
-//     damage, and it coexists with temporary modifiers.
+//   - Weak Points discovered through Monster Knowledge are recorded in the
+//     world weakness registry but do not currently grant any mechanical
+//     bonus during attack resolution.
 //   - Temporary modifiers come from the shared dialog (rules/roll-modifiers)
 //     and never touch Actor data.
 //   - Natural double 1 on a roll is a critical failure (rules/critical-
@@ -27,7 +25,6 @@
 
 import { readMonsterActorCombatStyles, getMainCombatStyleIndex } from "../actor/monster-sheet-data.mjs";
 import { parseWeaknessData } from "./damage-application.mjs";
-import { speciesWeaknessKnown } from "./monster-knowledge.mjs";
 import { criticalFailureHTML, isCriticalFailure, markCriticalFailure, rollDiceResults } from "../rules/critical-failure.mjs";
 import { assembleRollFormula, enabledModifiersTotal, normalizeModifier, openRollModifiersDialog, signedValue } from "../rules/roll-modifiers.mjs";
 import { characterEvasionParts, staticAccuracy } from "./evasion-challenge.mjs";
@@ -115,22 +112,6 @@ export function describeTargetFailure(status, expectedType) {
     default:
       return "No valid attack target.";
   }
-}
-
-// Weak Point accuracy modifier for the target monster. Uses strictly the
-// target's species entry in the world weakness registry (set by Monster
-// Knowledge revelations). Shared species knowledge applies to every
-// specimen; no per-Actor `weaknessDiscovered` state is consulted. Returns
-// null when the Weak Point is undiscovered, absent, or not of the
-// "Accuracy" category.
-export function weakPointAccuracyModifier(monster) {
-  if (monster?.type !== "monster" || !speciesWeaknessKnown(monster)) return null;
-  const data = parseWeaknessData(monster?.system?.weakPoint);
-  if (!data) return null;
-  if (String(data.category).trim().toLowerCase() !== "accuracy") return null;
-  const bonus = Number(data.bonus ?? 0);
-  if (!Number.isFinite(bonus) || bonus <= 0) return null;
-  return { label: `Weak Point (${data.category})`, value: bonus };
 }
 
 // Fixed monster statistic: the parenthesized value of the stored string is
@@ -244,9 +225,7 @@ export async function characterWeaponAttackFlow({
   const defense = await resolveMonsterDefense(targetMonster, resolutionMode);
   if (!defense) return { status: "no-defense" };
 
-  const weakPoint = weakPointAccuracyModifier(targetMonster);
   const seedParts = [...(accuracyParts ?? []).map(part => ({ ...part, enabled: true, temporary: false }))];
-  if (weakPoint) seedParts.push(weakPoint);
 
   const modifiers = await promptModifiers({
     title: `${weapon?.name ?? "Attack"} — Modifiers`,
