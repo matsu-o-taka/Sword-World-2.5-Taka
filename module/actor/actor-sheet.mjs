@@ -9,11 +9,12 @@ import { recoveryPowerTableHTML } from "../rules/recovery-items.mjs";
 import { characterHPMaximum } from "../rules/resources.mjs";
 import { featureDefenseModifier } from "../rules/feature-defense.mjs";
 import { SKILL_DEFINITION_MAP, SKILL_DEFINITIONS } from "../rules/skill-definitions.mjs";
-import { resolveSkillClass } from "../rules/skill-resolution.mjs";
+import { AUTO_SELECTION, resolveClassAssignment, resolveSkillClass } from "../rules/skill-resolution.mjs";
 import { openRollModifiersDialog } from "../rules/roll-modifiers.mjs";
-import { getMonsterWeaknessBonus, damageApplicationButton } from "../combat/damage-application.mjs";
+import { damageApplicationButton } from "../combat/damage-application.mjs";
 import { characterWeaponAttackFlow, resolveAttackTarget, describeTargetFailure } from "../combat/attack-resolution.mjs";
 import { readMonsterActorCombatStyles } from "./monster-sheet-data.mjs";
+import { rollMonsterKnowledge } from "../combat/monster-knowledge.mjs";
 
 // Combat feat that grants Marksman access to Evasion calculation. Identified
 // by the feat item's canonical name (feats are matched by normalized name).
@@ -288,28 +289,28 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     const warriorClasses = hasArchersGrace
       ? allWarriorClasses
       : allWarriorClasses.filter(item => String(item.name ?? "").trim().toLowerCase() !== "marksman");
-    const selectedDefenseClassId = warriorClasses.some(item => item.id === system.combat?.defenseClassId)
-      ? String(system.combat?.defenseClassId)
-      : String(warriorClasses[0]?.id || "");
-    context.defenseClassChoices = warriorClasses.map(item => ({
-      value: item.id,
-      label: `${item.name} (Lv ${Number(item.system.level ?? 0)})`,
-      selected: item.id === selectedDefenseClassId
-    }));
-    context.offenseClassChoices = context.classes
-      .filter(isWarriorClass)
-      .map(item => ({
-        value: item.id,
-        label: `${item.name} (Lv ${Number(item.system.level ?? 0)})`,
-        selected: item.id === String(system.combat?.offenseClassId ?? "")
-      }));
+    // Common class assignment: saved selection preserved only while valid,
+    // otherwise the highest-level eligible class (order-independent). It is
+    // re-derived on every render, so class level changes recalalculate it.
+    const defenseResolved = resolveClassAssignment({
+      classes: warriorClasses,
+      savedValue: system.combat?.defenseClassId
+    });
+    context.defenseClassChoices = defenseResolved.options;
+    const selectedDefenseClassId = defenseResolved.classId;
+    const offenseResolved = resolveClassAssignment({
+      classes: context.classes,
+      eligible: isWarriorClass,
+      savedValue: system.combat?.offenseClassId
+    });
+    context.offenseClassChoices = offenseResolved.options;
     const wizardClasses = context.classes.filter(item => String(item.displayClassType || item.system.classType || "").toLowerCase().includes("wizard"));
-    const selectedMagicClassId = String(system.combat?.magicClassId || wizardClasses[0]?.id || "");
-    context.magicClassChoices = wizardClasses.map(item => ({
-      value: item.id,
-      label: `${item.name} (Lv ${Number(item.system.level ?? 0)})`,
-      selected: item.id === selectedMagicClassId
-    }));
+    const magicResolved = resolveClassAssignment({
+      classes: wizardClasses,
+      savedValue: system.combat?.magicClassId
+    });
+    context.magicClassChoices = magicResolved.options;
+    const selectedMagicClassId = magicResolved.classId;
     const selectedClassLevel = id => Number(this.actor.items.get(id)?.system.level ?? 0);
     const adventurer = context.calculated.adventurerLevel;
     const formulaHP = characterHPMaximum(system, context.classes);
@@ -326,10 +327,18 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     // ordinary Skill Checks: automatic selection uses the normal associations
     // (Sage / Rider, highest level), Dark Hunter is manual-only (Abyss
     // Breaker, Daemons only — see the Monster Knowledge definition).
+    // Monster Knowledge resolves through the same production resolver as the
+    // ordinary Skill Checks: the tick checkbox exposes automatic mode (absent
+    // selection, or the legacy "auto" marker) and re-derives the best valid
+    // class immediately on every render; a picked class stays pinned while
+    // the checkbox is off (Abyss Breaker: Dark Hunter Daemons only).
+    const savedKnowledgeClass = system.combat?.monsterKnowledgeClassId ?? "";
+    context.monsterKnowledgeAuto = !savedKnowledgeClass
+      || String(savedKnowledgeClass) === AUTO_SELECTION;
     const monsterKnowledgeResolved = resolveSkillClass({
       classes: context.classes,
       def: SKILL_DEFINITION_MAP.get("monster-knowledge-intelligence"),
-      savedValue: system.combat?.monsterKnowledgeClassId
+      savedValue: savedKnowledgeClass
     });
     context.monsterKnowledgeOptions = monsterKnowledgeResolved.options;
     context.calculated.monsterKnowledgeClassLevel = monsterKnowledgeResolved.level;
@@ -337,21 +346,19 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     context.calculated.tacticianLevel = context.classLevels.tactician;
 
     // Initiative Class selector: offers only Scout and Tactician classes owned
-    // by the character, auto-selecting the highest-level one. Falls back
+    // by the character, through the common class-assignment rule (saved
+    // selection while valid, otherwise the highest-level one). Falls back
     // automatically when the saved selection is no longer valid.
     const initiativeClasses = context.classes.filter(item =>
       /^(scout|tactician)$/i.test(String(item.name ?? "").trim())
     );
-    const selectedInitiativeClassId = initiativeClasses.some(item => item.id === system.combat?.initiativeClassId)
-      ? String(system.combat?.initiativeClassId)
-      : String(initiativeClasses[0]?.id || "");
-    context.initiativeClassChoices = initiativeClasses.map(item => ({
-      value: item.id,
-      label: `${item.name} (Lv ${Number(item.system.level ?? 0)})`,
-      selected: item.id === selectedInitiativeClassId
-    }));
-    const initiativeClassItem = context.classes.find(item => item.id === selectedInitiativeClassId);
-    context.calculated.initiativeClassLevel = initiativeClassItem ? this._classLevel(initiativeClassItem) : 0;
+    const initiativeResolved = resolveClassAssignment({
+      classes: initiativeClasses,
+      savedValue: system.combat?.initiativeClassId
+    });
+    context.initiativeClassChoices = initiativeResolved.options;
+    const selectedInitiativeClassId = initiativeResolved.classId;
+    context.calculated.initiativeClassLevel = initiativeResolved.level;
     context.calculated.monsterKnowledgeBonus = Number(system.combat?.monsterKnowledgeBonus ?? 0);
     context.calculated.initiativeBonus = Number(system.combat?.initiativeBonus ?? 0);
     context.calculated.monsterKnowledge = (
@@ -374,14 +381,13 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     context.calculated.magicalDefense = equippedArmour.reduce((sum,item)=>sum+Number(item.system.magicalDefence ?? 0),0);
     context.calculated.armourEvasion = equippedArmour.reduce((sum,item)=>sum+Number(item.system.evasion ?? 0),0);
     context.calculated.defenseClassLevel = selectedClassLevel(selectedDefenseClassId);
-    const offenseClass = this.actor.items.get(system.combat?.offenseClassId);
-    context.calculated.offenseClassLevel = isWarriorClass(offenseClass) ? this._classLevel(offenseClass) : 0;
+    context.calculated.offenseClassLevel = offenseResolved.level;
     context.calculated.situationalEvasion = Number(system.combat?.situationalEvasion ?? 0);
     context.calculated.evasion = context.calculated.defenseClassLevel + bonuses.agility + context.calculated.situationalEvasion + context.calculated.armourEvasion;
     context.calculated.accuracyMod = Number(system.combat?.accuracyMod ?? 0);
     context.calculated.accuracy = context.calculated.offenseClassLevel + bonuses.dexterity + context.calculated.accuracyMod;
     context.calculated.extraDamage = context.calculated.offenseClassLevel + bonuses.strength + Number(system.combat?.additionalDamage ?? 0);
-    context.calculated.magicPower = Number(this.actor.items.get(selectedMagicClassId)?.system.level ?? 0) + bonuses.intelligence;
+    context.calculated.magicPower = magicResolved.level + bonuses.intelligence;
     for (const tab of context.classTabs) {
       const classItem = context.classes.find(item => `class-${item.id}` === tab.id);
       const nameKey = String(classItem?.name || "").trim().toLowerCase();
@@ -762,7 +768,22 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     });
 
     html.find("[data-action='select-monster-knowledge-class']").on("change", async event => {
+      // Picking any value (a class, or "—" = explicit none) pins it manually:
+      // the automatic tick unticks (rendered from the stored value).
       await this.actor.update({ "system.combat.monsterKnowledgeClassId": event.currentTarget.value });
+    });
+
+    html.find("[data-action='toggle-monster-knowledge-auto']").on("change", async event => {
+      const select = html.find("[data-action='select-monster-knowledge-class']");
+      if (event.currentTarget.checked) {
+        // Tick ON: automatic mode — the best currently valid class is derived
+        // immediately on the next render (stored as absent, "").
+        await this.actor.update({ "system.combat.monsterKnowledgeClassId": "" });
+      } else {
+        // Tick OFF: pin the class currently shown by the automatic assignment.
+        const current = select?.val() ?? "none";
+        await this.actor.update({ "system.combat.monsterKnowledgeClassId": current });
+      }
     });
 
     html.find("[data-action='select-defense-class']").on("change", async event => this.actor.update({"system.combat.defenseClassId":event.currentTarget.value}));
@@ -877,40 +898,33 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     html.find("[data-action='roll-check']").on("click", async event => {
       event.preventDefault();
       const check = event.currentTarget.dataset.check;
+      if (check === "monsterKnowledge") {
+        const targetList = [...(game.user.targets || [])];
+        const targetMonster = targetList.length === 1
+          ? (targetList[0]?.actor ?? targetList[0]?.document?.actor ?? null)
+          : null;
+        await rollMonsterKnowledge({ actor: this.actor, targetMonster, shiftKey: event.shiftKey });
+        return;
+      }
       const labels = {
         accuracy: "Accuracy Check",
         evasion: "Evasion Check",
         initiative: "Initiative Check",
         magicPower: "Magic Power Check",
         fortitude: "Fortitude Check",
-        willpower: "Willpower Check",
-        monsterKnowledge: "Monster Knowledge Check"
+        willpower: "Willpower Check"
       };
       const dynamic = {
-        monsterKnowledge: this._sheetCalculated?.monsterKnowledge, initiative: this._sheetCalculated?.initiative,
+        initiative: this._sheetCalculated?.initiative,
         fortitude: this._sheetCalculated?.fortitude, willpower: this._sheetCalculated?.willpower,
         evasion: this._sheetCalculated?.evasion, accuracy: this._sheetCalculated?.accuracy, magicPower: this._sheetCalculated?.magicPower
       };
       const modifier = Number(dynamic[check] ?? this.actor.system.combat?.[check] ?? 0);
-      const targetTokenUuids = check === "monsterKnowledge"
-        ? [...(game.user.targets || [])].map(target => target.document?.uuid).filter(Boolean)
-        : [];
       const roll = await new Roll(`2d6 + ${modifier}`).evaluate();
       const criticalFailure = await markCriticalFailure(this.actor, roll);
       await roll.toMessage({
         speaker: ChatMessage.getSpeaker({ actor: this.actor }),
-        flavor: `${labels[check] ?? "Check"}${criticalFailure ? criticalFailureHTML() : ""}`,
-        ...(check === "monsterKnowledge" ? {
-          flags: {
-            "sword-world-25": {
-              monsterKnowledge: {
-                successValue: Number(roll.total),
-                criticalFailure,
-                targetTokenUuids
-              }
-            }
-          }
-        } : {})
+        flavor: `${labels[check] ?? "Check"}${criticalFailure ? criticalFailureHTML() : ""}`
       });
       if (check === "magicPower") await rememberMagicPowerRoll(this.actor, roll, this.actor.system.combat?.magicClassId || "");
       if (check === "initiative") await recordPlayerInitiative(this.actor, roll.total);
@@ -1330,15 +1344,20 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       { label: "Weapon Accuracy", value: weaponAccuracy, enabled: true, temporary: false }
     ];
 
+    // Shift+click opens the modifier dialog; normal click uses modsEnabled toggle
+    const promptModifiers = event.shiftKey
+      ? openRollModifiersDialog
+      : (weapon.system?.modsEnabled === true
+        ? openRollModifiersDialog
+        : modifiersConfig => modifiersConfig.parts);
+
     const result = await characterWeaponAttackFlow({
       actor: this.actor,
       weapon,
       attackingClass,
       accuracyParts,
       targetMonster,
-      promptModifiers: weapon.system?.modsEnabled === true
-        ? openRollModifiersDialog
-        : modifiersConfig => modifiersConfig.parts
+      promptModifiers
     });
 
     if (result.status === "cancelled") return;

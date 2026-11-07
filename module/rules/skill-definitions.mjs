@@ -16,7 +16,10 @@
 //   classes:        Rulebook associations, split into:
 //                     normal:     available for manual and automatic selection
 //                     manualOnly: available for manual selection only and never
-//                                 auto-selected (Dark Hunter / Monster Knowledge)
+//                                 auto-selected (Monster Knowledge: Dark Hunter,
+//                                 plus Druid/Daemonologist whose Monster
+//                                 Knowledge comes from their spells, Monstrous
+//                                 Lore pp. 21/41 — manual choice only)
 //                   Class Items may add further associations through
 //                   system.skillChecks; they never override a manualOnly match.
 //   restrictions:   Contextual, informational notes only. No automatic logic
@@ -78,7 +81,7 @@ export const SKILL_DEFINITIONS = [
   { key: skillKey("Track", "intelligence"), name: "Track", ability: "intelligence", time: "1 min", classes: { normal: ["Scout", "Ranger", "Rider"] }, restrictions: [SEARCH_COMMAND] },
   { key: skillKey("Weakness", "intelligence"), name: "Weakness", ability: "intelligence", time: "Instant", classes: { normal: ["Rider"] } },
   { key: skillKey("Weather", "intelligence"), name: "Weather", ability: "intelligence", time: "1 min", classes: { normal: ["Scout", "Ranger", "Geomancer"] } },
-  { key: skillKey("Monster Knowledge", "intelligence"), name: "Monster Knowledge", ability: "intelligence", time: "10 min", combat: true, classes: { normal: ["Sage", "Rider"], manualOnly: ["Dark Hunter"] }, restrictions: [DARK_HUNTER_DAEMONS] },
+  { key: skillKey("Monster Knowledge", "intelligence"), name: "Monster Knowledge", ability: "intelligence", time: "10 min", combat: true, classes: { normal: ["Sage", "Rider"], manualOnly: ["Dark Hunter", "Druid", "Daemonologist"] }, restrictions: [DARK_HUNTER_DAEMONS] },
 
   // Spirit
   { key: skillKey("Performance", "spirit"), name: "Performance", ability: "spirit", time: "Instant", classes: { normal: ["Bard"] } },

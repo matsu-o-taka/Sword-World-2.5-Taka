@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { SKILL_DEFINITIONS, SKILL_DEFINITION_MAP, skillKey, skillsByAbility, adventurerLevelSkills, classBasedSkills } from "../module/rules/skill-definitions.mjs";
-import { classEditorSkillOptions, highestLevelClass, manualOnlyClasses, normalEligibleClasses, resolveSkillClass, resolvedSkillLevel } from "../module/rules/skill-resolution.mjs";
+import { AUTO_SELECTION, classEditorSkillOptions, highestLevelClass, manualOnlyClasses, normalEligibleClasses, resolveClassAssignment, resolveSkillClass, resolvedSkillLevel } from "../module/rules/skill-resolution.mjs";
 import { abilityBonus, isWarriorClass } from "../module/rules/weapon-damage.mjs";
+import { resolveAttackingClass } from "../module/rules/weapon-roll.mjs";
 import { playerInitiativeModifier } from "../module/combat/side-initiative.mjs";
 
 // ---------------------------------------------------------------------------
@@ -341,6 +342,200 @@ const literatureOption = editorOptions.find(option => option.value === "literatu
 assert.equal(literatureOption.selected, true, "New associations are configurable in the editor");
 const monsterOption = editorOptions.find(option => option.value === "monster-knowledge-intelligence");
 assert.ok(monsterOption.title.includes("Daemons"));
+
+// ---------------------------------------------------------------------------
+// Common class assignment (shared by Initiative / Defense / Attacking / Magic
+// class selectors and attacking weapon rolls, skill-resolution.
+// resolveClassAssignment + weapon-roll.resolveAttackingClass).
+// ---------------------------------------------------------------------------
+
+console.log("\nCommon class-assignment resolution...");
+
+const assignmentClass = (id, name, level, classType = "fighter") => ({
+  id,
+  name,
+  type: "class",
+  system: { level, classType }
+});
+
+{
+  // Auto selection: highest eligible, independent of array order.
+  const scrambled = [
+    assignmentClass("fencer", "Fencer", 3),
+    assignmentClass("fighter", "Fighter", 7),
+    assignmentClass("wizard", "Wizard", 10, "magus")
+  ];
+  const auto = resolveClassAssignment({ classes: scrambled, eligible: isWarriorClass });
+  assert.equal(auto.classId, "fighter", "auto = highest-level eligible despite array order");
+  assert.equal(auto.level, 7, "auto resolves the current class level");
+  assert.equal(auto.auto, true, "auto mode flagged");
+  assert.equal(auto.preserved, false, "no manual selection was preserved");
+  assert.equal(
+    auto.options.map(option => option.value).join(","),
+    "fighter,fencer",
+    "options ranked level-desc, ineligible classes withheld"
+  );
+  assert.equal(auto.options.find(option => option.value === "fighter").selected, true, "auto option marked selected");
+
+  // Valid manual selection is preserved with its own level.
+  const manual = resolveClassAssignment({ classes: scrambled, eligible: isWarriorClass, savedValue: "fencer" });
+  assert.equal(manual.classId, "fencer", "valid saved selection preserved");
+  assert.equal(manual.level, 3, "preserved selection resolves its own level");
+  assert.equal(manual.preserved, true, "preserved flagged");
+  assert.equal(manual.auto, false, "not auto");
+
+  // Stale saved selection (class deleted/renamed) falls back to auto.
+  const stale = resolveClassAssignment({ classes: scrambled, eligible: isWarriorClass, savedValue: "gone" });
+  assert.equal(stale.classId, "fighter", "stale selection falls back to the highest eligible");
+  assert.equal(stale.preserved, false, "stale selection not preserved");
+
+  // Ineligible-but-existing saved selection falls back to auto.
+  const invalid = resolveClassAssignment({ classes: scrambled, eligible: isWarriorClass, savedValue: "wizard" });
+  assert.equal(invalid.classId, "fighter", "ineligible saved selection does not win the assignment");
+
+  // No eligible classes -> empty assignment, zero level.
+  const none = resolveClassAssignment({ classes: [scrambled[2]], eligible: isWarriorClass, savedValue: "wizard" });
+  assert.equal(none.classId, "", "no eligible class -> empty assignment");
+  assert.equal(none.level, 0, "no eligible class -> zero level");
+  assert.deepEqual(none.options, [], "no eligible class -> no options");
+
+  // Recalculation on class level change: re-derivation reflects the new level.
+  fighterItemUpdate: {
+    const live = [
+      assignmentClass("fencer", "Fencer", 5),
+      assignmentClass("fighter", "Fighter", 7)
+    ];
+    const before = resolveClassAssignment({ classes: live, eligible: isWarriorClass });
+    assert.equal(before.classId, "fighter", "before the level change: Fighter 7 leads");
+    live[1].system.level = 1; // class level updated on the class Item
+    const after = resolveClassAssignment({ classes: live, eligible: isWarriorClass });
+    assert.equal(after.classId, "fencer", "after the level change: assignment recalculates to Fencer 5");
+    assert.equal(after.level, 5, "the recalculated level is read from the class Item");
+    assert.equal(after.auto, true, "the new winner was assigned automatically");
+  }
+}
+
+console.log("Common attacking-class resolution...");
+
+{
+  // resolveAttackingClass shares the same rule at roll time.
+  const items = [
+    assignmentClass("fighter", "Fighter", 5),
+    assignmentClass("fencer", "Fencer", 8),
+    assignmentClass("wizard", "Wizard", 10, "magus"),
+    assignmentClass("artificer", "Artificer", 6, "magus")
+  ];
+  const itemsMap = new Map(items.map(item => [item.id, item]));
+  const actor = {
+    system: { combat: { offenseClassId: "fighter" } },
+    items: {
+      get: id => itemsMap.get(id) || null,
+      find: fn => items.find(fn),
+      filter: fn => items.filter(fn)
+    }
+  };
+  const weapon = { name: "Longsword", system: { type: "melee" } };
+
+  const saved = resolveAttackingClass(actor, weapon);
+  assert.equal(saved?.id, "fighter", "roll uses the stored Attacking Class while valid");
+
+  actor.system.combat.offenseClassId = "gone";
+  const stale = resolveAttackingClass(actor, weapon);
+  assert.equal(stale?.id, "fencer", "stale Attacking Class falls back to the highest warrior class (Fencer 8)");
+
+  actor.system.combat.offenseClassId = "";
+  const auto = resolveAttackingClass(actor, weapon);
+  assert.equal(auto?.id, "fencer", "empty selection auto-assigns the highest warrior class");
+
+  const soloWizard = {
+    system: { combat: { offenseClassId: "wizard" } },
+    items: {
+      get: id => (id === "wizard" ? assignmentClass("wizard", "Wizard", 10, "magus") : null),
+      filter: fn => [assignmentClass("wizard", "Wizard", 10, "magus")].filter(fn)
+    }
+  };
+  assert.equal(resolveAttackingClass(soloWizard, weapon), null, "no warrior class at all keeps the requirement warning path");
+
+  const gun = { name: "Revolver", system: { category: "Gun" } };
+  assert.equal(resolveAttackingClass(actor, gun)?.id, "artificer", "guns keep the Artificer auto-selection");
+}
+
+console.log("Monster Knowledge automatic mode...");
+
+{
+  const mkClasses = [
+    { id: "cls-sage", name: "Sage", type: "class", system: { level: 3 } },
+    { id: "cls-rider", name: "Rider", type: "class", system: { level: 2 } },
+    { id: "cls-dh", name: "Dark Hunter", type: "class", system: { level: 5 } }
+  ];
+  const mkDef = SKILL_DEFINITION_MAP.get("monster-knowledge-intelligence");
+
+  // Automatic mode = absent selection (unchecked-tick equivalent): best valid
+  // native, manualOnly Dark Hunter never auto-assigned.
+  const automatic = resolveSkillClass({
+    classes: mkClasses,
+    def: mkDef,
+    savedValue: ""
+  });
+  assert.equal(automatic.classId, "cls-sage", "automatic follows the best currently valid class (Sage)");
+  assert.equal(automatic.preserved, false, "automatic is not a preserved manual pick");
+  assert.equal(
+    automatic.options.map(option => option.value).includes(AUTO_SELECTION),
+    false,
+    "no 'auto' entry in the dropdown options; the sheet tick controls the mode"
+  );
+
+  // The legacy "auto" marker is still read back as automatic mode.
+  const autoMarker = resolveSkillClass({
+    classes: mkClasses,
+    def: mkDef,
+    savedValue: AUTO_SELECTION
+  });
+  assert.equal(autoMarker.classId, "cls-sage", "'auto' marker follows the best currently valid class");
+
+  // Immediate recalculation on class level change (tick stays on / no pin).
+  mkClasses[0].system.level = 8; // Sage levels up
+  const recalculated = resolveSkillClass({
+    classes: mkClasses,
+    def: mkDef,
+    savedValue: ""
+  });
+  assert.equal(recalculated.classId, "cls-sage", "recalculated after Sage levels up");
+  assert.equal(recalculated.level, 8, "recalculation uses the updated class level immediately");
+
+  // A valid manual pick (manualOnly Dark Hunter) stays pinned while the tick is off.
+  const manual = resolveSkillClass({
+    classes: mkClasses,
+    def: mkDef,
+    savedValue: "cls-dh"
+  });
+  assert.equal(manual.classId, "cls-dh", "manual Dark Hunter selection is preserved");
+  assert.equal(manual.preserved, true, "manual pick keeps persistence semantics");
+
+  // Ticking the sheet control back on re-pins nothing: recalculation resumes.
+  const reAutomatic = resolveSkillClass({
+    classes: mkClasses,
+    def: mkDef,
+    savedValue: ""
+  });
+  assert.equal(reAutomatic.classId, "cls-sage", "back to automatic still follows the best valid class");
+
+  // A stale saved id falls back to the automatic assignment (tick-on semantics).
+  const stale = resolveSkillClass({
+    classes: mkClasses,
+    def: mkDef,
+    savedValue: "gone"
+  });
+  assert.equal(stale.classId, "cls-sage", "stale pick falls back to the best valid class");
+
+  // Explicit "—" (none) keeps the explicit no-class state.
+  const none = resolveSkillClass({
+    classes: mkClasses,
+    def: mkDef,
+    savedValue: "none"
+  });
+  assert.equal(none.classId, "", "'none' keeps the explicit no-class state");
+}
 
 // ---------------------------------------------------------------------------
 

@@ -28,8 +28,13 @@ globalThis.ChatMessage = {
   }
 };
 
+const warnings = [];
 globalThis.ui = {
-  notifications: { warn() {}, info() {}, error() {} }
+  notifications: {
+    warn(message) { warnings.push(message); },
+    info() {},
+    error() {}
+  }
 };
 
 globalThis.foundry = {
@@ -134,7 +139,9 @@ globalThis.registerRollModifiersDialog = (constructor) => {
 
 // ── Import after mocks are in place ────────────────────────────────────────
 
-import { rollMonsterKnowledge } from "../module/combat/monster-knowledge.mjs";
+import { rollMonsterKnowledge, isSpeciesWeaknessKnown } from "../module/combat/monster-knowledge.mjs";
+import { resolveSkillClass } from "../module/rules/skill-resolution.mjs";
+import { SKILL_DEFINITION_MAP } from "../module/rules/skill-definitions.mjs";
 import { registerRollModifiersDialog } from "../module/rules/roll-modifiers.mjs";
 
 // Mock dialog: returns the seed parts unchanged (simulates user clicking
@@ -167,7 +174,7 @@ const makeCharacter = (overrides = {}) => {
     abilityAdjustments: {},
     ...overrides.system
   };
-  const items = [classItem("cls-sage", "Sage", 3), classItem("cls-rider", "Rider", 2)];
+  const items = overrides.items ?? [classItem("cls-sage", "Sage", 3), classItem("cls-rider", "Rider", 2)];
   const itemsMap = new Map(items.map(i => [i.id, i]));
   const itemsArray = [...items];
   return {
@@ -190,7 +197,6 @@ const makeMonster = (overrides = {}) => {
     monsterKnowledge: 0,
     weakness: 15,
     reputation: 10,
-    weaknessDiscovered: false,
     ...overrides.system
   };
   return {
@@ -200,7 +206,25 @@ const makeMonster = (overrides = {}) => {
     system,
     uuid: "Actor.monster-1",
     testUserPermission() { return true; },
-    isOwner: true
+    isOwner: true,
+    flags: {},
+    async setFlag(scope, key, value) {
+      this.flags[scope] ??= {};
+      if (value === null) delete this.flags[scope][key];
+      else this.flags[scope][key] = structuredClone(value);
+    },
+    async getFlag(scope, key) { return this.flags[scope]?.[key]; },
+    async update(data) {
+      for (const [path, value] of Object.entries(data ?? {})) {
+        const parts = path.split(".");
+        let obj = system;
+        for (let i = 0; i < parts.length - 1; i++) {
+          obj[parts[i]] = obj[parts[i]] ?? {};
+          obj = obj[parts[i]];
+        }
+        obj[parts[parts.length - 1]] = value;
+      }
+    }
   };
 };
 
@@ -210,6 +234,7 @@ function resetWorld() {
   chatMessagesWithFlags.length = 0;
   actorUpdates.length = 0;
   dialogCalls.length = 0;
+  warnings.length = 0;
   rollResults.length = 0;
   rollFormula = "";
   game.user.character = null;
@@ -228,13 +253,23 @@ resetWorld();
   game.actors.push(game.user.character);
   rollResults.push([[5, 4]]); // natural 9
 
-  const result = await rollMonsterKnowledge({ actor: game.user.character });
+  const result = await rollMonsterKnowledge({ actor: game.user.character, shiftKey: true });
   assert.equal(result.status, "resolved", "roll resolves");
-  assert.equal(result.rollTotal, 9, "natural total is 9");
+  // Dice-only roll: rollTotal is the raw dice sum (formula carries no constants).
+  assert.equal(result.rollTotal, 9, "roll total is the dice only (9)");
+  assert.equal(rollFormula, "2d6", "formula carries no modifier constants");
+  // Individual per-class results share the same dice: Sage 3 + INT 2, Rider 2 + INT 2.
+  const sage = result.individualResults.find(entry => entry.className === "sage");
+  const rider = result.individualResults.find(entry => entry.className === "rider");
+  assert.deepEqual(sage?.result, 14, "Sage result = dice 9 + Sage 3 + INT 2");
+  assert.deepEqual(rider?.result, 13, "Rider result = dice 9 + Rider 2 + INT 2");
   assert.equal(dialogCalls.length, 1, "dialog was opened once");
   assert.equal(dialogCalls[0].diceFormula, "2d6", "dialog shows 2d6 formula");
+  // Seed parts: one class-level part per evaluated class + shared parts.
+  assert.ok(dialogCalls[0].parts.some(p => p.label === "Sage level" && p.value === 3), "Sage level part seeded");
+  assert.ok(dialogCalls[0].parts.some(p => p.label === "Rider level" && p.value === 2), "Rider level part seeded");
   // Seed parts should include fixed sheet bonus (monsterKnowledgeBonus = 0 here)
-  const bonusPart = dialogCalls[0].parts.find(p => p.label === "Ficha (bonus fijo)");
+  const bonusPart = dialogCalls[0].parts.find(p => p.label === "Bonus fijo");
   assert.equal(bonusPart.value, 0, "fixed sheet bonus is 0 by default");
   assert.equal(bonusPart.enabled, true, "fixed bonus part is enabled");
   assert.equal(bonusPart.temporary, false, "fixed bonus is permanent (not temporary)");
@@ -252,14 +287,16 @@ resetWorld();
   game.actors.push(char);
   rollResults.push([[2, 3]]); // natural 5
 
-  const result = await rollMonsterKnowledge({ actor: char });
+  const result = await rollMonsterKnowledge({ actor: char, shiftKey: true });
   assert.equal(result.status, "resolved", "roll resolves");
-  // Base: class level (Sage 3) + INT bonus (12/6=2) = 5. Fixed bonus: 3.
-  // Total from parts: 5 + 3 = 8. Roll adds 5 (natural) + 8 = 13.
-  const bonusParts = dialogCalls[0].parts.filter(p => p.label === "Ficha (bonus fijo)");
+  // Base per-class: class level + INT bonus (12/6=2). Dice-only roll: total = 5.
+  // Sage's individual result adds the shared fixed bonus 3: 5 + 3 + 2 + 3 = 13.
+  const bonusParts = dialogCalls[0].parts.filter(p => p.label === "Bonus fijo");
   assert.equal(bonusParts.length, 1, "fixed bonus appears exactly once");
   assert.equal(bonusParts[0].value, 3, "fixed bonus value is 3");
-  assert.equal(result.rollTotal, 13, "total = natural(5) + base(3+2) + fixed(3) = 13");
+  assert.equal(result.rollTotal, 5, "roll total is the dice only (natural 5)");
+  const sage2 = result.individualResults.find(entry => entry.className === "sage");
+  assert.equal(sage2.result, 13, "Sage result = dice(5) + level(3) + INT(2) + fixed(3) = 13");
   console.log("  ✓ PASS");
 }
 
@@ -281,12 +318,16 @@ resetWorld();
     return parts;
   };
 
-  const result = await rollMonsterKnowledge({ actor: char });
+  const result = await rollMonsterKnowledge({ actor: char, shiftKey: true });
   MockDialog.open = originalOpen;
 
   // Parts: Sage level 3 (enabled), INT 2 (disabled), fixed 0 (enabled), temp 2 (enabled).
-  // Total = 3 + 0 + 2 = 5. Roll = 8 + 5 = 13.
-  assert.equal(result.rollTotal, 13, "temp modifiers summed correctly (8+5=13)");
+  // Shared adjustment = 0 (INT off) + 0 + 2 = 2. Dice-only roll: 8.
+  // Sage's individual result = 8 + Sage level 3 + shared 2 = 13.
+  assert.equal(result.rollTotal, 8, "roll total is the dice only (8)");
+  const sage3 = result.individualResults.find(entry => entry.className === "sage");
+  assert.equal(sage3.result, 13, "Sage result = dice(8) + level(3) + shared(2), INT disabled");
+  console.log("  ✓ PASS");
 }
 
 // Test 4: Monster sheet button uses monster as target.
@@ -302,7 +343,12 @@ resetWorld();
   const result = await rollMonsterKnowledge({ actor: char, targetMonster: monster });
   const msg = chatMessagesWithFlags[chatMessagesWithFlags.length - 1];
   assert.ok(msg.flags["sword-world-25"].monsterKnowledge.targetTokenUuids.includes(monster.uuid), "monster uuid in targetTokenUuids");
-  assert.equal(result.rollTotal, 12, "roll total is 12");
+  // Dice-only roll: 12. Sage result 12+3+2 = 17, Rider result 12+2+2 = 16.
+  assert.equal(result.rollTotal, 12, "roll total is the dice only (12)");
+  const sage4 = result.individualResults.find(entry => entry.className === "sage");
+  const rider4 = result.individualResults.find(entry => entry.className === "rider");
+  assert.equal(sage4.result, 17, "Sage result = dice 12 + level 3 + INT 2");
+  assert.equal(rider4.result, 16, "Rider result = dice 12 + level 2 + INT 2");
   console.log("  ✓ PASS");
 }
 
@@ -319,7 +365,11 @@ resetWorld();
   const sageResult = result.classResults.find(r => r.className === "sage");
   assert.ok(sageResult, "Sage class result exists");
   assert.equal(sageResult.canRevealWeakness, true, "Sage can reveal Weak Point");
-  assert.equal(sageResult.successValue, 20 + 3 + 2, "Sage value = natural(20) + level(3) + INT(2)");
+  // Dice-only roll: classResults.successValue records the shared dice (no
+  // constants in the formula); the individual result carries the modifiers.
+  assert.equal(sageResult.successValue, 20, "successValue = dice only (natural 20)");
+  const sage5 = result.individualResults.find(entry => entry.className === "sage");
+  assert.equal(sage5.result, 25, "Sage result = dice(20) + level(3) + INT(2)");
   console.log("  ✓ PASS");
 }
 
@@ -350,13 +400,558 @@ resetWorld();
   const originalOpen = MockDialog.open;
   MockDialog.open = async () => null; // user cancels
 
-  const result = await rollMonsterKnowledge({ actor: char });
+  const result = await rollMonsterKnowledge({ actor: char, shiftKey: true });
   assert.equal(result.status, "cancelled", "cancelled status");
   assert.equal(result.phases.dialog, true, "dialog phase happened");
   assert.equal(result.phases.roll, false, "roll phase did not happen");
   assert.equal(chatMessagesWithFlags.length, 0, "no message posted on cancel");
 
   MockDialog.open = originalOpen;
+  console.log("  ✓ PASS");
+}
+
+// Test 8: Dark Hunter reveals statistics, identifies the Daemon
+// classification and reveals its Weak Point at threshold (Abyss Breaker p. 28).
+console.log("Test 8: Dark Hunter stats + identification + Weak Point");
+resetWorld();
+{
+  const char = makeCharacter({
+    items: [classItem("cls-dh", "Dark Hunter", 5)],
+    system: { combat: { monsterKnowledgeClassId: "cls-dh" } }
+  });
+  // Partial roll: SV = 2+2 + level(5) + INT(2) = 11: below Reputation 12 and
+  // Weakness 14 -> only the automatic classification identification.
+  rollResults.push([[2, 2]]);
+  game.user.character = char;
+  game.actors.push(char);
+
+  const partial = await rollMonsterKnowledge({ actor: char, targetMonster: makeDaemon({ weakness: 14, reputation: 12 }) });
+  assert.equal(partial.status, "resolved", "roll resolves against a Daemon");
+  assert.deepEqual(partial.discoveries.map(d => d.type), ["classification"], "only classification identified below both thresholds");
+  assert.ok(partial.discoveries[0].classification === "daemon", "classification recorded");
+  const partialMsg = chatMessagesWithFlags[0];
+  assert.ok(partialMsg.flags["sword-world-25"].monsterKnowledge.usedClasses?.[0]?.className === "dark hunter", "used Dark Hunter");
+  assert.ok(partialMsg.flavor.includes("Partial success — Classification identified"), "classification verdict on the partial roll");
+
+  // Second roll above weakness -> stats + identification + Weak Point.
+  const daemon = makeDaemon({ weakness: 14, species: "Legion Daemon" });
+  game.actors.push(daemon);
+  rollResults.push([[6, 5]]); // SV = 11 + 5 + 2 = 18 >= 14
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: daemon });
+  assert.deepEqual(result.discoveries.map(d => d.type), ["stats", "classification", "weakness"], "stats, identification and Weak Point at threshold");
+  assert.equal(isSpeciesWeaknessKnown("legion daemon"), true, "weakness registered for species");
+  assert.equal(daemon.system.revealed, true, "Dark Hunter reveals statistics");
+  const successMsg = chatMessagesWithFlags[1];
+  assert.ok(successMsg.flavor.includes("Success — Weakness revealed"), "weakness verdict on the successful roll");
+  console.log("  ✓ PASS");
+}
+
+function makeDaemon(system = {}) {
+  return makeMonster({ system: { monsterType: "Daemon", species: "Legion Daemon", weakness: 14, reputation: 10, ...system } });
+}
+
+// Test 9: Dark Hunter is limited to Daemons (Abyss Breaker p. 28). When the
+// user manually selects Dark Hunter against a non-Daemon, the check publishes
+// a card with the Dark Hunter result as main result and a restriction warning,
+// instead of refusing in silence.
+console.log("Test 9: Dark Hunter manual vs non-Daemon shows card with warning");
+resetWorld();
+{
+  const char = makeCharacter({
+    items: [classItem("cls-dh", "Dark Hunter", 5)],
+    system: { combat: { monsterKnowledgeClassId: "cls-dh" } }
+  });
+  const barbarous = makeMonster({ system: { monsterType: "Barbarous", species: "Ogre" } });
+  game.user.character = char;
+  game.actors.push(char, barbarous);
+  rollResults.push([[3, 4]]); // dice 7
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: barbarous });
+  assert.equal(result.status, "resolved", "card published instead of silent refusal");
+  assert.equal(result.manualIneligible, true, "manual class flagged as ineligible");
+  assert.equal(result.manualClass.className, "dark hunter", "manual class is Dark Hunter");
+  assert.equal(result.manualClass.level, 5, "manual class level 5");
+  // Main result is the manually selected Dark Hunter result (dice 7 + DH 5 + INT 2 = 14).
+  assert.equal(result.mainResult.className, "dark hunter", "main result is the manually selected Dark Hunter");
+  assert.equal(result.mainResult.result, 14, "main result = dice 7 + DH 5 + INT 2");
+  // No class is eligible, so no effects are discovered.
+  assert.deepEqual(result.discoveries.map(d => d.type), [], "no effects without eligible classes");
+  // The card carries a restriction warning.
+  assert.equal(chatMessagesWithFlags.length, 1, "one card published");
+  assert.ok(chatMessagesWithFlags[0].flavor.includes("sw25-mk-warning"), "restriction warning on the card");
+  assert.ok(chatMessagesWithFlags[0].flavor.includes("Dark Hunter"), "warning names Dark Hunter");
+  assert.ok(chatMessagesWithFlags[0].flavor.includes("daemon"), "warning names the Daemon limitation");
+  console.log("  ✓ PASS");
+}
+
+// Test 10: ◯Monster Watch (Abyss Breaker p. 31) expands the Dark Hunter to
+// Barbarous and Undead targets.
+console.log("Test 10: Monster Watch expands Dark Hunter targets to Barbarous and Undead");
+resetWorld();
+{
+  const char = makeCharacter({
+    items: [
+      classItem("cls-dh", "Dark Hunter", 3),
+      { id: "feat-mw", name: "Monster Watch", type: "feat", system: {} }
+    ],
+    system: { combat: { monsterKnowledgeClassId: "cls-dh" } }
+  });
+  const undead = makeMonster({ system: { monsterType: "Undead", species: "Ghoul", weakness: 14, reputation: 10 } });
+  game.user.character = char;
+  game.actors.push(char, undead);
+  rollResults.push([[5, 5]]); // SV = 10 + 3 + 2 = 15 >= weakness 14
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: undead });
+  assert.equal(result.status, "resolved", "Undead target is valid with Monster Watch");
+  assert.deepEqual(result.discoveries.map(d => d.type), ["stats", "classification", "weakness"], "stats, identification and Weak Point reachable on Undead");
+  assert.equal(undead.system.revealed, true, "statistics revealed");
+  assert.equal(isSpeciesWeaknessKnown("ghoul"), true, "weakness registered");
+  console.log("  ✓ PASS");
+}
+
+// Test 11: Monster Watch level 5+ treats Daemon weakness as -4, never below
+// reputation (Abyss Breaker p. 31).
+console.log("Test 11: Monster Watch level 5+ weakens Daemon weakness by 4 (floor reputation)");
+resetWorld();
+{
+  const character = makeCharacter({
+    items: [
+      classItem("cls-dh", "Dark Hunter", 5),
+      { id: "feat-mw", name: "Monster Watch", type: "feat", system: {} }
+    ],
+    system: { combat: { monsterKnowledgeClassId: "cls-dh" } }
+  });
+  // weakness 15 -> threshold max(reputation 10, 15-4=11) = 11.
+  const daemon = makeDaemon({ weakness: 15, species: "Legion Daemon" });
+  game.user.character = character;
+  game.actors.push(character, daemon);
+  rollResults.push([[2, 3]]); // SV = 5 + 5 + 2 = 12: >= 11 with -4, < 15 without
+
+  const result = await rollMonsterKnowledge({ actor: character, targetMonster: daemon });
+  assert.deepEqual(result.discoveries.map(d => d.type), ["stats", "classification", "weakness"], "weakness reached with -4 (12 >= 11)");
+  console.log("  ✓ PASS");
+}
+
+// Test 11b: the same roll without Monster Watch needs the full weakness.
+console.log("Test 11b: Without Monster Watch the full Daemon weakness applies");
+resetWorld();
+{
+  const character = makeCharacter({
+    items: [classItem("cls-dh", "Dark Hunter", 5)],
+    system: { combat: { monsterKnowledgeClassId: "cls-dh" } }
+  });
+  const daemon = makeDaemon({ weakness: 15, species: "Legion Daemon" });
+  game.user.character = character;
+  game.actors.push(character, daemon);
+  rollResults.push([[2, 3]]); // SV = 5 + 5 + 2 = 12 < 15
+
+  const result = await rollMonsterKnowledge({ actor: character, targetMonster: daemon });
+  assert.deepEqual(result.discoveries.map(d => d.type), ["stats", "classification"], "no weak point without Monster Watch reduction");
+  assert.equal(isSpeciesWeaknessKnown("legion daemon"), false, "species not registered");
+  console.log("  ✓ PASS");
+}
+
+// Test 12: Sage automatic success (double 6s) reveals Weak Point and stats
+// even below the recorded difficulty (CR I p. 383).
+console.log("Test 12: Sage automatic success detects Weak Point below threshold");
+resetWorld();
+{
+  const char = makeCharacter({ system: { combat: { monsterKnowledgeClassId: "cls-sage" } } });
+  const dragon = makeMonster({ system: { weakness: 18, reputation: 16, species: "Elder Dragon", monsterType: "Beast" } });
+  game.user.character = char;
+  game.actors.push(char, dragon);
+  rollResults.push([[6, 6]]); // SV = 12 + 3 + 2 = 17 < weakness 18, < reputation 16
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: dragon });
+  assert.equal(result.automaticSuccess, true, "double 6s marked as automatic success");
+  assert.deepEqual(result.discoveries.map(d => d.type), ["stats", "weakness"], "stats and Weak Point on automatic success");
+  console.log("  ✓ PASS");
+}
+
+// Test 13: Rider automatic success reveals statistics but never Weak Point.
+console.log("Test 13: Rider automatic success reveals stats, never Weak Point");
+resetWorld();
+{
+  // Rider-only native class list: no Sage available to pick up the Weak Point.
+  const char = makeCharacter({
+    items: [classItem("cls-rider", "Rider", 2)],
+    system: { combat: { monsterKnowledgeClassId: "cls-rider" } }
+  });
+  // SV = 12 + level(2) + INT(2) = 16 < weakness 17, >= reputation 15 anyway.
+  // Use reputation 17 too so stats come strictly from the automatic success.
+  const dragon = makeMonster({ system: { weakness: 18, reputation: 20, species: "Goblin Chief", monsterType: "Barbarous" } });
+  game.user.character = char;
+  game.actors.push(char, dragon);
+  rollResults.push([[6, 6]]);
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: dragon });
+  assert.equal(result.automaticSuccess, true, "double 6s marked as automatic success");
+  assert.deepEqual(result.discoveries.map(d => d.type), ["stats"], "stats on automatic success, never Weak Point");
+  assert.equal(isSpeciesWeaknessKnown("goblin chief"), false, "Rider never registers weaknesses");
+  console.log("  ✓ PASS");
+}
+
+// ── Multi-class scenario tests (single roll, all applicable natives) ──────
+
+// Scenario 1: Sage + Rider against a valid target: ONE roll; both classes
+// applicable; statistics from either; Weak Point only via Sage.
+console.log("Test 14: Sage + Rider single roll, both evaluated");
+resetWorld();
+{
+  const char = makeCharacter(); // Sage 3 + Rider 2, no saved selection
+  const monster = makeMonster({ system: { weakness: 15, reputation: 10, species: "Goblin Scout" } });
+  game.user.character = char;
+  game.actors.push(char, monster);
+  rollResults.push([[6, 5]]); // SV = 11 + sage 3 + INT 2 = 16
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: monster });
+  assert.equal(result.status, "resolved", "single roll resolves");
+  assert.equal(chatMessagesWithFlags.length, 1, "exactly ONE roll message");
+  assert.deepEqual(result.usedClasses.map(c => c.className).sort(), ["rider", "sage"], "both native classes applicable");
+  assert.deepEqual(result.discoveries.map(d => d.type), ["stats", "weakness"], "stats (any) plus Weak Point (Sage)");
+  assert.equal(monster.system.revealed, true, "statistics revealed");
+  assert.equal(isSpeciesWeaknessKnown("goblin scout"), true, "Weak Point registered via Sage");
+  console.log("  ✓ PASS");
+}
+
+// Scenario 2: Sage + Dark Hunter against a Daemon: ONE roll; both evaluated.
+console.log("Test 15: Sage + Dark Hunter vs Daemon, both evaluated");
+resetWorld();
+{
+  const char = makeCharacter({
+    items: [classItem("cls-sage", "Sage", 3), classItem("cls-dh", "Dark Hunter", 5)]
+  });
+  const daemon = makeDaemon({ weakness: 14 });
+  game.user.character = char;
+  game.actors.push(char, daemon);
+  rollResults.push([[5, 4]]); // SV = 9 + Dark Hunter 5 (highest eligible) + INT 2 = 16
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: daemon });
+  assert.deepEqual(result.usedClasses.map(c => c.className).sort(), ["dark hunter", "sage"], "both native classes applicable");
+  assert.deepEqual(result.discoveries.map(d => d.type), ["stats", "classification", "weakness"], "stats + identification + Weak Point");
+  assert.deepEqual(result.formulaClass?.className, "dark hunter", "automatic formula picks the highest eligible (Dark Hunter 5)");
+  console.log("  ✓ PASS");
+}
+
+// Scenario 3: Sage + Dark Hunter against a Barbarous without Monster Watch:
+// Dark Hunter excluded, Sage still resolves; the check is NOT rejected.
+console.log("Test 16: Sage + Dark Hunter vs Barbarous without Monster Watch");
+resetWorld();
+{
+  const char = makeCharacter({
+    items: [classItem("cls-sage", "Sage", 3), classItem("cls-dh", "Dark Hunter", 5)]
+  });
+  const barbarous = makeMonster({ system: { monsterType: "Barbarous", species: "Ogre", weakness: 15, reputation: 10 } });
+  game.user.character = char;
+  game.actors.push(char, barbarous);
+  rollResults.push([[5, 4]]); // SV = 9 + Sage 3 + INT 2 = 14
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: barbarous });
+  assert.equal(result.status, "resolved", "check NOT rejected for the whole character");
+  assert.deepEqual(result.usedClasses.map(c => c.className), ["sage"], "only Sage applicable");
+  assert.deepEqual(result.discoveries.map(d => d.type), ["stats"], "Sage-only capabilities: no classification this time");
+  assert.deepEqual(result.formulaClass?.className, "sage", "formula falls back to the eligible native, not the highest level");
+  console.log("  ✓ PASS");
+}
+
+// Scenario 4: Sage + Dark Hunter against a Barbarous WITH Monster Watch:
+// both applicable and evaluated with the same roll.
+console.log("Test 17: Sage + Dark Hunter vs Barbarous with Monster Watch");
+resetWorld();
+{
+  const char = makeCharacter({
+    items: [
+      classItem("cls-sage", "Sage", 3),
+      classItem("cls-dh", "Dark Hunter", 5),
+      { id: "feat-mw", name: "Monster Watch", type: "feat", system: {} }
+    ]
+  });
+  const barbarous = makeMonster({ system: { monsterType: "Barbarous", species: "Ogre", weakness: 15, reputation: 10 } });
+  game.user.character = char;
+  game.actors.push(char, barbarous);
+  rollResults.push([[5, 4]]); // SV = 9 + Dark Hunter 5 + INT 2 = 16
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: barbarous });
+  assert.deepEqual(result.usedClasses.map(c => c.className).sort(), ["dark hunter", "sage"], "both applicable with Monster Watch");
+  assert.deepEqual(result.discoveries.map(d => d.type), ["stats", "classification", "weakness"], "union of both classes' capabilities");
+  console.log("  ✓ PASS");
+}
+
+// Scenario 5: Manual selection of Rider with Sage also available: selection
+// must not suppress Sage's Weak Point capability.
+console.log("Test 18: Manual Rider selection does not suppress Sage's Weak Point");
+resetWorld();
+{
+  const char = makeCharacter({ system: { combat: { monsterKnowledgeClassId: "cls-rider" } } }); // Sage 3 + Rider 2
+  const monster = makeMonster({ system: { weakness: 15, reputation: 10, species: "Goblin Scout" } });
+  game.user.character = char;
+  game.actors.push(char, monster);
+  rollResults.push([[6, 6]]); // SV = 12 + Rider 2 + INT 2 = 16
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: monster });
+  assert.equal(result.status, "resolved", "roll resolves");
+  assert.deepEqual(result.formulaClass?.className, "rider", "manual selection shapes the roll (Rider 2)");
+  assert.deepEqual(result.discoveries.map(d => d.type), ["stats", "weakness"], "Weak Point still discovered via Sage");
+  assert.equal(isSpeciesWeaknessKnown("goblin scout"), true, "weakness registered");
+  console.log("  ✓ PASS");
+}
+
+// Scenario 6: Manual selection of Dark Hunter with Sage also available
+// against a Daemon: both classes evaluated.
+console.log("Test 19: Manual Dark Hunter with Sage vs Daemon");
+resetWorld();
+{
+  const char = makeCharacter({
+    items: [classItem("cls-sage", "Sage", 3), classItem("cls-dh", "Dark Hunter", 5)],
+    system: { combat: { monsterKnowledgeClassId: "cls-dh" } }
+  });
+  const daemon = makeDaemon({ weakness: 14 });
+  game.user.character = char;
+  game.actors.push(char, daemon);
+  rollResults.push([[5, 4]]); // SV = 9 + Dark Hunter 5 + INT 2 = 16
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: daemon });
+  assert.deepEqual(result.formulaClass?.className, "dark hunter", "manual selection feeds the roll");
+  assert.deepEqual(result.usedClasses.map(c => c.className).sort(), ["dark hunter", "sage"], "both evaluated");
+  assert.deepEqual(result.discoveries.map(d => d.type), ["stats", "classification", "weakness"], "union preserved");
+  console.log("  ✓ PASS");
+}
+
+// Scenario 7: Automatic selection with multiple eligible native classes must
+// not reduce resolution to the selected class (covered by Scenarios 2/5 too);
+// Scenario 7 asserts the automatic choice is the highest ELIGIBLE native.
+console.log("Test 20: Automatic selection picks highest eligible, not highest level");
+resetWorld();
+{
+  const char = makeCharacter({
+    items: [classItem("cls-sage", "Sage", 3), classItem("cls-dh", "Dark Hunter", 9)]
+  });
+  const barbarous = makeMonster({ system: { monsterType: "Barbarous", species: "Ogre", weakness: 15, reputation: 10 } });
+  game.user.character = char;
+  game.actors.push(char, barbarous);
+  rollResults.push([[5, 4]]); // SV = 9 + Sage 3 + INT 2 = 14 (Dark Hunter 9 ineligible here)
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: barbarous });
+  assert.deepEqual(result.formulaClass?.className, "sage", "ineligible Dark Hunter 9 not auto-selected");
+  assert.equal(result.rollTotal, 9, "roll total = dice only (9)");
+  const sage20 = result.individualResults.find(entry => entry.className === "sage");
+  assert.equal(sage20.result, 14, "Sage result = dice 9 + Sage 3 + INT 2 (not Dark Hunter 9)");
+  assert.deepEqual(result.usedClasses.map(c => c.className), ["sage"], "only Sage applicable");
+  console.log("  ✓ PASS");
+}
+
+// Scenarios 10 & 11: Druid and Daemonologist are manual options and never
+// automatic candidates — verified with the production sheet resolver.
+console.log("Test 21: Druid/Daemonologist available manually, excluded automatically");
+resetWorld();
+{
+  const def = SKILL_DEFINITION_MAP.get("monster-knowledge-intelligence");
+  const classes = [
+    classItem("cls-sage", "Sage", 1),
+    classItem("cls-druid", "Druid", 9),
+    classItem("cls-daemonologist", "Daemonologist", 4)
+  ];
+  const resolved = resolveSkillClass({ classes, def, savedValue: "" });
+  assert.equal(resolved.classId, "cls-sage", "automatic selection is the native Sage 1, never Druid 9");
+  const optionLabels = resolved.options.map(o => o.label);
+  assert.ok(optionLabels.includes("Druid"), "Druid present in the selector");
+  assert.ok(optionLabels.includes("Daemonologist"), "Daemonologist present in the selector");
+  const savedDruid = resolveSkillClass({ classes, def, savedValue: "cls-druid" });
+  assert.equal(savedDruid.classId, "cls-druid", "manual Druid selection is preserved");
+  const savedDaemonologist = resolveSkillClass({ classes, def, savedValue: "cls-daemonologist" });
+  assert.equal(savedDaemonologist.classId, "cls-daemonologist", "manual Daemonologist selection is preserved");
+  console.log("  ✓ PASS");
+}
+
+// Scenario 11 (roll flow): Druid higher level than all natives is never
+// the automatic formula class.
+console.log("Test 22: Higher-level Druid never auto-selected");
+resetWorld();
+{
+  const char = makeCharacter({
+    items: [classItem("cls-sage", "Sage", 3), classItem("cls-druid", "Druid", 9)]
+  });
+  const monster = makeMonster({ system: { weakness: 15, reputation: 10 } });
+  game.user.character = char;
+  game.actors.push(char, monster);
+  rollResults.push([[5, 4]]); // SV = 9 + Sage 3 + INT 2 = 14, not Druid 9 (= 20)
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: monster });
+  assert.deepEqual(result.formulaClass?.className, "sage", "automatic formula is the native Sage");
+  assert.equal(result.rollTotal, 9, "roll total = dice only (9)");
+  const sage22 = result.individualResults.find(entry => entry.className === "sage");
+  assert.equal(sage22.result, 14, "Sage result = dice 9 + Sage 3 + INT 2, never Druid 9");
+  assert.deepEqual(result.usedClasses.map(c => c.className), ["sage"], "Druid is not a native candidate");
+  console.log("  ✓ PASS");
+}
+
+// Scenario 12: Manual Druid selection must not treat Druid as a native
+// automatic candidate nor suppress Sage's capabilities; Druid IS added to
+// the evaluation (Monstrous Lore p. 21, Animals/Plants only).
+console.log("Test 23: Manual Druid evaluation keeps native resolution intact");
+resetWorld();
+{
+  const char = makeCharacter({
+    items: [classItem("cls-sage", "Sage", 3), classItem("cls-druid", "Druid", 9)],
+    system: { combat: { monsterKnowledgeClassId: "cls-druid" } }
+  });
+  const monster = makeMonster({ system: { monsterType: "Animal", weakness: 15, reputation: 10, species: "Wolf" } });
+  game.user.character = char;
+  game.actors.push(char, monster);
+  rollResults.push([[5, 4]]); // dice 9
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: monster });
+  assert.equal(chatMessagesWithFlags.length, 1, "ONE dice roll, ONE message");
+  assert.deepEqual(result.formulaClass?.className, "druid", "manual Druid selection shapes the roll");
+  assert.deepEqual(result.usedClasses.map(c => c.className).sort(), ["druid", "sage"], "Druid evaluated alongside the native Sage");
+  const sage23 = result.individualResults.find(entry => entry.className === "sage");
+  const druid23 = result.individualResults.find(entry => entry.className === "druid");
+  assert.equal(sage23.result, 14, "Sage result = 9 + Sage 3 + INT 2");
+  assert.equal(druid23.result, 20, "Druid result = 9 + Druid 9 + INT 2 (same formula)");
+  assert.deepEqual(result.discoveries.map(d => d.type).sort(), ["stats", "weakness"], "Sage capabilities intact, Druid also evaluated");
+  assert.equal(isSpeciesWeaknessKnown("wolf"), true, "weakness registered");
+  console.log("  ✓ PASS");
+}
+
+// ── Spell-class evaluation tests (Druid / Daemonologist, manual only) ─────
+
+// Scenario 8: Manual Druid selection adds Druid to the evaluation alongside
+// the applicable native classes, using `Druid level + Intelligence modifier`
+// (no Nature Magic Power), Monstrous Lore p. 21.
+console.log("Test 24: Manual Druid evaluated alongside Sage (Animal target)");
+resetWorld();
+{
+  const char = makeCharacter({
+    items: [classItem("cls-sage", "Sage", 3), classItem("cls-druid", "Druid", 9)],
+    system: { combat: { monsterKnowledgeClassId: "cls-druid" } }
+  });
+  const beast = makeMonster({ system: { monsterType: "Animal", species: "Wolf", weakness: 12, reputation: 8 } });
+  game.user.character = char;
+  game.actors.push(char, beast);
+  rollResults.push([[5, 4]]); // dice 9
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: beast });
+  assert.equal(chatMessagesWithFlags.length, 1, "ONE dice roll, ONE message (Scenario 13)");
+  assert.equal(rollFormula, "2d6", "Scenario 14: formula is dice only — no Nature Magic Power");
+  assert.deepEqual(result.formulaClass?.className, "druid", "manual Druid shapes the roll display");
+  assert.deepEqual(result.usedClasses.map(c => c.className).sort(), ["druid", "sage"], "Druid added alongside the native Sage");
+  const sage24 = result.individualResults.find(entry => entry.className === "sage");
+  const druid = result.individualResults.find(entry => entry.className === "druid");
+  assert.equal(sage24.result, 14, "Sage result = 9 + Sage 3 + INT 2");
+  assert.equal(druid.result, 20, "Druid result = 9 + Druid 9 + INT 2 (same formula)");
+  assert.deepEqual(result.discoveries.map(d => d.type).sort(), ["stats", "weakness"], "stats + Weak Point resolved");
+  // Both classes reach every threshold: the weakness tier is credited to
+  // both, so the main result is the higher individual result (Druid).
+  assert.equal(result.mainResult?.className, "druid", "main result: Druid (higher result, same top tier)");
+  assert.equal(result.mainResult?.result, 20, "main result value 20");
+  assert.ok(chatMessagesWithFlags[0].flavor.includes("sw25-mk-total"), "main result block on the card");
+  assert.ok(chatMessagesWithFlags[0].flavor.includes("sw25-mk-class-results"), "individual results list on the card");
+  console.log("  ✓ PASS");
+}
+
+// Scenario 9: Manual Daemonologist adds Daemonologist alongside Sage against
+// a Daemon; classification is credited to Daemonologist ([Another's
+// Knowledge], ML p. 41) with `Daemonologist level + Intelligence modifier`
+// (no Summoning Arts Power).
+console.log("Test 25: Manual Daemonologist evaluated alongside Sage (Daemon target)");
+resetWorld();
+{
+  const char = makeCharacter({
+    items: [classItem("cls-sage", "Sage", 3), classItem("cls-daemonologist", "Daemonologist", 4)],
+    system: { combat: { monsterKnowledgeClassId: "cls-daemonologist" } }
+  });
+  const daemon = makeDaemon({ weakness: 20, reputation: 10 });
+  game.user.character = char;
+  game.actors.push(char, daemon);
+  rollResults.push([[5, 4]]); // dice 9
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: daemon });
+  assert.equal(chatMessagesWithFlags.length, 1, "ONE dice roll, ONE message");
+  assert.equal(rollFormula, "2d6", "formula is dice only — no Summoning Arts Power");
+  assert.deepEqual(result.formulaClass?.className, "daemonologist", "manual Daemonologist shapes the roll display");
+  assert.deepEqual(result.usedClasses.map(c => c.className).sort(), ["daemonologist", "sage"], "Daemonologist added alongside Sage");
+  const sage25 = result.individualResults.find(entry => entry.className === "sage");
+  const daemonologist = result.individualResults.find(entry => entry.className === "daemonologist");
+  assert.equal(sage25.result, 14, "Sage result = 9 + Sage 3 + INT 2");
+  assert.equal(daemonologist.result, 15, "Daemonologist result = 9 + Daemonologist 4 + INT 2");
+  // Sage 14 and Daemonologist 15 both reach Reputation 10: stats. The
+  // classification is credited to the Daemonologist; no Weak Point (20).
+  assert.deepEqual(result.discoveries.map(d => d.type).sort(), ["classification", "stats"], "stats + classification, no Weak Point");
+  const classification = result.discoveries.find(d => d.type === "classification");
+  assert.equal(classification.className, "daemonologist", "classification attributed to Daemonologist");
+  const stats = result.discoveries.find(d => d.type === "stats");
+  assert.equal(stats.className, "sage", "stats attributed to the first reaching class");
+  // Main result: top tier is stats; among Sage 14 / Daemonologist 15 the
+  // higher individual result wins.
+  assert.equal(result.mainResult?.className, "daemonologist", "main result: Daemonologist 15");
+  assert.equal(rollResults.length, 0, "Scenario 13: exactly one dice roll consumed");
+  console.log("  ✓ PASS");
+}
+
+// Scenarios 11 & 12: independent class effects + main result selection.
+// A lower individual result achieves a class-specific effect the higher
+// result does not provide (Dark Hunter classification, automatic), and the
+// main displayed result belongs to the class achieving the highest
+// applicable EFFECT, not the biggest number.
+console.log("Test 26: Independent effects — lower result class-specific effect");
+resetWorld();
+{
+  const char = makeCharacter({
+    items: [classItem("cls-sage", "Sage", 9), classItem("cls-dh", "Dark Hunter", 2)]
+  });
+  const daemon = makeDaemon({ weakness: 17, reputation: 13 });
+  game.user.character = char;
+  game.actors.push(char, daemon);
+  rollResults.push([[3, 2]]); // dice 5
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: daemon });
+  assert.equal(chatMessagesWithFlags.length, 1, "ONE dice roll, ONE message");
+  const sage26 = result.individualResults.find(entry => entry.className === "sage");
+  const dh26 = result.individualResults.find(entry => entry.className === "dark hunter");
+  assert.equal(sage26.result, 16, "Sage result = 5 + Sage 9 + INT 2");
+  assert.equal(dh26.result, 9, "Dark Hunter result = 5 + Dark Hunter 2 + INT 2");
+  // Sage 16 >= Reputation 13: statistics; 16 < 17: no Weak Point.
+  // Dark Hunter 9 < 13: no statistics, but classification is automatic.
+  assert.deepEqual(result.discoveries.map(d => d.type).sort(), ["classification", "stats"], "both independent effects resolved");
+  const discoveryBy = type => result.discoveries.find(d => d.type === type).className;
+  assert.equal(discoveryBy("classification"), "dark hunter", "lower result (DH 9) provides classification");
+  assert.equal(discoveryBy("stats"), "sage", "higher result (Sage 16) provides statistics");
+  assert.deepEqual(result.mainResult?.className, "sage", "main result: Sage (stats tier above classification)");
+  assert.equal(result.mainResult?.result, 16, "main result value 16");
+  const flavor26 = chatMessagesWithFlags[0].flavor;
+  assert.ok(flavor26.includes("sw25-mk-class-results"), "individual list present");
+  assert.ok(flavor26.includes("Dark Hunter"), "lower individual result not discarded");
+  console.log("  ✓ PASS");
+}
+
+// Scenario 12 (main-result rank): the main result belongs to the class
+// achieving the highest applicable effect even when ANOTHER class has a
+// bigger number: Rider (stats only) 19 vs Sage (Weak Point) 12.
+console.log("Test 27: Main result = highest effect, not highest number");
+resetWorld();
+{
+  const char = makeCharacter({
+    items: [classItem("cls-sage", "Sage", 1), classItem("cls-rider", "Rider", 8)]
+  });
+  const monster = makeMonster({ system: { weakness: 12, reputation: 6, species: "Goblin Scout" } });
+  game.user.character = char;
+  game.actors.push(char, monster);
+  rollResults.push([[5, 4]]); // dice 9
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: monster });
+  const sage27 = result.individualResults.find(entry => entry.className === "sage");
+  const rider27 = result.individualResults.find(entry => entry.className === "rider");
+  assert.equal(sage27.result, 12, "Sage result = 9 + Sage 1 + INT 2");
+  assert.equal(rider27.result, 19, "Rider result = 9 + Rider 8 + INT 2 (bigger number)");
+  // Rider: stats only, never Weak Point (12 >= 6: stats). Sage 12 >= 12:
+  // Weak Point (tier 3, above stats).
+  assert.deepEqual(result.discoveries.map(d => d.type).sort(), ["stats", "weakness"], "both effects resolved independently");
+  assert.equal(result.discoveries.find(d => d.type === "stats").className, "rider", "stats credited to Rider");
+  assert.equal(result.discoveries.find(d => d.type === "weakness").className, "sage", "Weak Point credited to Sage");
+  assert.equal(result.mainResult?.className, "sage", "main result: Sage (Weak Point beats stats tier)");
+  assert.equal(result.mainResult?.result, 12, "main result value 12 — NOT Rider 19");
+  // usedClasses order is level-desc (Rider 8 first): results [19, 12].
+  assert.deepEqual(result.individualResults.map(entry => entry.result), [19, 12], "Rider 19 and Sage 12 both retained");
   console.log("  ✓ PASS");
 }
 

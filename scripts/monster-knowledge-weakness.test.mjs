@@ -21,8 +21,6 @@ import {
   withdrawSpeciesWeakness
 } from "../module/combat/monster-knowledge.mjs";
 import { resolveMonsterKnowledgeMessage } from "../module/combat/monster-knowledge.mjs";
-import { weakPointAccuracyModifier } from "../module/combat/attack-resolution.mjs";
-import { getMonsterWeaknessBonus } from "../module/combat/damage-application.mjs";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────
 
@@ -70,7 +68,6 @@ function makeMonster(overrides = {}) {
   const system = {
     species: overrides.system?.species ?? "Goblin",
     revealed: false,
-    weaknessDiscovered: false,
     weakPoint: null,
     sourceUrl: "",
     reputation: 10,
@@ -253,7 +250,6 @@ resetWorld();
   await revealMonsterWeakness(goblin, { notify: false });
   assert.equal(isSpeciesWeaknessKnown("goblin"), true, "goblin conocida");
   assert.equal(isSpeciesWeaknessKnown("hydra"), false, "hidra no afectada");
-  assert.equal(weakPointAccuracyModifier(hydra), null, "hidra sin Weak Point");
   console.log("  ✓ PASS");
 }
 
@@ -264,8 +260,6 @@ resetWorld();
   const empty = makeMonster({ id: "e", system: { species: "", weakPoint: "Accuracy +2" } });
   assert.equal(speciesId(empty), null, "species vacía -> null");
   assert.equal(isSpeciesWeaknessKnown(empty), false, "no conocida con species vacío");
-  assert.equal(weakPointAccuracyModifier(empty), null, "sin Weak Point sin species");
-  assert.equal(getMonsterWeaknessBonus(empty, "physical"), 0, "sin bonificación de daño sin species");
   console.log("  ✓ PASS");
 }
 
@@ -288,7 +282,7 @@ resetWorld();
       rolls: [{ total: 15, dice: [{ results: [{ active: true, result: 7 }, { active: true, result: 8 }] }] }]
     });
     assert.equal(isSpeciesWeaknessKnown("goblin"), true, "automático Weakness registra la especie por species");
-    assert.equal(actor.system.revealed, false, "automático Weakness no revela estadísticas del actor");
+    assert.equal(actor.system.revealed, true, "Sage revela estadísticas y Weakness (15 >= reputation 10 y >= weakness 15)");
   } finally {
     globalThis.fromUuid = originalFromUuid;
     game.user = { isGM: true };
@@ -296,8 +290,11 @@ resetWorld();
   console.log("  ✓ PASS");
 }
 
-// 12. Aplicación y retirada de Weak Point en combate.
-console.log("Test 12: Weak Point en combate se aplica y retira por species");
+// 12. Aplicación y retirada de Weak Point por species. Nota: desde el diseño
+//     vigente, los Weak Point descubiertos se registran por especie pero no
+//     otorgan ningún bonus mecánico durante la resolución de ataques
+//     (ver cabecera de module/combat/attack-resolution.mjs).
+console.log("Test 12: Weak Point se aplica y retira por species (registro, sin bonus mecánico)");
 resetWorld();
 {
   const a = makeMonster({ id: "a", system: { species: "Goblin", weakPoint: "Accuracy +2" } });
@@ -305,11 +302,10 @@ resetWorld();
   game.actors = [a, b];
 
   await toggleMonsterWeakness(a, { notify: false });
-  assert.equal(weakPointAccuracyModifier(b)?.value, 2, "B se beneficia antes de retirar");
+  assert.equal(isSpeciesWeaknessKnown("goblin"), true, "especie registrada al aplicar");
+  assert.equal(b.system.weakPoint, "Accuracy +2", "B conserva su Weak Point textual");
 
   await toggleMonsterWeakness(b, { notify: false });
-  assert.equal(weakPointAccuracyModifier(a), null, "A deja de beneficiarse tras retirar");
-  assert.equal(weakPointAccuracyModifier(b), null, "B deja de beneficiarse tras retirar");
   assert.equal(isSpeciesWeaknessKnown("goblin"), false, "especie retirada del registro");
   console.log("  ✓ PASS");
 }
@@ -373,6 +369,83 @@ resetWorld();
   // El fallback solo aplica cuando species está vacío; no se sobrescribe.
   if (!explicit.system.species) explicit.system.species = explicit.name;
   assert.equal(explicit.system.species, "Goblin Veterano", "especie explícita no sobreescrita por fallback");
+  console.log("  ✓ PASS");
+}
+
+// 17. Revelar Weak Point registra la especie y no revela estadísticas.
+console.log("Test 17: Revelar Weak Point registra especie, sin revelar estadísticas");
+resetWorld();
+{
+  const monster = makeMonster({ id: "m1", system: { species: "Goblin", revealed: false, ownership: { default: 0 } } });
+  documents.set("t1", { uuid: "t1", actor: monster });
+  const originalFromUuid = globalThis.fromUuid;
+  globalThis.fromUuid = async () => documents.get("t1");
+  game.user = { isGM: true };
+  try {
+    await revealMonsterWeakness(monster, { notify: false });
+    assert.equal(isSpeciesWeaknessKnown("goblin"), true, "especie registrada");
+    assert.equal(monster.system.revealed, false, "estadísticas no se revelan por descubrir el Weak Point");
+  } finally {
+    globalThis.fromUuid = originalFromUuid;
+    game.user = { isGM: true };
+  }
+  console.log("  ✓ PASS");
+}
+
+// 18. Retirar Weak Point no oculta las estadísticas.
+console.log("Test 18: Retirar Weak Point no oculta estadísticas");
+resetWorld();
+{
+  const monster = makeMonster({ id: "m2", system: { species: "Goblin", revealed: true, ownership: { default: 1 } } });
+  documents.set("t2", { uuid: "t2", actor: monster });
+  const originalFromUuid = globalThis.fromUuid;
+  globalThis.fromUuid = async () => documents.get("t2");
+  game.user = { isGM: true };
+  try {
+    await revealMonsterWeakness(monster, { notify: false });
+    assert.equal(isSpeciesWeaknessKnown("goblin"), true, "especie registrada antes del toggle");
+    await toggleMonsterWeakness(monster, { notify: false });
+    assert.equal(isSpeciesWeaknessKnown("goblin"), false, "especie retirada del registro");
+    assert.equal(monster.system.revealed, true, "estadísticas siguen reveladas tras retirar debilidad");
+  } finally {
+    globalThis.fromUuid = originalFromUuid;
+    game.user = { isGM: true };
+  }
+  console.log("  ✓ PASS");
+}
+
+// 19. Estadísticas recuperan estado previo al ocultarse.
+console.log("Test 19: Estadísticas restauran estado previo");
+resetWorld();
+{
+  const monster = makeMonster({ id: "m3", system: { species: "Goblin", revealed: false, ownership: { default: 0 } } });
+  documents.set("t3", { uuid: "t3", actor: monster });
+  const originalFromUuid = globalThis.fromUuid;
+  globalThis.fromUuid = async () => documents.get("t3");
+  game.user = { isGM: true };
+  try {
+    await revealMonsterStats(monster, { notify: false });
+    assert.equal(monster.system.revealed, true, "estadísticas reveladas");
+    await toggleMonsterStats(monster, { notify: false });
+    assert.equal(monster.system.revealed, false, "estadísticas ocultas tras toggle");
+    assert.equal(monster.ownership.default, 0, "ownership restaurada al previo");
+  } finally {
+    globalThis.fromUuid = originalFromUuid;
+    game.user = { isGM: true };
+  }
+  console.log("  ✓ PASS");
+}
+
+// 20. El registro se comparte entre monstruos de la misma especie.
+console.log("Test 20: Conocimiento compartido por especie");
+resetWorld();
+{
+  const a = makeMonster({ id: "a", system: { species: "Goblin" } });
+  const b = makeMonster({ id: "b", system: { species: "Goblin" } });
+  await revealMonsterWeakness(a, { notify: false });
+  assert.equal(isSpeciesWeaknessKnown("goblin"), true, "especie conocida desde un ejemplar");
+  assert.equal(b.system.revealed, false, "otro ejemplar no se revela automáticamente");
+  assert.equal(speciesWeaknessKnown(b), true, "conocimiento compartido por especie");
   console.log("  ✓ PASS");
 }
 

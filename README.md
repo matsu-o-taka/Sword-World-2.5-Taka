@@ -4,7 +4,14 @@ This is a fork of [Sword-World-2.5-Foundry](https://github.com/DaedaIus/Sword-Wo
 
 A note from me: I am not a programmer. I am building and maintaining this fork as a hobby, with the help of AI, purely as a fan of Sword World 2.5. I test everything as I go hoping it works, but expect rough edges.
 
-![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sword--world--25%200.17.1%2B-blue)
+![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sword--world--25%200.17.2%2B-blue)
+
+## v0.17.2 - Monster Knowledge: per-class results and class selector tick
+
+- **Monster Knowledge card improvements** — the single chat message now shows a large centered main result (the class achieving the highest applicable effect), below it the outcome verdict, and underneath every evaluated class with its individual calculated result (dice + class level + Intelligence modifier). No lower results are discarded because another class achieved a superior effect.
+- **Per-class resolution** — every eligible native Monster Knowledge class (Sage, Rider, Dark Hunter) is evaluated from the single shared roll, plus Druid or Daemonologist when manually selected through their spells. Effects (statistics, classification, Weak Point) are resolved independently per class, crediting which class achieved each effect.
+- **Automatic class tick** — the Monster Knowledge Class selector gains an "Automatic" tick (on by default). When ticked the best currently valid class is used and recalculated immediately whenever class levels change; picking a class in the dropdown unticks it and pins that manual choice until ticked again.
+- **Manual class visibility** — manually selecting a restricted class (e.g. Dark Hunter) against an ineligible target publishes the card showing that class's result as the main result with a restriction warning, instead of refusing in silence.
 
 ## v0.17.1 - Character Sheet UI Improvements
 

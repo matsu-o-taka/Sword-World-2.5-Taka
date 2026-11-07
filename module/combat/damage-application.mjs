@@ -1,5 +1,3 @@
-import { speciesWeaknessKnown } from "./monster-knowledge.mjs";
-
 const SOCKET = "system.sword-world-25";
 
 const escape = value => foundry.utils.escapeHTML(String(value ?? ""));
@@ -15,15 +13,6 @@ export function parseWeaknessData(value) {
   const bonus = Number(match[2]);
   if (!category || !Number.isFinite(bonus)) return null;
   return { category, bonus };
-}
-
-export function getMonsterWeaknessBonus(monster, damageType) {
-  if (!monster || monster.type !== "monster") return 0;
-  if (!speciesWeaknessKnown(monster)) return 0;
-  const data = parseWeaknessData(monster?.system?.weakPoint);
-  if (!data) return 0;
-  if (String(data.category).trim().toLowerCase() !== String(damageType ?? "").trim().toLowerCase()) return 0;
-  return Number(data.bonus ?? 0);
 }
 
 export function damageApplicationButton(total, damageType = "physical", includeHalf = true) {
