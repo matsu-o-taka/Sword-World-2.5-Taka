@@ -4,7 +4,6 @@
     <div><input class="monster-name" name="name" value="{{actor.name}}"><div class="monster-subtitle">Level <input type="number" name="system.level" value="{{system.level}}"> <input name="system.species" placeholder="Monster Species" value="{{system.species}}"> <input name="system.monsterType" value="{{system.monsterType}}" placeholder="Monster type"><button type="button" class="monster-knowledge-button" data-action="roll-monster-knowledge" title="Roll Monster Knowledge against this monster"><i class="fas fa-search"></i></button><label class="monster-toggle-label">Active Combat Rolls<input type="checkbox" name="system.activeCombatRolls" {{#if system.activeCombatRolls}}checked{{/if}} {{#unless isGM}}disabled{{/unless}}></label></div></div>
     {{#if canManage}}<div class="monster-gm-actions"><button type="button" data-action="import-monster"><i class="fas fa-file-import"></i> Import</button></div>{{/if}}
   </header>
-  {{#if canRead}}
   <div class="monster-sheet-body">
     <section class="monster-grid monster-overview">
       <label>Intelligence<input name="system.intelligence" value="{{system.intelligence}}"></label><label>Perception<input name="system.perception" value="{{system.perception}}"></label><label>Disposition<input name="system.disposition" value="{{system.disposition}}"></label><label>Soulscars<input type="number" name="system.soulscars" value="{{system.soulscars}}"></label>
@@ -42,5 +41,4 @@
     <section class="monster-panel monster-loot"><h2>Loot Table <button type="button" data-action="roll-monster-loot"><i class="fas fa-dice-d6"></i> Roll Loot</button>{{#if isGM}}<button type="button" data-action="add-monster-loot"><i class="fas fa-plus"></i></button>{{/if}}</h2>{{#each lootTable as |entry|}}<div><input name="system.lootTable.{{entry.index}}.roll" value="{{entry.roll}}"><input name="system.lootTable.{{entry.index}}.loot" value="{{entry.loot}}">{{#if ../isGM}}<button type="button" data-action="delete-monster-loot" data-index="{{entry.index}}"><i class="fas fa-trash"></i></button>{{/if}}</div>{{/each}}</section>
     <section class="monster-panel"><h2>Description</h2><textarea class="monster-description" name="system.description">{{system.description}}</textarea><label>Source <input name="system.source" value="{{system.source}}"></label><label>Source URL <input name="system.sourceUrl" value="{{system.sourceUrl}}"></label></section>
   </div>
-  {{else}}<div class="monster-hidden"><i class="fas fa-eye-slash"></i><p>This monster has not been revealed.</p></div>{{/if}}
 </form>

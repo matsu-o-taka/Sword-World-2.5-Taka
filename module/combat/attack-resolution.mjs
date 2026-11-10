@@ -14,8 +14,10 @@
 //     The toggle defaults to disabled for monsters without the property.
 //     An explicit `resolutionMode` argument overrides the toggle.
 //   - Weak Points discovered through Monster Knowledge are recorded in the
-//     world weakness registry but do not currently grant any mechanical
-//     bonus during attack resolution.
+//     Monster Knowledge Registry (module/knowledge/, F1). They do not
+//     currently grant any mechanical bonus during attack resolution: the
+//     bonus application is documented pending work, and the pre-F1
+//     `weaknessRegistry` setting no longer receives writes after F2-T1.
 //   - Temporary modifiers come from the shared dialog (rules/roll-modifiers)
 //     and never touch Actor data.
 //   - Natural double 1 on a roll is a critical failure (rules/critical-
@@ -24,9 +26,10 @@
 //     existing Evasion challenge (the attack lands regardless).
 
 import { readMonsterActorCombatStyles, getMainCombatStyleIndex } from "../actor/monster-sheet-data.mjs";
-import { parseWeaknessData } from "./damage-application.mjs";
+import { parseWeaknessData, numericCombatValue } from "./damage-application.mjs";
 import { criticalFailureHTML, isCriticalFailure, markCriticalFailure, rollDiceResults } from "../rules/critical-failure.mjs";
 import { assembleRollFormula, enabledModifiersTotal, normalizeModifier, openRollModifiersDialog, signedValue } from "../rules/roll-modifiers.mjs";
+import { openTargetSelectionDialog } from "../rules/target-selection.mjs";
 import { characterEvasionParts, staticAccuracy } from "./evasion-challenge.mjs";
 
 // Per-monster toggle reader. Missing property means fixed mode (no rolls).
@@ -127,12 +130,32 @@ function fixedValue(raw) {
 // dice at all.
 // A double 1 on the active defense roll is a critical failure for the
 // defender (the attacker hits unless the attacker also fumbled).
-export async function resolveMonsterDefense(monster, mode) {
-  const entry = monsterDefenseEntry(monster);
-  if (!entry) return null;
+export async function resolveMonsterDefense(monster, mode, combatStyleId = null) {
+  const styles = readMonsterActorCombatStyles(monster);
+  if (!styles.length) return null;
+
+  let entry;
+  if (combatStyleId) {
+    const style = styles.find(s => s.id === combatStyleId);
+    if (!style) return null;
+    const base = parseBaseValue(style.evasion);
+    if (base === null) return null;
+    entry = { style, index: styles.indexOf(style), base };
+  } else {
+    const candidates = styles
+      .map((style, index) => ({ style, index, base: parseBaseValue(style?.evasion) }))
+      .filter(entry => entry.base !== null);
+    if (!candidates.length) return null;
+    const mainIndex = getMainCombatStyleIndex(styles);
+    entry = mainIndex === null ? null : candidates.find(entry => entry.index === mainIndex);
+    if (!entry) entry = candidates[0];
+    if (!entry) return null;
+  }
+
   const base = entry.base;
+
   if (resolveMonsterRollMode(mode, monster) === "passive") {
-    return { mode: "passive", base, total: fixedValue(entry.style?.evasion), roll: null, natural: null, criticalFailure: false };
+    return { mode: "passive", base, total: fixedValue(entry.style.evasion), roll: null, natural: null, criticalFailure: false };
   }
   const roll = await new Roll(assembleRollFormula("2d6", base)).evaluate();
   return {
@@ -169,25 +192,64 @@ function rollSideHtml({ title, name, origin, natural, parts = [], total, critica
 export function attackCardHtml({
   attackerTitle, attackerName, attackStatLabel, attackOrigin, attackNatural, attackParts, attackTotal, attackCriticalFailure,
   defenderName, defenseStatLabel, defenseOrigin, defenseNatural, defenseParts = [], defenseTotal, defenseCriticalFailure,
-  attackerCritFailNote, extraHtml = ""
+  attackerCritFailNote, extraHtml = "", criticalValue = null
 }) {
-  const resultClass = attackTotal > defenseTotal ? "sw25-attack-hit" : "sw25-attack-miss";
+  const isFumble = Boolean(attackCriticalFailure);
+  const isCritical = !isFumble && criticalValue !== null && Number(attackNatural) >= Number(criticalValue);
+  const hit = isCritical || (!isFumble && Number(attackTotal) > Number(defenseTotal));
+
+  let outcomeLabel, outcomeClass;
+  if (isFumble) { outcomeLabel = "FUMBLE"; outcomeClass = "sw25-attack-fumble"; }
+  else if (isCritical) { outcomeLabel = "CRITICAL"; outcomeClass = "sw25-attack-critical"; }
+  else if (hit) { outcomeLabel = "HIT"; outcomeClass = "sw25-attack-hit"; }
+  else { outcomeLabel = "MISS"; outcomeClass = "sw25-attack-miss"; }
+
+  const accuracyRoll = Number(attackNatural) || 0;
+  const accuracyBonus = Number(attackTotal) - accuracyRoll;
+  const evasionRoll = Number(defenseNatural) || 0;
+
   return `
     <div class="sw25-chat-card sw25-attack-card">
       <h3>${esc(attackerTitle)} — ${esc(attackStatLabel)} on ${esc(defenderName)}</h3>
-      <div class="sw25-attack-sides">
-        ${rollSideHtml({
-          title: attackStatLabel, name: attackerName, natural: attackNatural,
-          parts: attackParts, total: attackTotal, criticalFailure: attackCriticalFailure, origin: attackOrigin
-        })}
-        ${rollSideHtml({
-          title: defenseStatLabel, name: defenderName, natural: defenseNatural,
-          parts: defenseParts, total: defenseTotal, criticalFailure: defenseCriticalFailure, origin: defenseOrigin
-        })}
+
+      <div class="sw25-attack-outcome">
+        <span class="sw25-attack-outcome-badge ${outcomeClass}">${outcomeLabel}</span>
       </div>
-      <p class="sw25-attack-compare">The attack must exceed ${esc(defenseStatLabel)}: <strong>${esc(signedValue(attackTotal))}</strong> vs <strong>${esc(signedValue(defenseTotal))}</strong></p>
-      ${attackerCritFailNote ? `<p>${esc(attackerCritFailNote)}</p>` : ""}
-      <p class="${resultClass}"><strong>${attackTotal > defenseTotal ? "HIT" : "MISS"}</strong></p>
+
+      <div class="sw25-attack-comparison sw25-attack-compare">
+        <div class="sw25-attack-stat" data-target="accuracy-detail">
+          <div class="sw25-attack-stat-summary" role="button" tabindex="0">
+            <span class="sw25-attack-roll">(${accuracyRoll})</span>
+            <span class="sw25-attack-bonus">${signedValue(accuracyBonus)}</span>
+            <span class="sw25-attack-equals">=</span>
+            <span class="sw25-attack-total">${signedValue(attackTotal)}</span>
+          </div>
+          <div class="sw25-attack-stat-detail" id="accuracy-detail" style="display:none;">
+            <ul class="sw25-roll-breakdown">
+              ${attackParts.map(p => `<li>${esc(p.label)}: ${esc(signedValue(p.value))}</li>`).join('')}
+              <li><strong>Origin:</strong> ${esc(attackOrigin)}</li>
+              ${isFumble ? '<li class="sw25-critical-failure"><strong>CRITICAL FAILURE</strong></li>' : ''}
+            </ul>
+          </div>
+        </div>
+
+        <div class="sw25-attack-vs">vs</div>
+
+        <div class="sw25-attack-stat" data-target="evasion-detail">
+          <div class="sw25-attack-stat-summary" role="button" tabindex="0">
+            ${defenseNatural !== null ? `(${evasionRoll})` : esc(signedValue(defenseTotal))}
+          </div>
+          <div class="sw25-attack-stat-detail" id="evasion-detail" style="display:none;">
+            <ul class="sw25-roll-breakdown">
+              ${defenseParts.map(p => `<li>${esc(p.label)}: ${esc(signedValue(p.value))}</li>`).join('')}
+              <li><strong>Origin:</strong> ${esc(defenseOrigin)}</li>
+              ${defenseCriticalFailure ? '<li class="sw25-critical-failure"><strong>CRITICAL FAILURE</strong></li>' : ''}
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      ${attackerCritFailNote ? `<p class="sw25-attack-critfail-note">${esc(attackerCritFailNote)}</p>` : ""}
       ${extraHtml}
     </div>`;
 }
@@ -222,7 +284,27 @@ export async function characterWeaponAttackFlow({
   resolutionMode, promptModifiers = openRollModifiersDialog
 } = {}) {
   if (targetMonster?.type !== "monster") return { status: "invalid-target" };
-  const defense = await resolveMonsterDefense(targetMonster, resolutionMode);
+
+  // Multi-section monster: prompt the GM to select which section is being targeted.
+  // This determines both the Evasion used for the accuracy contest and the
+  // combatStyles row that will receive damage.
+  let combatStyleId = null;
+  const combatStyles = readMonsterActorCombatStyles(targetMonster);
+  if (combatStyles.length > 1) {
+    combatStyleId = await openTargetSelectionDialog({
+      title: `Select Section Target — ${targetMonster.name}`,
+      submitLabel: "Resolve Attack",
+      options: combatStyles.map(cs => ({
+        id: cs.id,
+        label: cs.section || cs.style || "Section",
+        description: `HP: ${numericCombatValue(cs.hp?.value) ?? 0}/${numericCombatValue(cs.hp?.max) ?? 0}, Evasion: ${cs.evasion ?? "—"}`
+      })),
+      minSelections: 1
+    });
+    if (!combatStyleId) return { status: "cancelled", phases: { dialog: true, roll: false } };
+  }
+
+  const defense = await resolveMonsterDefense(targetMonster, resolutionMode, combatStyleId);
   if (!defense) return { status: "no-defense" };
 
   const seedParts = [...(accuracyParts ?? []).map(part => ({ ...part, enabled: true, temporary: false }))];
@@ -248,8 +330,10 @@ export async function characterWeaponAttackFlow({
     <button type="button" class="sw25-attack-damage"
       data-sw25-chat-action="roll-critical-damage"
       data-actor-id="${esc(actor?.id)}"
+      data-target-id="${esc(targetMonster?.uuid ?? "")}"
       data-item-id="${esc(weapon?.id)}"
       data-class-id="${esc(attackingClass?.id ?? "")}"
+      data-combat-style-id="${combatStyleId ?? ""}"
       data-accumulated-power="0">
       <i class="fas fa-dice-d6"></i> Roll Damage</button>` : "";
 
@@ -274,7 +358,8 @@ export async function characterWeaponAttackFlow({
       defenseTotal: defense.total,
       defenseCriticalFailure: Boolean(defense.criticalFailure),
       attackerCritFailNote: attackerCriticalFailure ? "Critical failure: the attack is an automatic miss." : "",
-      extraHtml: damageButtonHtml
+      extraHtml: damageButtonHtml,
+      criticalValue: Number(weapon?.system?.critical ?? 13)
     })
   });
 

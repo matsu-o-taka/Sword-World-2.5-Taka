@@ -4,7 +4,30 @@ This is a fork of [Sword-World-2.5-Foundry](https://github.com/DaedaIus/Sword-Wo
 
 A note from me: I am not a programmer. I am building and maintaining this fork as a hobby, with the help of AI, purely as a fan of Sword World 2.5. I test everything as I go hoping it works, but expect rough edges.
 
-![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sword--world--25%200.17.2%2B-blue)
+![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sword--world--25%200.18.0%2B-blue)
+
+## Features at a glance
+
+- **Character sheets** — four actor types (`character`, `monster`, `npc`, `fellow`) and nine item types (race, class, feat, ability, weapon, armour, skill, spell, equipment), each with its own sheet.
+- **Weapons and attacks** — attack rolls with a temporary modifier dialog (class level, Dexterity, Accuracy Mod, weapon accuracy), power-table damage, critical hits with accumulated power, and per-defense damage application.
+- **Monster actors** — wiki import preserving multi-section statistics with per-section combat styles and Unique Skill assignments, active/passive evasion (real 2d6 vs fixed value), and validated imports.
+- **Target selection** — when attacking a multi-section monster the player picks the targeted section; that choice decides which evasion answers the accuracy contest and which combat style row takes the damage.
+- **Monster Knowledge** — per-class rolls (Sage, Rider, Dark Hunter, plus Druid/Daemonologist spells) reveal Statistics, Classification and Weak Points; knowledge is shared per species and discoveries are shared between players via whispered Bestiary links.
+- **Bestiary copies** — every discovery creates an independent Bestiary copy Actor readable by all players (OBSERVER), leaving the original monster untouched.
+- **Skill checks** — reorganized catalogue with per-check class lists and automatic highest-level selection.
+- **Spell drag & drop** — spells dropped on a character go straight to the viewed class page or open a wizard-type picker.
+- **Standard combat maps** — Combat A, Combat B and Coliseum scenes auto-created in a Simplified Combat Battlefields folder.
+
+## v0.18.0 - Monster Knowledge Manager, Bestiary copies and target selection
+
+- **Monster Knowledge Manager** — new GM settings-menu application (`MKRegistryManagerApp`) to manage Weak Point discoveries: session and campaign records with a **single active register** (defaults to a session; the toggle only activates records and is disabled on the active row), per-species removal (any knowledge level, deletes the Bestiary copy and keeps the original monster), record reset/deletion with re-pointing of the active pointer, manual **Add Monster** (creates the copy and reveals it to players) and Bestiary copy reconciliation. GM-manual entries are attributed as "GM" instead of a raw user id.
+- **Authoritative registry persistence** — discoveries live in the versioned `mkRegistry` world setting (integrity checks and auto-repair, newest-wins pointer: exactly one active record at any time), written only through the GM service. Player discoveries travel to the GM through a validated socket relay and the requester is acknowledged before anything is written.
+- **Reveal whisper, once for the table** — a Monster Knowledge roll posts a single whisper per monster to **every** connected active player with a clickable link to the Bestiary copy; a roll that crosses both the Reputation and Weak Point thresholds sends exactly one notice for the highest level reached.
+- **Target selection for multi-section monsters** — attack flows now prompt which section of a multi-section monster is targeted; the selection determines the Evasion used in the accuracy contest and the combat style row that receives the damage.
+- **Damage card redesign** — collapsible roll breakdowns with signed values, and damage application targeting a specific combat style row of the defending monster.
+- **Migrated chat hooks** — healing and regeneration chat buttons moved to the native `renderChatMessageHTML` hook, removing jQuery-only assumptions.
+- **Character sheet cleanup** — the situational extra damage field is now labeled "Damage Bonus (Circumstantial Damage)" on attacks.
+- **Species identity centralized** — species normalization lives in `module/knowledge/mk-identity.mjs`, consumed by combat, knowledge and importer code (`system.json` also declares `socket: true` for cross-client operations).
 
 ## v0.17.2 - Monster Knowledge: per-class results and class selector tick
 

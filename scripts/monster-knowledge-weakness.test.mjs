@@ -1,24 +1,19 @@
 // Sword World 2.5 - Registro de conocimiento de debilidades por mundo (especies)
 //
-// Pruebas del registro persistente (game.settings "weaknessRegistry") que
+// Pruebas del registro de conocimiento de debilidades por especie
+// (servicio Monster Knowledge Registry, module/knowledge/).
 // utiliza el campo system.species como identificador de especie, en lugar
 // de sourceUrl o del nombre del Actor.
 
 import assert from "node:assert/strict";
 
 import {
-  clearWeaknessRegistry,
-  getWeaknessRegistry,
   isSpeciesWeaknessKnown,
   normalizeSpeciesId,
-  registerSpeciesWeakness,
-  revealMonsterStats,
   revealMonsterWeakness,
   speciesId,
   speciesWeaknessKnown,
-  toggleMonsterStats,
-  toggleMonsterWeakness,
-  withdrawSpeciesWeakness
+  toggleMonsterWeakness
 } from "../module/combat/monster-knowledge.mjs";
 import { resolveMonsterKnowledgeMessage } from "../module/combat/monster-knowledge.mjs";
 
@@ -57,7 +52,7 @@ globalThis.game = {
   users: { activeGM: { isGM: true } }
 };
 
-globalThis.CONST = { DOCUMENT_OWNERSHIP_LEVELS: { NONE: 0, OWNER: 1 } };
+globalThis.CONST = { DOCUMENT_OWNERSHIP_LEVELS: { NONE: 0, OBSERVER: 2, OWNER: 1 } };
 
 globalThis.fromUuid = async uuid => {
   const document = documents.get(uuid);
@@ -74,12 +69,13 @@ function makeMonster(overrides = {}) {
     weakness: 15,
     ...overrides.system
   };
+  const ownership = { ...overrides.ownership };
   return {
     id: overrides.id ?? `monster-${Math.random().toString(36).slice(2)}`,
     type: "monster",
     name: overrides.name ?? "Goblin",
     system,
-    ownership: { default: 0 },
+    ownership,
     flags: {},
     testUserPermission() { return true; },
     isOwner: true,
@@ -92,6 +88,12 @@ function makeMonster(overrides = {}) {
     update: async (data) => {
       actorUpdates.push(data);
       for (const [path, value] of Object.entries(data ?? {})) {
+        if (path === "ownership") {
+          for (const [key, val] of Object.entries(value ?? {})) {
+            ownership[key] = val;
+          }
+          continue;
+        }
         const parts = path.split(".");
         let obj = system;
         for (let i = 0; i < parts.length - 1; i++) {
@@ -212,7 +214,6 @@ resetWorld();
 
   await revealMonsterWeakness(a, { notify: false });
   assert.equal(speciesWeaknessKnown(b), true, "especie conocida desde otro ejemplar");
-  assert.equal(b.system.revealed, false, "estadísticas no se revelan automáticamente en otro ejemplar");
   console.log("  ✓ PASS");
 }
 
@@ -282,7 +283,6 @@ resetWorld();
       rolls: [{ total: 15, dice: [{ results: [{ active: true, result: 7 }, { active: true, result: 8 }] }] }]
     });
     assert.equal(isSpeciesWeaknessKnown("goblin"), true, "automático Weakness registra la especie por species");
-    assert.equal(actor.system.revealed, true, "Sage revela estadísticas y Weakness (15 >= reputation 10 y >= weakness 15)");
   } finally {
     globalThis.fromUuid = originalFromUuid;
     game.user = { isGM: true };
@@ -320,8 +320,6 @@ resetWorld();
   const originalIsGM = game.user.isGM;
   game.user = { isGM: false };
   try {
-    const s = await toggleMonsterStats(noControl, { notify: false });
-    assert.equal(s.status, "denied", "toggle stats denegado");
     const w = await toggleMonsterWeakness(noControl, { notify: false });
     assert.equal(w.status, "denied", "toggle debilidad denegado");
     assert.equal(isSpeciesWeaknessKnown("goblin"), false, "sin cambios de estado");
@@ -342,8 +340,6 @@ resetWorld();
   await revealMonsterWeakness(a, { notify: false });
   assert.equal(speciesWeaknessKnown(a), true, "debilidad registrada para la especie");
   assert.equal(isSpeciesWeaknessKnown("goblin"), true, "conocimiento de debilidad compartido por especie");
-  assert.equal(b.system.revealed, false, "estadísticas del otro ejemplar no se revelan automáticamente");
-  assert.equal(a.system.revealed, false, "estadísticas del propio ejemplar no se revelan automáticamente");
   console.log("  ✓ PASS");
 }
 
@@ -384,7 +380,6 @@ resetWorld();
   try {
     await revealMonsterWeakness(monster, { notify: false });
     assert.equal(isSpeciesWeaknessKnown("goblin"), true, "especie registrada");
-    assert.equal(monster.system.revealed, false, "estadísticas no se revelan por descubrir el Weak Point");
   } finally {
     globalThis.fromUuid = originalFromUuid;
     game.user = { isGM: true };
@@ -406,29 +401,6 @@ resetWorld();
     assert.equal(isSpeciesWeaknessKnown("goblin"), true, "especie registrada antes del toggle");
     await toggleMonsterWeakness(monster, { notify: false });
     assert.equal(isSpeciesWeaknessKnown("goblin"), false, "especie retirada del registro");
-    assert.equal(monster.system.revealed, true, "estadísticas siguen reveladas tras retirar debilidad");
-  } finally {
-    globalThis.fromUuid = originalFromUuid;
-    game.user = { isGM: true };
-  }
-  console.log("  ✓ PASS");
-}
-
-// 19. Estadísticas recuperan estado previo al ocultarse.
-console.log("Test 19: Estadísticas restauran estado previo");
-resetWorld();
-{
-  const monster = makeMonster({ id: "m3", system: { species: "Goblin", revealed: false, ownership: { default: 0 } } });
-  documents.set("t3", { uuid: "t3", actor: monster });
-  const originalFromUuid = globalThis.fromUuid;
-  globalThis.fromUuid = async () => documents.get("t3");
-  game.user = { isGM: true };
-  try {
-    await revealMonsterStats(monster, { notify: false });
-    assert.equal(monster.system.revealed, true, "estadísticas reveladas");
-    await toggleMonsterStats(monster, { notify: false });
-    assert.equal(monster.system.revealed, false, "estadísticas ocultas tras toggle");
-    assert.equal(monster.ownership.default, 0, "ownership restaurada al previo");
   } finally {
     globalThis.fromUuid = originalFromUuid;
     game.user = { isGM: true };
@@ -444,8 +416,39 @@ resetWorld();
   const b = makeMonster({ id: "b", system: { species: "Goblin" } });
   await revealMonsterWeakness(a, { notify: false });
   assert.equal(isSpeciesWeaknessKnown("goblin"), true, "especie conocida desde un ejemplar");
-  assert.equal(b.system.revealed, false, "otro ejemplar no se revela automáticamente");
   assert.equal(speciesWeaknessKnown(b), true, "conocimiento compartido por especie");
+  console.log("  ✓ PASS");
+}
+
+// 21. Weak Point discovery without Statistics does not grant OBSERVER.
+console.log("Test 21: Debilidad sin estadísticas no otorga OBSERVER");
+resetWorld();
+{
+  const actor = makeMonster({
+    id: "m",
+    system: { species: "Ogre", reputation: 20, weakness: 10 },
+    ownership: { default: 0 }
+  });
+  documents.set("t1", { uuid: "t1", actor });
+  const originalFromUuid = globalThis.fromUuid;
+  globalThis.fromUuid = async () => documents.get("t1");
+  game.user = { isGM: true };
+  try {
+    // SV 15 >= weakness 10 but < reputation 20: Weak Point only, no Statistics.
+    await resolveMonsterKnowledgeMessage({
+      getFlag: () => ({
+        successValue: 15,
+        targetTokenUuids: ["t1"],
+        classResults: [{ className: "sage", successValue: 15, canRevealWeakness: true }]
+      }),
+      rolls: [{ total: 15, dice: [{ results: [{ active: true, result: 7 }, { active: true, result: 8 }] }] }]
+    });
+    assert.equal(isSpeciesWeaknessKnown("ogre"), true, "debilidad registrada para la especie");
+    assert.equal(actor.ownership.default, 0, "ownership sin cambios, no se otorga OBSERVER");
+  } finally {
+    globalThis.fromUuid = originalFromUuid;
+    game.user = { isGM: true };
+  }
   console.log("  ✓ PASS");
 }
 

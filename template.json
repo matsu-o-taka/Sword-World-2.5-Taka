@@ -168,7 +168,6 @@
       }
     },
     "monster": {
-      "revealed": false,
       "sourceUrl": "",
       "level": 0,
       "monsterType": "",
@@ -189,12 +188,11 @@
       "description": "",
       "sectionCount": "",
       "sectionSource": "",
-      "sections": [],
       "sectionParseErrors": [],
       "mainSection": {
         "type": "unspecified",
         "sourceValue": "",
-        "names": [],
+        "combatStyleIds": [],
         "associatedSkills": []
       },
       "activeCombatRolls": false,

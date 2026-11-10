@@ -1,0 +1,26 @@
+<div class="sw25-target-selection-body">
+  <p class="sw25-target-selection-hint">Select the section of {{title}} to attack. The section’s Evasion and Defense will be used for this attack.</p>
+
+  <ul class="sw25-target-selection-list">
+    {{#if options.length}}
+    {{#each options as |option|}}
+    <li class="sw25-target-row{{#if option.selected}} sw25-target-selected{{/if}}">
+      <label class="sw25-target-toggle">
+        <input type="radio" name="section-toggle" data-section-toggle data-section-id="{{option.id}}" {{#if option.selected}}checked{{/if}} title="{{option.label}}">
+        <span class="sw25-target-name">{{option.label}}</span>
+      </label>
+      {{#if option.description}}
+      <span class="sw25-target-description">{{option.description}}</span>
+      {{/if}}
+    </li>
+    {{/each}}
+    {{else}}
+    <li class="sw25-target-empty">No sections available.</li>
+    {{/if}}
+  </ul>
+
+  <footer class="sw25-target-selection-footer">
+    <button type="button" data-section-cancel><i class="fas fa-ban"></i> Cancel</button>
+    <button type="button" class="sw25-target-submit" data-section-submit><i class="fas fa-crosshairs"></i> {{submitLabel}}</button>
+  </footer>
+</div>

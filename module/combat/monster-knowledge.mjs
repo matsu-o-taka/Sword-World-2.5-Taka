@@ -1,8 +1,31 @@
 import { isCriticalFailure, criticalFailureHTML, markCriticalFailure, rollDiceResults } from "../rules/critical-failure.mjs";
 import { assembleRollFormula, openRollModifiersDialog } from "../rules/roll-modifiers.mjs";
+import { normalizeSpeciesId, speciesId } from "../knowledge/mk-identity.mjs";
+import { isMkSpeciesKnown, registerMkDiscovery, withdrawMkDiscovery } from "../knowledge/monster-knowledge-registry.mjs";
+import { requestMkRelayDiscovery, publishMkBestiaryReveal } from "../knowledge/mk-relay.mjs";
 
 const SYSTEM_ID = "sword-world-25";
-const WEAKNESS_REGISTRY_KEY = "weaknessRegistry";
+export const MK_OBSERVER_SOCKET = "system.sword-world-25";
+
+// Re-export the shared species identity (single authoritative module) so the
+// pre-F1 consumers of monster-knowledge keep importing from here.
+export { normalizeSpeciesId, speciesId } from "../knowledge/mk-identity.mjs";
+
+// Pending observer grant requests keyed by request ID for duplicate detection.
+const pendingObserverRequests = new Map();
+
+// Diagnostic prefix for Monster Knowledge observer grant flow.
+const LOG_PREFIX = "[SW25 MK Observer]";
+
+// Log pending request state changes for lifecycle visibility.
+function logPendingState(requestId, actorUuid, event) {
+  const pending = pendingObserverRequests.get(requestId);
+  console.log(
+    `${LOG_PREFIX} pending-request ${event} requestId=${requestId} actorUuid=${actorUuid} ` +
+    `pendingCount=${pendingObserverRequests.size}` +
+    (pending ? ` currentGranted=${pending.granted}` : "")
+  );
+}
 
 // Same escaping helper used by the attack-resolution chat cards.
 const esc = value => foundry.utils.escapeHTML(String(value ?? ""));
@@ -92,136 +115,431 @@ function mkClassEligible({ className, monsterWatch = false }, classification) {
 
 // ── Species identification ────────────────────────────────────────────────
 
-export function normalizeSpeciesId(value) {
-  if (value === null || value === undefined) return null;
-  const trimmed = String(value).trim();
-  if (!trimmed) return null;
-  return trimmed.normalize("NFC").replace(/\s+/g, " ").toLowerCase();
-}
+// The species identity implementation lives in module/knowledge/mk-identity.mjs
+// (single authoritative module since F1) and is re-exported above.
 
-export function speciesId(actor) {
-  if (!actor || !actor.system) return null;
-  const species = actor.system?.species;
-  if (!species) return null;
-  return normalizeSpeciesId(species);
-}
-
-// ── World weakness registry (game.settings) ───────────────────────────────
-
-export function getWeaknessRegistry() {
-  const value = game?.settings?.get(SYSTEM_ID, WEAKNESS_REGISTRY_KEY);
-  return Array.isArray(value) ? [...value] : [];
-}
-
-export function clearWeaknessRegistry() {
-  game?.settings?.set(SYSTEM_ID, WEAKNESS_REGISTRY_KEY, []);
-}
-
-export function registerSpeciesWeakness(speciesIdentifier) {
-  const id = normalizeSpeciesId(speciesIdentifier);
-  if (!id) return;
-  const registry = getWeaknessRegistry();
-  if (!registry.includes(id)) {
-    registry.push(id);
-    game?.settings?.set(SYSTEM_ID, WEAKNESS_REGISTRY_KEY, registry);
-  }
-}
-
-export function withdrawSpeciesWeakness(speciesIdentifier) {
-  const id = normalizeSpeciesId(speciesIdentifier);
-  if (!id) return;
-  const registry = getWeaknessRegistry();
-  const index = registry.indexOf(id);
-  if (index >= 0) {
-    registry.splice(index, 1);
-    game?.settings?.set(SYSTEM_ID, WEAKNESS_REGISTRY_KEY, registry);
-  }
-}
+// ── Weakness knowledge bridge (F1 → F2 → F2-T3) ────────────────────────────
+//
+// Since F1 the Monster Knowledge Registry (module/knowledge/) is the ONLY
+// persistent knowledge store and every write is GM-authoritative. This bridge
+// keeps the pre-F1 function names working as read-only adapters over the
+// registry service:
+//   - Reads consult the registry service only (`isMkSpeciesKnown`). The
+//     pre-F1 `weaknessRegistry` world setting and its fallback were retired
+//     in F2-T3: no knowledge is read from, or written to, that legacy source.
+//   - Writes act only on the registry service. There is NO code path that
+//     persists knowledge outside the registry, and no code path that
+//     persists it from a player client.
 
 export function speciesWeaknessKnown(monster) {
   if (!monster || !monster.system) return false;
   const id = speciesId(monster);
   if (!id) return false;
-  return getWeaknessRegistry().includes(id);
+  return isMkSpeciesKnown(id);
 }
 
 export function isSpeciesWeaknessKnown(speciesIdentifier) {
   const id = normalizeSpeciesId(speciesIdentifier);
   if (!id) return false;
-  return getWeaknessRegistry().includes(id);
+  return isMkSpeciesKnown(id);
 }
 
-// ── Monster stat/weakness revelation ──────────────────────────────────────
+// ── Monster weakness discovery (GM authority since F1) ────────────────────
+//
+// The former manual reveal path available to Actor owners is retired
+// (approved decision): discoveries persist ONLY through the GM-authoritative
+// registry service, so no player client can write knowledge. A player Monster
+// Knowledge roll still DISCOVERS (the chat card shows it); persisting player
+// discoveries arrives in F2 through the GM relay.
 
-function applyRevealToActor(actor, revealed) {
-  actor.system.revealed = revealed;
-  return actor.update({ "system.revealed": revealed });
-}
-
-export async function revealMonsterStats(actor, { notify = true } = {}) {
-  if (!actor || actor.type !== "monster") return { status: "invalid-actor" };
-  if (!game.user.isGM && !actor.isOwner) return { status: "denied" };
-  const previous = { revealed: Boolean(actor.system.revealed), ownership: actor.ownership?.default };
-  actor.setFlag("sword-world-25", "monsterKnowledgeStatsPrevious", previous);
-  await applyRevealToActor(actor, true);
-  if (notify) ui.notifications.info(`${actor.name} stats revealed.`);
-  return { status: "revealed" };
-}
-
-export async function revealMonsterWeakness(actor, { notify = true } = {}) {
-  if (!actor || actor.type !== "monster") return { status: "invalid-actor" };
-  if (!game.user.isGM && !actor.isOwner) return { status: "denied" };
-  const id = speciesId(actor);
+export async function revealMonsterWeakness(monster, { notify = true } = {}) {
+  if (!monster || monster.type !== "monster") return { status: "invalid-actor" };
+  if (!game.user.isGM) return { status: "denied" };
+  const id = speciesId(monster);
   if (!id) return { status: "no-species" };
-  registerSpeciesWeakness(id);
-  // Descubrir el Weak Point NO revela automáticamente las estadísticas:
-  // esas dependen del umbral de Reputation en la tirada de Monster Knowledge.
-  if (notify) ui.notifications.info(`Weakness registered for species ${id}.`);
+  const result = await registerMkDiscovery({
+    speciesId: id,
+    speciesLabel: monster.system?.species ?? id,
+    monsterUuid: monster.uuid ?? null,
+    monsterName: monster.name ?? null,
+    actorUuid: game.user?.character?.id ?? null,
+    actorName: game.user?.character?.name ?? null,
+    source: "gm-manual",
+    level: "weakness",
+    discoveredBy: game.user?.id ?? null
+  });
+  if (!result.ok) {
+    if (notify) {
+      ui.notifications.error(`The Weakness of species ${id} could not be registered in the Monster Knowledge Registry.`);
+    }
+    return { status: "error", code: result.code };
+  }
+  // Discovering the Weak Point does NOT reveal the statistics automatically:
+  // those depend on the Reputation threshold of the Monster Knowledge roll.
+  if (notify) {
+    if (result.data.status === "already-known") {
+      ui.notifications.info(`Weakness already known for species ${id}.`);
+    } else {
+      ui.notifications.info(`Weakness registered for species ${id}.`);
+    }
+  }
   return { status: "revealed" };
 }
 
-export async function toggleMonsterStats(actor, { notify = true } = {}) {
-  if (!actor || actor.type !== "monster") return { status: "invalid-actor" };
-  if (!game.user.isGM && !actor.isOwner) return { status: "denied" };
-  const previous = actor.getFlag("sword-world-25", "monsterKnowledgeStatsPrevious");
-  const currentlyRevealed = Boolean(actor.system.revealed);
-  if (!currentlyRevealed) {
-    const prev = { revealed: currentlyRevealed, ownership: actor.ownership?.default };
-    actor.setFlag("sword-world-25", "monsterKnowledgeStatsPrevious", prev);
-    await applyRevealToActor(actor, true);
-    if (notify) ui.notifications.info(`${actor.name} stats revealed.`);
-    return { status: "revealed" };
-  }
-  // Restaurar valores originales guardados previamente.
-  if (previous) {
-    await applyRevealToActor(actor, previous.revealed);
-    await actor.update({ ownership: { default: previous.ownership ?? 0 } });
-    actor.setFlag("sword-world-25", "monsterKnowledgeStatsPrevious", null);
-    if (notify) ui.notifications.info(`${actor.name} stats hidden.`);
-    return { status: "hidden" };
-  }
-  // Fallback si no hay registro previo: ocultar con valores por defecto.
-  await applyRevealToActor(actor, false);
-  if (notify) ui.notifications.info(`${actor.name} stats hidden.`);
-  return { status: "hidden" };
-}
-
-export async function toggleMonsterWeakness(actor, { notify = true } = {}) {
-  if (!actor || actor.type !== "monster") return { status: "invalid-actor" };
-  if (!game.user.isGM && !actor.isOwner) return { status: "denied" };
-  const id = speciesId(actor);
+export async function toggleMonsterWeakness(monster, { notify = true } = {}) {
+  if (!monster || monster.type !== "monster") return { status: "invalid-actor" };
+  if (!game.user.isGM) return { status: "denied" };
+  const id = speciesId(monster);
   if (!id) return { status: "no-species" };
   const known = isSpeciesWeaknessKnown(id);
+  let result;
   if (known) {
-    withdrawSpeciesWeakness(id);
-    // Retirar el conocimiento del Weak Point no oculta las estadísticas.
+    // Withdrawing the Weak Point knowledge does not hide the statistics.
+    result = await withdrawMkDiscovery({ speciesIdentifier: id });
   } else {
-    registerSpeciesWeakness(id);
-    // Registrar un Weak Point NO revela las estadísticas del Actor:
-    // esas dependen del umbral de Reputation en la tirada de Monster Knowledge.
+    // Registering a Weak Point does NOT reveal the Actor statistics:
+    // those depend on the Reputation threshold of the Monster Knowledge roll.
+    result = await registerMkDiscovery({
+      speciesId: id,
+      speciesLabel: monster.system?.species ?? id,
+      monsterUuid: monster.uuid ?? null,
+      monsterName: monster.name ?? null,
+      actorUuid: game.user?.character?.id ?? null,
+      actorName: game.user?.character?.name ?? null,
+      source: "gm-manual",
+      level: "weakness",
+      discoveredBy: game.user?.id ?? null
+    });
   }
-  if (notify) ui.notifications.info(known ? `Weakness withdrawn for ${id}.` : `Weakness registered for ${id}.`);
+  if (!result.ok) {
+    if (notify) ui.notifications.error(`The Weakness of species ${id} could not be updated in the Monster Knowledge Registry.`);
+    return { status: "error", code: result.code };
+  }
+  if (notify) {
+    if (known) ui.notifications.info(`Weakness withdrawn for ${id}.`);
+    else if (result.data.status === "already-known") ui.notifications.info(`Weakness already known for ${id}.`);
+    else ui.notifications.info(`Weakness registered for ${id}.`);
+  }
   return { status: known ? "withdrawn" : "registered" };
+}
+
+/**
+ * Persist a Monster Knowledge discovery that originates from a Monster
+ * Knowledge roll, with the full evidence (species, class, individual result,
+ * user, roll origin). Rolls resolve on every client, but persistence is
+ * GM-authoritative:
+ *   - On the GM client the discovery is written directly to the registry.
+ *   - On a player client the evidence is transported through the GM relay
+ *     (module/knowledge/mk-relay.mjs); the connected GM validates and
+ *     persists it, keeping `discoveredBy` as the player who rolled. Without
+ *     a connected GM the relay fails fast with an explicit informative
+ *     notice: no local write, no pending request, no deferred work.
+ * Both knowledge levels ("reputation" and "weakness") share this path so a
+ * player Reputation discovery persists exactly like a Weakness one.
+ *
+ * The KEY reveal notice is NOT published here: the caller
+ * (`resolveMkRollSection`) publishes exactly ONE reveal per monster per roll
+ * for the highest level reached (`publishMkBestiaryReveal`), so a roll
+ * crossing both thresholds sends a single whisper.
+ *
+ * @param {object} monster - The target monster Actor document.
+ * @param {object} entry - The class outcome that crossed the threshold.
+ * @param {string|null} [entry.actorUuid] - UUID of the Actor character that made the roll.
+ * @param {string|null} [entry.actorName] - Name of the Actor character that made the roll.
+ * @param {"reputation"|"weakness"} [level] - Knowledge level (defaults to "weakness").
+ * @param {object} [options]
+ * @param {boolean} [options.suppressRevealNotice] - Suppress the requester's
+ *   per-request reveal whisper (the caller publishes one per roll).
+ * @returns {Promise<{ok: boolean, data?: object, code?: string, error?: string}>}
+ */
+async function persistMkDiscovery(monster, entry, level = "weakness", { suppressRevealNotice = false } = {}) {
+  const id = speciesId(monster);
+  if (!id) return { ok: false, code: "no-species", error: "A discovery requires a monster species identifier." };
+  const evidence = {
+    speciesId: id,
+    speciesLabel: monster.system?.species ?? id,
+    monsterUuid: monster.uuid ?? null,
+    monsterName: monster.name ?? null,
+    actorUuid: entry?.actorUuid ?? null,
+    actorName: entry?.actorName ?? null,
+    className: typeof entry?.className === "string" && entry.className ? entry.className : null,
+    classResult: Number.isFinite(Number(entry?.result)) ? Number(entry.result) : null,
+    source: "roll",
+    level,
+    discoveredBy: game.user?.id ?? null
+  };
+  if (game?.user?.isGM) {
+    const result = await registerMkDiscovery(evidence);
+    if (!result.ok) {
+      ui?.notifications?.error?.(`The discovery of species ${id} could not be registered in the Monster Knowledge Registry.`);
+    } else if (result.data?.bestiaryCopyFailed) {
+      // Copy failures are action-relevant (players never get the actor link)
+      // and must be visibly escalated to the GM, never silent.
+      ui?.notifications?.warn?.(`Monster Knowledge Bestiary copy failed for species ${id}: ${result.data.bestiaryCopyFailed}`);
+    }
+    return result;
+  }
+  return requestMkRelayDiscovery(evidence, { publishRevealNotice: !suppressRevealNotice });
+}
+
+// ── Native ownership permission for monster visibility ────────────────────
+
+// A Monster Knowledge target may be the synthetic Actor view of a scene token
+// (uuid pattern Scene.x.Token.y.Actor.z, e.g. unlinked monster tokens). The
+// synthetic view's ownership reflects the token's actor delta, which is
+// transient per-token data: Foundry gates sheet viewing on the base Actor's
+// ownership, and an ownership update on the synthetic view only writes the
+// delta, never granting real access. All permission checks and grants must
+// therefore run against the persistent base Actor document.
+const TOKEN_ACTOR_UUID_PATTERN = /^Scene\.[^.]+\.Token\.[^.]+\.Actor\.([^.]+)$/;
+
+/**
+ * Resolve a token-scoped synthetic Actor to its base Actor document.
+ * Non-token uuids (e.g. Actor.xyz) are returned unchanged. If the base Actor
+ * cannot be found in the actor collection, the original document is returned
+ * so callers keep working with the synthetic view.
+ * @param {object} actor - Any resolved Actor-like document.
+ * @returns {object|null} The base Actor document (or the input when it is not token-scoped).
+ */
+function resolveBaseActorDocument(actor) {
+  const uuid = actor?.uuid;
+  if (typeof uuid !== "string") return actor ?? null;
+  const match = TOKEN_ACTOR_UUID_PATTERN.exec(uuid);
+  if (!match) return actor ?? null;
+  const baseId = match[1];
+  const collection = game.actors;
+  const base = collection?.get?.(baseId)
+    ?? (Array.isArray(collection)
+      ? collection.find(entry => entry?.id === baseId || entry?.uuid === `Actor.${baseId}`) ?? null
+      : null);
+  if (base) {
+    console.log(`${LOG_PREFIX} resolveBaseActorDocument token-scoped actorUuid=${uuid} baseActorId=${baseId} baseActorUuid=${base.uuid}`);
+    return base;
+  }
+  console.log(`${LOG_PREFIX} resolveBaseActorDocument token-scoped actorUuid=${uuid} baseActorId=${baseId} not found, keeping synthetic document`);
+  return actor;
+}
+
+/**
+ * Grant OBSERVER ownership to a monster actor so players can view its sheet.
+ * Only the default ownership level is changed; explicit per-user entries are
+ * preserved. A level already at OBSERVER or higher is never downgraded.
+ * Token-scoped synthetic actors are resolved to their base Actor document so
+ * the ownership update persists where Foundry checks viewing permission.
+ * @param {object} actor - The monster Actor document.
+ * @returns {Promise<void>}
+ */
+export async function grantMonsterObserver(actor, targetUser) {
+  actor = resolveBaseActorDocument(actor);
+  console.log(`${LOG_PREFIX} grantMonsterObserver called actorUuid=${actor?.uuid ?? "null"} ` +
+    `actorName=${actor?.name ?? "null"} actorType=${actor?.type ?? "null"} targetUserId=${targetUser?.id ?? targetUser}`);
+  if (!actor || actor.type !== "monster") {
+    console.log(`${LOG_PREFIX} grantMonsterObserver rejected: invalid actor type ${actor?.type ?? "null"}`);
+    return;
+  }
+  if (!game.user.isGM) {
+    console.log(`${LOG_PREFIX} grantMonsterObserver rejected: current user is not GM`);
+    return;
+  }
+  const observerLevel = CONST?.DOCUMENT_OWNERSHIP_LEVELS?.OBSERVER ?? 2;
+  const currentOwnership = actor.ownership ?? {};
+  console.log(`${LOG_PREFIX} grantMonsterObserver actorUuid=${actor.uuid} currentOwnership=`, currentOwnership, `targetUserId=${targetUser?.id ?? targetUser}`);
+  // Already observable or higher for target user: do not change.
+  if (targetUser) {
+    if (await actor.testUserPermission(targetUser, "OBSERVER")) {
+      console.log(`${LOG_PREFIX} grantMonsterObserver skipped: target user ${targetUser.id} already has OBSERVER or higher`);
+      return;
+    }
+  } else {
+    const currentDefault = currentOwnership.default;
+    if (currentDefault !== undefined && currentDefault >= observerLevel) {
+      console.log(`${LOG_PREFIX} grantMonsterObserver skipped: currentDefault ${currentDefault} >= observerLevel ${observerLevel}`);
+      return;
+    }
+  }
+  // Build complete ownership object preserving existing per-user entries.
+  const targetUserId = targetUser?.id ?? 'default';
+  const nextOwnership = { ...currentOwnership, [targetUserId]: observerLevel };
+  console.log(`${LOG_PREFIX} grantMonsterObserver submitting update actorUuid=${actor.uuid} nextOwnership=`, nextOwnership);
+  try {
+    await actor.update({ ownership: nextOwnership });
+    console.log(`${LOG_PREFIX} grantMonsterObserver update succeeded actorUuid=${actor.uuid} targetUserId=${targetUserId} ownership=`, nextOwnership);
+  } catch (error) {
+    console.error(`${LOG_PREFIX} grantMonsterObserver update FAILED actorUuid=${actor.uuid}`, error);
+    throw error;
+  }
+}
+
+/**
+ * Request an OBSERVER grant for a monster actor.
+ *
+ * @deprecated Fase 4: the Monster Knowledge flow no longer requests Observer
+ *   permission on the original monster Actors. Player visibility is provided
+ *   exclusively by the independent Bestiary copies (CONSt default OBSERVER).
+ *   This function is kept only for backwards compatibility (it has no callers
+ *   left in the Monster Knowledge roll or Manager flows) and for the legacy
+ *   socket handler test suite.
+ *
+ * GM users already hold implicit OWNER authority over Actors, so no grant is
+ * attempted and no socket request is emitted for them: Monster Knowledge
+ * discoveries made by the GM resolve without touching ownership. When the
+ * current user is a player, the effective permission check runs first and a
+ * validated socket request is sent to the connected GM client which performs
+ * the ownership update with GM authority.
+ *
+ * @param {object} actor - The monster Actor document.
+ * @returns {Promise<{granted: boolean, reason: string}>}
+ */
+export async function requestMonsterObserver(actor) {
+  // Token-scoped synthetic actors are resolved to the base Actor document:
+  // the effective permission check must not be fooled by the token's actor
+  // delta, and the socket request must carry a base Actor uuid the GM client
+  // can grant against.
+  actor = resolveBaseActorDocument(actor);
+  console.log(`${LOG_PREFIX} requestMonsterObserver called actorUuid=${actor?.uuid ?? "null"} ` +
+    `actorName=${actor?.name ?? "null"} actorType=${actor?.type ?? "null"} isGM=${game.user.isGM}`);
+  if (!actor || actor.type !== "monster") {
+    console.log(`${LOG_PREFIX} requestMonsterObserver rejected: invalid actor type ${actor?.type ?? "null"}`);
+    return { granted: false, reason: "invalid-actor" };
+  }
+  // GM users never need an OBSERVER grant (they already have full access),
+  // so Monster Knowledge rolls resolve without granting anything.
+  if (game.user.isGM) {
+    console.log(`${LOG_PREFIX} requestMonsterObserver: current user is GM, no Observer grant attempted actorUuid=${actor.uuid}`);
+    return { granted: false, reason: "gm-no-grant" };
+  }
+  if (await actor.testUserPermission(game.user, "OBSERVER")) {
+    console.log(`${LOG_PREFIX} requestMonsterObserver rejected: already observable for user ${game.user.id}`);
+    return { granted: false, reason: "already-observable" };
+  }
+
+  // Non-GM: request the GM client to perform the grant.
+  console.log(`${LOG_PREFIX} requestMonsterObserver: current user is non-GM, checking for active GM`);
+  const gms = game.users?.filter(u => u.active && u.isGM) ?? [];
+  if (!gms.length) {
+    ui.notifications.warn("No active Game Master is available to grant OBSERVER permission.");
+    console.log(`${LOG_PREFIX} requestMonsterObserver rejected: no active GM`);
+    return { granted: false, reason: "no-gm" };
+  }
+  console.log(`${LOG_PREFIX} requestMonsterObserver: active GM found, preparing socket request`);
+
+  const requestId = foundry.utils.randomID();
+  const payload = {
+    action: "mk-grant-observer",
+    actorUuid: actor?.uuid,
+    actorName: actor?.name,
+    gid: gms[0]._id,
+    requestId
+  };
+  console.log(`${LOG_PREFIX} requestMonsterObserver: emitting socket requestId=${requestId} actorUuid=${actor.uuid} gid=${gms[0]._id} channel=${MK_OBSERVER_SOCKET}`);
+
+  // Track the pending request so the GM response can be matched and duplicates
+  // ignored.
+  pendingObserverRequests.set(requestId, { actorUuid: actor?.uuid, actorName: actor?.name, granted: false });
+  logPendingState(requestId, actor.uuid, "added");
+
+  try {
+    await game.socket.emit(MK_OBSERVER_SOCKET, payload);
+    console.log(`${LOG_PREFIX} requestMonsterObserver: socket emission succeeded requestId=${requestId}`);
+    await new Promise(resolve => setTimeout(resolve, 250));
+  } catch (error) {
+    console.error(`${LOG_PREFIX} requestMonsterObserver: socket emission FAILED requestId=${requestId}`, error);
+    pendingObserverRequests.delete(requestId);
+    logPendingState(requestId, actor.uuid, "removed");
+    return { granted: false, reason: "request-failed" };
+  }
+
+  const pending = pendingObserverRequests.get(requestId);
+  const granted = Boolean(pending?.granted);
+  pendingObserverRequests.delete(requestId);
+  logPendingState(requestId, actor.uuid, "removed");
+  if (granted) return { granted: true, reason: "granted" };
+  return { granted: false, reason: "not-granted" };
+}
+
+// ── Socket handler: GM processes observer grant requests from players ───────
+
+export function initializeMonsterKnowledgeObserver() {
+  console.log(`${LOG_PREFIX} initializeMonsterKnowledgeObserver called isGM=${game.user.isGM}`);
+  if (typeof game.socket?.on !== "function") {
+    console.error(`${LOG_PREFIX} initializeMonsterKnowledgeObserver: game.socket.on is not available`);
+    return;
+  }
+  game.socket.on(MK_OBSERVER_SOCKET, async (payload, senderId) => {
+    // The shared system channel also carries unrelated traffic (relay
+    // requests/acks, damage application, ...). Leave SILENTLY before any GM
+    // check so this handler neither intercepts nor logs noise for payloads
+    // owned by their own listeners: players receive relay acks on this
+    // channel and are not GMs, but those acuses must flow untouched.
+    if (!payload || payload.action !== "mk-grant-observer") {
+      return;
+    }
+    console.log(`${LOG_PREFIX} socket event received channel=${MK_OBSERVER_SOCKET} senderId=${senderId} ` +
+      `isGM=${game.user.isGM} payload=`, payload);
+    if (!game.user.isGM) {
+      console.log(`${LOG_PREFIX} socket handler rejected: current user is not GM`);
+      return;
+    }
+
+    const { actorUuid, requestId } = payload;
+    if (!actorUuid || !requestId) {
+      console.log(`${LOG_PREFIX} socket handler rejected: missing fields actorUuid=${actorUuid} requestId=${requestId}`);
+      return ui.notifications.warn("Invalid MK observer request: missing fields.");
+    }
+
+    // Only the intended GM processes this request, matching Terminal's pattern.
+    const gm = game.user.isGM && game.user.id === payload.gid;
+    if (!gm) {
+      console.log(`${LOG_PREFIX} socket handler rejected: not the intended GM gid=${payload.gid} selfId=${game.user.id}`);
+      return;
+    }
+
+    console.log(`${LOG_PREFIX} socket handler validating requestId=${requestId} actorUuid=${actorUuid} gid=${payload.gid}`);
+    if (pendingObserverRequests.has(requestId) && pendingObserverRequests.get(requestId)?.granted) {
+      console.log(`${LOG_PREFIX} socket handler rejected: duplicate already-granted requestId=${requestId}`);
+      return;
+    }
+
+    const sender = game.users.get(senderId);
+    if (!sender || sender.active === false || sender.isGM) {
+      console.log(`${LOG_PREFIX} socket handler rejected: sender is invalid, inactive, or GM senderId=${senderId}`);
+      return;
+    }
+
+    // Token-scoped synthetic actors (Scene.x.Token.y.Actor.z) resolve to the
+    // base Actor document so the grant persists in real ownership, not in the
+    // token's transient actor delta.
+    const actor = resolveBaseActorDocument(await fromUuid(actorUuid));
+    if (!actor) {
+      console.log(`${LOG_PREFIX} socket handler rejected: actor not found actorUuid=${actorUuid}`);
+      return ui.notifications.warn("MK observer request: actor not found.");
+    }
+    if (actor.type !== "monster") {
+      console.log(`${LOG_PREFIX} socket handler rejected: actor is not a monster actorType=${actor.type} actorUuid=${actorUuid}`);
+      return ui.notifications.warn("MK observer request: target is not a monster.");
+    }
+
+    console.log(`${LOG_PREFIX} socket handler: all validations passed, calling grantMonsterObserver actorUuid=${actor.uuid} targetUserId=${sender.id}`);
+    try {
+      await grantMonsterObserver(actor, sender);
+      pendingObserverRequests.set(requestId, { actorUuid: actor?.uuid, actorName: actor?.name, granted: true });
+      logPendingState(requestId, actor.uuid, "granted");
+      ui.notifications.info(`OBSERVER granted for monster ${actor.name} (requested by ${sender.name}).`);
+    } catch (error) {
+      console.error(`${LOG_PREFIX} GM could not grant MK observer actorUuid=${actor.uuid}`, error);
+      pendingObserverRequests.set(requestId, { actorUuid: actor?.uuid, actorName: actor?.name, granted: false });
+      logPendingState(requestId, actor.uuid, "failed");
+      ui.notifications.error("Failed to grant OBSERVER to monster.");
+    }
+  });
+  console.log(`${LOG_PREFIX} socket listener registered channel=${MK_OBSERVER_SOCKET}`);
+}
+
+if (typeof Hooks !== "undefined") {
+  console.log(`${LOG_PREFIX} registering Hooks.once("ready", initializeMonsterKnowledgeObserver)`);
+  Hooks.once("ready", initializeMonsterKnowledgeObserver);
+} else {
+  console.log(`${LOG_PREFIX} Hooks not available (test environment), observer socket handler not registered`);
 }
 
 // ── Monster Knowledge roll card ─────────────────────────────────────────────
@@ -249,7 +567,7 @@ function mkVerdict(discoveries, criticalFailure) {
   if (Array.isArray(discoveries) && discoveries.some(d => d.type === "classification")) {
     return { css: "partial", label: "Partial success — Classification identified" };
   }
-  return null;
+  return { css: "fail", label: "You have no information about this monster." };
 }
 
 function rollMKHtml({
@@ -331,6 +649,12 @@ export async function resolveMonsterKnowledgeResult({
   // class-specific even when another class has a higher overall result).
   const outcomes = entries.map(entry => ({ ...entry, effects: [] }));
 
+  // Reveal-once state for this monster: the roll publishes exactly ONE
+  // Bestiary reveal whisper for the highest level reached, AFTER both
+  // persistence calls (a roll crossing BOTH the reputation and the weakness
+  // thresholds must not send two whisper messages).
+  const reveal = { speciesId: speciesId(monster), bestiaryActorUuid: null };
+
   // ── Compare against thresholds ────────────────────────────────────────
   // Statistics first: Reputation threshold, or automatic success (double 6s
   // is a complete success of the check — CR I p. 382). Every stats-capable
@@ -339,8 +663,20 @@ export async function resolveMonsterKnowledgeResult({
     (automaticSuccess || (reputation !== null && entry.result >= reputation)));
   for (const hit of statsHits) hit.effects.push("stats");
   if (statsHits.length) {
-    await revealMonsterStats(monster, { notify: false });
     const statsEntry = statsHits[0];
+    // Reputation discovery is persisted through the same GM-authoritative
+    // path as the Weakness discovery (direct write on the GM client, GM relay
+    // for players). Legacy Behaviour retired: NO Observer permission is
+    // granted on the original monster Actor — visibility for players is
+    // provided exclusively by the Bestiary copies (Fase 4 model).
+    const statsPersist = await persistMkDiscovery(monster, {
+      ...statsEntry,
+      actorUuid: actor?.uuid,
+      actorName: actor?.name
+    }, "reputation", { suppressRevealNotice: true });
+    if (statsPersist?.ok && statsPersist.data?.bestiaryActorUuid) {
+      reveal.bestiaryActorUuid = statsPersist.data.bestiaryActorUuid;
+    }
     discoveries.push({
       type: "stats",
       monster,
@@ -392,8 +728,15 @@ export async function resolveMonsterKnowledgeResult({
       }
     }
   }
-  if (weaknessEntry) {
-    await revealMonsterWeakness(monster, { notify: false });
+    if (weaknessEntry) {
+    const weaknessPersist = await persistMkDiscovery(monster, {
+      ...weaknessEntry,
+      actorUuid: actor?.uuid,
+      actorName: actor?.name
+    }, "weakness", { suppressRevealNotice: true });
+    if (weaknessPersist?.ok && weaknessPersist.data?.bestiaryActorUuid) {
+      reveal.bestiaryActorUuid = weaknessPersist.data.bestiaryActorUuid;
+    }
     discoveries.push({
       type: "weakness",
       monster,
@@ -401,6 +744,16 @@ export async function resolveMonsterKnowledgeResult({
       classLabel: weaknessEntry.label
     });
     lines.push(`<li>${esc(monster.name)}: Weakness discovered.</li>`);
+  }
+
+  // One reveal per monster per roll: the copy exists at (or was promoted to)
+  // the highest level reached, and EVERY active player receives the whisper
+  // (Monster Knowledge is table-wide visibility, not a per-roller grant).
+  if (reveal.bestiaryActorUuid) {
+    await publishMkBestiaryReveal({
+      speciesId: reveal.speciesId,
+      bestiaryActorUuid: reveal.bestiaryActorUuid
+    });
   }
 
   if (criticalFailure) {
@@ -650,6 +1003,15 @@ export async function rollMonsterKnowledge({
 } = {}) {
   if (!actor || actor.type !== "character") return { status: "invalid-actor" };
 
+  // Rolls of Monster Knowledge need a connected Game Master: the discovery
+  // persistence is GM-authoritative (F2-T1). Without a GM the roll does not
+  // happen at all — an informative notice is shown, nothing is rolled, and
+  // no pending request or deferred work is created.
+  if (!game?.user?.isGM && !game?.users?.activeGM) {
+    ui?.notifications?.warn?.("Monster Knowledge requires a connected Game Master. Ask your GM to connect first.");
+    return { status: "no-gm", phases: { dialog: false, roll: false } };
+  }
+
   // Determine applicable native classes and enforce per-class target
   // restrictions before any dice are rolled (Abyss Breaker p. 28: Dark
   // Hunter is Daemon-only; ◯Monster Watch, p. 31, expands it to Daemons,
@@ -840,7 +1202,7 @@ export async function rollMonsterKnowledge({
     speaker: ChatMessage.getSpeaker({ actor }),
     flavor: rollMKHtml({
       title: "Monster Knowledge",
-      actorName: actor.name,
+      actorName: actor?.name,
       natural,
       total: Number(roll.total),
       criticalFailure,
@@ -872,3 +1234,7 @@ export async function rollMonsterKnowledge({
     discoveries
   };
 }
+
+
+
+

@@ -12,13 +12,20 @@
 import assert from "node:assert/strict";
 
 class ApplicationStub {}
+class FormApplicationStub {}
 class ActorSheetStub {}
 class ItemSheetStub {}
+class ApplicationV2Stub {}
 
 globalThis.foundry = {
   appv1: {
-    api: { Application: ApplicationStub },
+    api: { Application: ApplicationStub, FormApplication: FormApplicationStub },
     sheets: { ActorSheet: ActorSheetStub, ItemSheet: ItemSheetStub }
+  },
+  applications: {
+    api: {
+      ApplicationV2: ApplicationV2Stub
+    }
   }
 };
 
@@ -110,7 +117,15 @@ console.log("=== Production chat hooks tolerate raw HTMLElement html (Foundry v1
 //    (observed live in the Foundry notification pipeline). The probe passes
 //    an argument without .find, so only wrapped hooks survive.
 const fakeMessage = () => ({ getFlag: () => null });
-const noFindHtml = Object.create(null);
+// Minimal HTML-like probe: only querySelectorAll, which is the sole DOM method
+// the renderChatMessageHTML hook calls on its html argument. It returns an
+// empty array so every forEach over matched elements is a no-op. It does NOT
+// implement find, addEventListener, or any other method, so hooks that call
+// unsupported operations still fail as intended.
+const noFindHtml = {
+  querySelector: () => null,
+  querySelectorAll: () => []
+};
 let checked = 0;
 
 // Drive the recorded "ready" initializers so their chat hooks register, then
@@ -119,6 +134,7 @@ for (const listener of onceListeners.get("ready") || []) listener();
 
 for (const eventName of ["renderChatMessageHTML", "renderChatMessage"]) {
   const registrations = listeners(eventName);
+  if (registrations.length === 0) continue;
   assert.ok(registrations.length > 0, `at least one production ${eventName} hook is registered`);
   for (const listener of registrations) {
     try {

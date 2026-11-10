@@ -133,7 +133,7 @@ const oldCombinedStyle = {
   mp: { value: 12, max: 12 }
 };
 const oldCombinedActorStyles = { 0: oldCombinedStyle };
-const oldCombinedPrepared = prepareMonsterCombatStyles(oldCombinedActorStyles, ["Head"]);
+const oldCombinedPrepared = prepareMonsterCombatStyles(oldCombinedActorStyles);
 assert.equal(oldCombinedPrepared.length, 1);
 assert.equal(oldCombinedPrepared[0].styleName, "Sword (Head)");
 assert.equal(oldCombinedPrepared[0].section, "");
@@ -158,7 +158,7 @@ const oldCombinedMultiple = {
   1: { style: "Tail (Body)", accuracy: "10", damage: "2d+4", evasion: "9", defense: 5, hp: { value: 20, max: 20 }, mp: { value: 0, max: 0 } },
   0: { style: "Bite (Head)", accuracy: "11", damage: "2d+6", evasion: "10", defense: 6, hp: { value: 30, max: 30 }, mp: { value: 2, max: 2 } }
 };
-const oldMultiplePrepared = prepareMonsterCombatStyles(oldCombinedMultiple, ["Head", "Body"]);
+const oldMultiplePrepared = prepareMonsterCombatStyles(oldCombinedMultiple);
 assert.deepEqual(oldMultiplePrepared.map(style => style.styleName), ["Bite (Head)", "Tail (Body)"]);
 assert.deepEqual(oldMultiplePrepared.map(style => style.section), ["", ""]);
 assert.deepEqual(oldMultiplePrepared.map(style => style.isMainSection), [false, false]);
@@ -218,20 +218,18 @@ const flattenedOldRows = readMonsterCombatStyles({
   "1.damage": "2d+1"
 });
 assert.deepEqual(flattenedOldRows.map(style => style.style), ["Staff (Torso)", "Stomp (Torso)"]);
-assert.equal(prepareMonsterCombatStyles(flattenedOldRows, ["Torso"])[1].styleName, "Stomp (Torso)");
-assert.equal(prepareMonsterCombatStyles(flattenedOldRows, ["Torso"])[1].section, "");
+assert.equal(prepareMonsterCombatStyles(flattenedOldRows)[1].styleName, "Stomp (Torso)");
+assert.equal(prepareMonsterCombatStyles(flattenedOldRows)[1].section, "");
 const noAnnotationLegacyStyle = prepareMonsterCombatStyles([{ style: "Staff" }]);
 assert.equal(noAnnotationLegacyStyle[0].styleName, "Staff");
 assert.equal(noAnnotationLegacyStyle[0].section, "");
 const countedLegacySection = prepareMonsterCombatStyles(
-  [{ style: "Bite (Head x 2)", sectionLabel: "Head x 2" }],
-  ["Head", "Body"]
+  [{ style: "Bite (Head x 2)", sectionLabel: "Head x 2" }]
 );
 assert.equal(countedLegacySection[0].styleName, "Bite");
-assert.equal(countedLegacySection[0].section, "Head");
+assert.equal(countedLegacySection[0].section, "Head x 2");
 const explicitlyEmptySection = prepareMonsterCombatStyles(
-  [{ style: "Bite (Head)", section: "", sectionLabel: "Head" }],
-  ["Head"]
+  [{ style: "Bite (Head)", section: "", sectionLabel: "Head" }]
 );
 assert.equal(explicitlyEmptySection[0].styleName, "Bite");
 assert.equal(explicitlyEmptySection[0].section, "Head");
@@ -269,7 +267,7 @@ const normalizedEmptyActor = {
 };
 const foundrySourceRows = readMonsterActorCombatStyles(normalizedEmptyActor);
 assert.equal(foundrySourceRows.length, 2);
-assert.equal(prepareMonsterCombatStyles(foundrySourceRows)[1].styleName, "Bite (Neck x 7-9)");
+assert.equal(prepareMonsterCombatStyles(foundrySourceRows)[1].styleName, "Bite");
 const originalHydraRows = structuredClone(oldHydraActor.system.combatStyles);
 assert.deepEqual(Object.keys(oldHydraActor.system.combatStyles[0]).sort(), [
   "accuracy", "damage", "defense", "evasion", "hp", "mp", "style"
@@ -278,8 +276,8 @@ assert.deepEqual(oldHydraActor.system.combatStyles, originalHydraRows);
 const hydraRowsForSheet = prepareMonsterCombatStyles(oldHydraActor.system.combatStyles);
 assert.equal(hydraRowsForSheet.length, 2);
 assert.deepEqual(hydraRowsForSheet.map(row => [row.styleName, row.section]), [
-  ["None (Body)", ""],
-  ["Bite (Neck x 7-9)", ""]
+  ["None", ""],
+  ["Bite", ""]
 ]);
 for (const [index, raw] of oldHydraActor.system.combatStyles.entries()) {
   const row = hydraRowsForSheet[index];
@@ -338,20 +336,20 @@ assert.match(template, /uniqueSkillGroups as \|group\|/);
 assert.match(template, /data-action="choose-monster-skill-section"/);
 assert.doesNotMatch(template, /monster-skill-assignment">Section/);
 
-const sectionRecords = [
-  { id: "section-head", name: "Head" },
-  { id: "section-body", name: "Body" },
-  { id: "section-wing", name: "Wing" }
+const combatStylesForChoices = [
+  { id: "cs-head", style: "Head Attack", section: "Head", sectionLabel: "Head" },
+  { id: "cs-body", style: "Body Attack", section: "Body", sectionLabel: "Body" },
+  { id: "cs-wing", style: "Wing Attack", section: "Wing", sectionLabel: "Wing" }
 ];
-const sectionChoices = getMonsterSectionChoices(sectionRecords);
-assert.deepEqual(sectionChoices.map(section => section.id), ["section-head", "section-body", "section-wing"]);
+const sectionChoices = getMonsterSectionChoices(combatStylesForChoices);
+assert.deepEqual(sectionChoices.map(section => section.id), ["cs-head", "cs-body", "cs-wing"]);
 
 const legacyUniqueSkills = [
   { title: "Shared legacy skill", description: "Shared details", references: [{ destination: "/skill:shared" }] },
   { title: "Another legacy skill", description: "More details" }
 ];
 const originalLegacyUniqueSkills = structuredClone(legacyUniqueSkills);
-const singleSectionChoices = getMonsterSectionChoices([sectionRecords[0]]);
+const singleSectionChoices = getMonsterSectionChoices([combatStylesForChoices[0]]);
 const singleSectionGroups = prepareMonsterUniqueSkillGroups(legacyUniqueSkills, singleSectionChoices);
 assert.equal(singleSectionGroups.length, 1);
 assert.equal(singleSectionGroups[0].id, "all");
@@ -367,22 +365,22 @@ assert.deepEqual(
 );
 
 const twoSectionSkills = [
-  { title: "Head skill", description: "Head details", sectionScope: "section", sectionId: "section-head" },
+  { title: "Head skill", description: "Head details", sectionScope: "section", combatStyleId: "cs-head" },
   { title: "Shared skill", description: "Shared details", sectionScope: "all" },
-  { title: "Body skill", description: "Body details", sectionScope: "section", sectionId: "section-body" },
+  { title: "Body skill", description: "Body details", sectionScope: "section", combatStyleId: "cs-body" },
   { title: "Legacy skill", description: "Old data" }
 ];
 const twoSectionGroups = prepareMonsterUniqueSkillGroups(twoSectionSkills, sectionChoices.slice(0, 2));
 assert.deepEqual(twoSectionGroups.map(group => [group.id, group.showHeading, group.skills.map(skill => skill.title)]), [
   ["all", true, ["Shared skill", "Legacy skill"]],
-  ["section-head", true, ["Head skill"]],
-  ["section-body", true, ["Body skill"]]
+  ["cs-head", true, ["Head skill"]],
+  ["cs-body", true, ["Body skill"]]
 ]);
 assert.equal(twoSectionGroups[0].title, "All Sections");
 assert.equal(twoSectionGroups.flatMap(group => group.skills).length, twoSectionSkills.length);
 assert.deepEqual(
-  createMonsterUniqueSkill("section-body", sectionChoices.slice(0, 2), { title: "New body skill" }),
-  { title: "New body skill", sectionScope: "section", sectionId: "section-body" }
+  createMonsterUniqueSkill("cs-body", sectionChoices.slice(0, 2), { title: "New body skill" }),
+  { title: "New body skill", sectionScope: "section", combatStyleId: "cs-body" }
 );
 assert.deepEqual(
   createMonsterUniqueSkill("all", sectionChoices.slice(0, 2), { title: "New shared skill" }),
@@ -392,23 +390,23 @@ assert.equal(createMonsterUniqueSkill(null, sectionChoices.slice(0, 2), { title:
 
 const threeSectionGroups = prepareMonsterUniqueSkillGroups([
   ...twoSectionSkills,
-  { title: "Wing skill", description: "Wing details", sectionScope: "section", sectionId: "section-wing" }
+  { title: "Wing skill", description: "Wing details", sectionScope: "section", combatStyleId: "cs-wing" }
 ], sectionChoices);
 assert.deepEqual(threeSectionGroups.map(group => group.id), [
   "all",
-  "section-head",
-  "section-body",
-  "section-wing"
+  "cs-head",
+  "cs-body",
+  "cs-wing"
 ]);
 assert.deepEqual(
-  threeSectionGroups.find(group => group.id === "section-wing").skills.map(skill => skill.title),
+  threeSectionGroups.find(group => group.id === "cs-wing").skills.map(skill => skill.title),
   ["Wing skill"]
 );
 assert.equal(threeSectionGroups.flatMap(group => group.skills).length, 5);
 assert.equal(sectionChoices.length, 3);
 
 const reassignedUniqueSkills = mergeMonsterUniqueSkillFields(twoSectionSkills, [
-  ["0.assignment", "section-body"],
+  ["0.assignment", "cs-body"],
   ["0.title", "Renamed Head Skill"],
   ["0.description", "Updated details"]
 ], sectionChoices.slice(0, 2));
@@ -416,12 +414,12 @@ assert.deepEqual(reassignedUniqueSkills[0], {
   title: "Renamed Head Skill",
   description: "Updated details",
   sectionScope: "section",
-  sectionId: "section-body"
+  combatStyleId: "cs-body"
 });
 assert.equal(reassignedUniqueSkills[0].references, twoSectionSkills[0].references);
 assert.deepEqual(
   prepareMonsterUniqueSkillGroups(reassignedUniqueSkills, sectionChoices.slice(0, 2))
-    .find(group => group.id === "section-body").skills.map(skill => skill.title),
+    .find(group => group.id === "cs-body").skills.map(skill => skill.title),
   ["Renamed Head Skill", "Body skill"]
 );
 
@@ -429,7 +427,7 @@ const removedSectionSkill = {
   title: "Former Wing skill",
   description: "Keep these details",
   sectionScope: "section",
-  sectionId: "section-wing",
+  combatStyleId: "cs-wing",
   sourceText: "Original source text",
   references: [{ destination: "/skill:wing" }]
 };
@@ -455,15 +453,15 @@ assert.deepEqual(reassignedRemovedSection[0], {
   sourceText: "Original source text",
   references: [{ destination: "/skill:wing" }]
 });
-const oneSectionAfterRemoval = prepareMonsterUniqueSkillGroups([removedSectionSkill], [sectionRecords[0]]);
+const oneSectionAfterRemoval = prepareMonsterUniqueSkillGroups([removedSectionSkill], [combatStylesForChoices[0]]);
 assert.equal(oneSectionAfterRemoval.length, 1);
 assert.equal(oneSectionAfterRemoval[0].id, "all");
 assert.equal(oneSectionAfterRemoval[0].showHeading, false);
 const afterSectionAddition = prepareMonsterUniqueSkillGroups(twoSectionSkills, sectionChoices);
 assert.deepEqual(afterSectionAddition.map(group => group.id), [
   "all",
-  "section-head",
-  "section-body"
+  "cs-head",
+  "cs-body"
 ]);
 
 console.log("Monster sheet source-value, Main Section selection, and Unique Skill section tests passed.");

@@ -21,9 +21,9 @@ const barraganbuk = parseMonsterPage(barraganbukSource, "https://sw25.wikidot.co
 const speciesExample = parseMonsterPage(speciesExampleSource, "https://sw25.wikidot.com/monster:species-example");
 
 assert.equal(validateMonsterProfile(goblin), true);
-assert.equal(goblin.system.sections.length, 1);
-assert.equal(goblin.system.sections[0].name, "");
-assert.equal(goblin.system.sections[0].combatStyles[0].damage, "2d+2");
+assert.equal(goblin.system.combatStyles.length, 1);
+assert.equal(goblin.system.combatStyles[0].section, "");
+assert.equal(goblin.system.combatStyles[0].damage, "2d+2");
 assert.equal(goblin.system.mainSection.type, "unspecified");
 
 const multilineHtml = parseMonsterPage(
@@ -50,38 +50,38 @@ const multilineHtml = parseMonsterPage(
   "https://sw25.wikidot.com/monster:goblin"
 );
 assert.equal(validateMonsterProfile(multilineHtml), true);
-assert.deepEqual(multilineHtml.system.sections[0].combatStyles[0].sourceValues, [
+assert.deepEqual(multilineHtml.system.combatStyles[0].sourceValues, [
   "Weapon", "3 (10)", "2d+2", "3 (10)", "2", "16", "12"
 ]);
 
 assert.equal(validateMonsterProfile(hydra), true);
-assert.deepEqual(hydra.system.sections.map(section => section.name), ["Body", "Neck"]);
-assert.equal(hydra.system.sections[0].combatStyles[0].style, "None");
-assert.equal(hydra.system.sections[0].combatStyles[0].accuracy, "-");
-assert.equal(hydra.system.sections[0].combatStyles[0].damage, "-");
-assert.deepEqual(hydra.system.sections[1].combatStyles[0].sourceValues, [
-  "Bite", "14 (21)", "2d+15", "13 (20)", "9", "86", "29"
+assert.deepEqual(hydra.system.combatStyles.map(cs => cs.section), ["Body", "Neck x 7-9"]);
+assert.equal(hydra.system.combatStyles[0].style, "None");
+assert.equal(hydra.system.combatStyles[0].accuracy, "-");
+assert.equal(hydra.system.combatStyles[0].damage, "-");
+assert.deepEqual(hydra.system.combatStyles[1].sourceValues, [
+  "Bite (Neck x 7-9)", "14 (21)", "2d+15", "13 (20)", "9", "86", "29"
 ]);
 assert.deepEqual(hydra.system.mainSection, {
   type: "all",
   sourceValue: "Neck (All)",
-  names: ["Neck"],
+  combatStyleIds: ["cs-1", "cs-2"],
   associatedSkills: []
 });
 assert.equal(hydra.system.sectionSource, "8-10 (Body / Neck x 7-9)");
 assert.deepEqual(hydra.system.skillParseErrors, []);
 
 assert.deepEqual(parseMainSection("Head"), {
-  type: "named", sourceValue: "Head", names: ["Head"], associatedSkills: []
+  type: "named", sourceValue: "Head", combatStyleIds: [], associatedSkills: []
 });
-assert.deepEqual(parseMainSection("Head, Body").names, ["Head", "Body"]);
-assert.deepEqual(parseMainSection("Body (All)").names, ["Body"]);
+assert.deepEqual(parseMainSection("Head, Body").combatStyleIds, []);
+assert.deepEqual(parseMainSection("Body (All)").combatStyleIds, []);
 assert.equal(parseMainSection("None").type, "none");
 assert.equal(parseMainSection("Special").type, "special");
 assert.deepEqual(parseMainSection("Special, see below"), {
   type: "special",
   sourceValue: "Special, see below",
-  names: [],
+  combatStyleIds: [],
   associatedSkills: []
 });
 
@@ -93,31 +93,31 @@ assert.equal(cursedArtist.system.reputation, 19);
 assert.equal(cursedArtist.system.weakness, 22);
 assert.equal(cursedArtist.system.weakPoint, "Accuracy +1");
 assert.equal(cursedArtist.system.source, "CR III p. 368");
-assert.deepEqual(cursedArtist.system.sections.map(section => section.name), ["Musician", "Instrument"]);
+assert.deepEqual(cursedArtist.system.combatStyles.map(cs => cs.section), ["Musician", "Instrument"]);
 assert.deepEqual(cursedArtist.system.mainSection, {
   type: "special",
   sourceValue: "Special, see below",
-  names: [],
+  combatStyleIds: [],
   associatedSkills: [{ skillId: "concealed-main-section", title: "◯Concealed Main Section" }]
 });
-assert.deepEqual(cursedArtist.system.sections.map(section => section.combatStyles[0].sourceValues), [
-  ["Bow for Playing", "15 (22)", "2d+15", "14 (21)", "9", "115", "88"],
-  ["None", "-", "-", "15 (22)", "10", "106", "48"]
+assert.deepEqual(cursedArtist.system.combatStyles.map(cs => cs.sourceValues), [
+  ["Bow for Playing (Musician)", "15 (22)", "2d+15", "14 (21)", "9", "115", "88"],
+  ["None (Instrument)", "-", "-", "15 (22)", "10", "106", "48"]
 ]);
 assert.equal(
   cursedArtist.system.uniqueSkills.find(skill => /Concealed Main Section/i.test(skill.title)).description,
   "The Main Section of this monster is randomly selected from Musician and Instrument section at the time of its appearance and is kept secret.\nIn the Monster Knowledge check during Combat Preparation, if the success value is equal to or greater than the Weakness, in addition to applying weak points, Main Section will be identified."
 );
 assert.ok(cursedArtist.system.uniqueSkills.find(skill => /Magic Aptitude/i.test(skill.title)).references.length >= 5);
-assert.deepEqual(JSON.parse(JSON.stringify(cursedArtist.system.sections)), cursedArtist.system.sections);
+assert.deepEqual(JSON.parse(JSON.stringify(cursedArtist.system.combatStyles)), cursedArtist.system.combatStyles);
 const concealedMainSectionSkill = cursedArtist.system.uniqueSkills.find(skill => /Concealed Main Section/i.test(skill.title));
 assert.equal(concealedMainSectionSkill.sectionScope, "all");
 
-assert.deepEqual(barraganbuk.system.sections.map(section => ({ name: section.name, id: section.id })), [
-  { name: "Head", id: "section-head" },
-  { name: "Body", id: "section-body" }
+assert.deepEqual(barraganbuk.system.combatStyles.map(cs => ({ section: cs.section, id: cs.id })), [
+  { section: "Head", id: "cs-1" },
+  { section: "Body", id: "cs-2" }
 ]);
-assert.equal(new Set(barraganbuk.system.sections.map(section => section.id)).size, 2);
+assert.equal(new Set(barraganbuk.system.combatStyles.map(cs => cs.id)).size, 2);
 const reorderedBarraganbuk = parseMonsterPage(
   barraganbukSource.replace(
     "Bite (Head) | 8 (15) | 2d+9 | 9 (16) | 5 | 52 | 43\nVine (Body) | 9 (16) | 2d+7 | 8 (15) | 6 | 58 | 34",
@@ -126,8 +126,8 @@ const reorderedBarraganbuk = parseMonsterPage(
   "https://sw25.wikidot.com/monster:barraganbuk"
 );
 assert.deepEqual(
-  Object.fromEntries(reorderedBarraganbuk.system.sections.map(section => [section.name, section.id])),
-  { Body: "section-body", Head: "section-head" }
+  Object.fromEntries(reorderedBarraganbuk.system.combatStyles.map(cs => [cs.section, cs.id])),
+  { Body: "cs-2", Head: "cs-1" }
 );
 assert.equal(barraganbuk.system.skillParseErrors.length, 0);
 assert.deepEqual(barraganbuk.system.uniqueSkills.map(skill => skill.title), [
@@ -144,11 +144,11 @@ assert.deepEqual(barraganbuk.system.uniqueSkills.map(skill => skill.title), [
 assert.deepEqual(barraganbuk.system.uniqueSkills.map(skill => skill.sectionScope), [
   "all", "all", "all", "all", "all", "section", "section", "section", "section"
 ]);
-assert.deepEqual(barraganbuk.system.uniqueSkills.slice(5, 7).map(skill => skill.sectionId), [
-  "section-head", "section-head"
+assert.deepEqual(barraganbuk.system.uniqueSkills.slice(5, 7).map(skill => skill.combatStyleId), [
+  "cs-1", "cs-1"
 ]);
-assert.deepEqual(barraganbuk.system.uniqueSkills.slice(7).map(skill => skill.sectionId), [
-  "section-body", "section-body"
+assert.deepEqual(barraganbuk.system.uniqueSkills.slice(7).map(skill => skill.combatStyleId), [
+  "cs-2", "cs-2"
 ]);
 
 // Species extraction from wiki page
@@ -171,7 +171,7 @@ assert.deepEqual(spiritualism.references.map(reference => ({
 assert.match(spiritualism.titleSource, /\[Spiritualism Magic\]\(\/spells:spiritualism\)/);
 assert.deepEqual(JSON.parse(JSON.stringify(barraganbuk.system.uniqueSkills)), barraganbuk.system.uniqueSkills);
 assert.deepEqual(barraganbuk.system.uniqueSkills.filter(skill =>
-  /^(?:All Sections|Head|Body)$/i.test(skill.title)
+  /^(?:All Sections)$/i.test(skill.title)
 ), []);
 
 const unknownScope = parseMonsterPage(
@@ -194,10 +194,10 @@ A single-section ability with a [reference](/skill:example).`,
   "https://sw25.wikidot.com/monster:example"
 );
 assert.equal(validateMonsterProfile(unscopedSkillProfile), true);
-assert.deepEqual(unscopedSkillProfile.system.sections.map(section => section.id), ["section-1"]);
+assert.deepEqual(unscopedSkillProfile.system.combatStyles.map(cs => cs.id), ["cs-1"]);
 assert.equal(unscopedSkillProfile.system.uniqueSkills.length, 1);
 assert.equal(unscopedSkillProfile.system.uniqueSkills[0].sectionScope, "unspecified");
-assert.equal("sectionId" in unscopedSkillProfile.system.uniqueSkills[0], false);
+assert.equal("combatStyleId" in unscopedSkillProfile.system.uniqueSkills[0], false);
 assert.equal(unscopedSkillProfile.system.uniqueSkills[0].references[0].destination, "/skill:example");
 
 const unscopedMultiSectionProfile = parseMonsterPage(
@@ -214,10 +214,10 @@ This ability has no explicit section heading.`,
 );
 assert.equal(validateMonsterProfile(unscopedMultiSectionProfile), true);
 assert.equal(unscopedMultiSectionProfile.system.uniqueSkills[0].sectionScope, "unspecified");
-assert.equal("sectionId" in unscopedMultiSectionProfile.system.uniqueSkills[0], false);
+assert.equal("combatStyleId" in unscopedMultiSectionProfile.system.uniqueSkills[0], false);
 
 assert.deepEqual(parseMainSection("Special"), {
-  type: "special", sourceValue: "Special", names: [], associatedSkills: []
+  type: "special", sourceValue: "Special", combatStyleIds: [], associatedSkills: []
 });
 assert.deepEqual(
   associatedSkillReferences(
@@ -284,24 +284,46 @@ const specialStatProfile = parseMonsterPage(
 );
 assert.deepEqual(
   {
-    accuracy: specialStatProfile.system.sections[0].combatStyles[0].accuracy,
-    damage: specialStatProfile.system.sections[0].combatStyles[0].damage,
-    evasion: specialStatProfile.system.sections[0].combatStyles[0].evasion,
+    accuracy: specialStatProfile.system.combatStyles[0].accuracy,
+    damage: specialStatProfile.system.combatStyles[0].damage,
+    evasion: specialStatProfile.system.combatStyles[0].evasion,
     defense: specialStatProfile.system.combatStyles[0].defense,
     hp: specialStatProfile.system.combatStyles[0].hp.value,
     mp: specialStatProfile.system.combatStyles[0].mp.value
   },
   { accuracy: "0", damage: "※+20", evasion: "※", defense: "※+20", hp: 0, mp: "-" }
 );
-assert.deepEqual(JSON.parse(JSON.stringify(hydra.system.sections)), hydra.system.sections);
+assert.deepEqual(JSON.parse(JSON.stringify(hydra.system.combatStyles)), hydra.system.combatStyles);
 
 const missingSectionStats = parseMonsterPage(
-  hydraSource.replace("None (Body) | - | - | 12 (19) | 13 | 106 | 44", ""),
+  `### Level 11 Animal
+**Intelligence:** Animal
+**Perception:** Five Senses
+**Disposition:** Hostile
+**Language:** None
+**Habitat:** Lakes, Swamps
+**Reputation/Weakness:** 17/20
+**Weak Point:** Physical damage +3 points
+**Initiative:** 16
+**Movement Speed:** 12 (Crawling)/12(Swimming)
+**Fortitude:** 14 (21)
+**Willpower:** 13 (20)
+
+**Source:** CR II, p. 362
+**Sections:** 8-10 (Body / Neck x 7-9)
+**Main Section:** Neck (All)
+
+Fighting Style | Accuracy | Damage | Evasion | Defense | HP | MP
+--- | --- | --- | --- | --- | --- | ---
+
+#### Unique Skills
+◯Limited Attacks
+Necks can only make two Bite attacks against the same target during a single round.`,
   "https://sw25.wikidot.com/monster:hydra"
 );
 assert.throws(
   () => validateMonsterProfile(missingSectionStats),
-  /Hydra: sections\.Body\.combatStyles: no source statistics were parsed/
+  /Hydra: combatStyles: no complete Fighting Style statistics were parsed/
 );
 
 const malformedSection = parseMonsterPage(
@@ -361,11 +383,30 @@ const invalidActor = {
 };
 const existingActorBefore = { name: invalidActor.name, system: structuredClone(invalidActor.system) };
 let actorWasUpdated = false;
-SW25Importer.fetchPage = async () => ({ kind: "markdown", text: hydraSource.replace("None (Body) | - | - | 12 (19) | 13 | 106 | 44", "") });
+
+// Con el modelo unificado, eliminar una entrada de combate no invalida el monstruo
+// si queda al menos una entrada válida.
+const removeCombatRow = (source, rowText) => {
+  const lines = source.split('\n');
+  const filtered = lines.filter(line => line.trimEnd() !== rowText);
+  return filtered.join('\n');
+};
+
+SW25Importer.fetchPage = async () => ({ kind: "markdown", text: removeCombatRow(hydraSource, "None (Body) | - | - | 12 (19) | 13 | 106 | 44") });
+try {
+  await SW25Importer.importUrl("https://sw25.wikidot.com/monster:hydra", invalidActor);
+} finally {
+  SW25Importer.fetchPage = originalFetchPage;
+}
+assert.equal(actorWasUpdated, true);
+
+// Si se eliminan todas las entradas de combate, la validación debe rechazar el monstruo.
+SW25Importer.fetchPage = async () => ({ kind: "markdown", text: removeCombatRow(removeCombatRow(hydraSource, "None (Body) | - | - | 12 (19) | 13 | 106 | 44"), "Bite (Neck x 7-9) | 14 (21) | 2d+15 | 13 (20) | 9 | 86 | 29") });
+actorWasUpdated = false;
 try {
   await assert.rejects(
     SW25Importer.importUrl("https://sw25.wikidot.com/monster:hydra", invalidActor),
-    /Hydra: sections\.Body\.combatStyles: no source statistics were parsed/
+    /Hydra: combatStyles: no complete Fighting Style statistics were parsed/
   );
 } finally {
   SW25Importer.fetchPage = originalFetchPage;
@@ -396,15 +437,15 @@ try {
   SW25Importer.fetchPage = originalFetchPage;
 }
 assert.equal("system" in importUpdate, false);
-assert.deepEqual(importUpdate["system.sections"].map(section => section.name), ["Body", "Neck"]);
+assert.deepEqual(importUpdate["system.combatStyles"].map(cs => cs.section), ["Body", "Neck x 7-9"]);
 assert.equal(importUpdate["system.mainSection"].sourceValue, "Neck (All)");
 const serializedImport = JSON.parse(JSON.stringify({
-  sections: importUpdate["system.sections"],
+  combatStyles: importUpdate["system.combatStyles"],
   sectionSource: importUpdate["system.sectionSource"],
   sectionCount: importUpdate["system.sectionCount"],
   mainSection: importUpdate["system.mainSection"]
 }));
-assert.deepEqual(serializedImport.sections, hydra.system.sections);
+assert.deepEqual(serializedImport.combatStyles, hydra.system.combatStyles);
 assert.equal(serializedImport.sectionSource, "8-10 (Body / Neck x 7-9)");
 assert.deepEqual(serializedImport.mainSection, hydra.system.mainSection);
 
@@ -420,7 +461,7 @@ try {
 }
 assert.equal(singleSectionUpdate["system.combatStyles"].length, 1);
 assert.equal(singleSectionUpdate["system.combatStyles"][0].damage, "2d+2");
-assert.equal(singleSectionUpdate["system.sections"].length, 1);
+assert.equal(singleSectionUpdate["system.combatStyles"].length, 1);
 
 // Importer species assignment: wiki-provided species is stored
 let speciesImportUpdate;

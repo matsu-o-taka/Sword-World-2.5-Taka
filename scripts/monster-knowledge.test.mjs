@@ -115,7 +115,7 @@ const knowledgeMessage = (successValue, targetTokenUuids, dice = [6, 5]) => ({
 
 const sectionNames = ["Musician", "Instrument"];
 const actor = makeCursedArtist();
-assert.deepEqual(getConcealedMainSectionSections(actor).map(section => section.name), sectionNames);
+assert.deepEqual(getConcealedMainSectionSections(actor).map(section => section.section), sectionNames);
 assert.equal(selectConcealedMainSection(actor, () => 0), "Musician");
 assert.equal(selectConcealedMainSection(actor, () => 1), "Instrument");
 assert.throws(() => selectConcealedMainSection(actor, () => 2), /invalid index/);
@@ -125,7 +125,10 @@ assert.equal(getConcealedMainSectionSections({
   system: {
     sourceUrl: "https://sw25.wikidot.com/monster:doubleburg",
     mainSection: { type: "special", sourceValue: "Special" },
-    sections: [{ name: "Musician" }, { name: "Instrument" }],
+    combatStyles: [
+      { style: "Bow for Playing", section: "Musician", accuracy: "15 (22)", damage: "2d+15", evasion: "14 (21)", defense: 9, hp: { value: 115, max: 115 }, mp: { value: 88, max: 88 } },
+      { style: "None", section: "Instrument", accuracy: "-", damage: "-", evasion: "15 (22)", defense: 10, hp: { value: 106, max: 106 }, mp: { value: 48, max: 48 } }
+    ],
     uniqueSkills: [{ title: "◯Concealed Main Section" }]
   }
 }).length, 0);

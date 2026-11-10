@@ -2247,3 +2247,773 @@ form.sw25-official-sheet .weapon-table .combat-weapon-row .weapon-mods-toggle in
   padding: 0;
   box-sizing: border-box;
 }
+
+/* ── Attack / damage chat cards (redesign) ─────────────────────────────── */
+
+.sw25-attack-card .sw25-attack-outcome {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0 4px;
+}
+.sw25-attack-card .sw25-attack-outcome-badge {
+  display: inline-block;
+  padding: 5px 14px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 1.3em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+}
+.sw25-attack-card .sw25-attack-outcome-badge.sw25-attack-hit   { color: #28813b; border-color: #28813b; background: rgba(40,129,59,.15); }
+.sw25-attack-card .sw25-attack-outcome-badge.sw25-attack-miss  { color: #b3261e; border-color: #b3261e; background: rgba(179,38,30,.15); }
+.sw25-attack-card .sw25-attack-outcome-badge.sw25-attack-critical { color: #28a745; border-color: #28a745; background: rgba(40,167,69,.15); }
+.sw25-attack-card .sw25-attack-outcome-badge.sw25-attack-fumble { color: #8a1e1e; border-color: #8a1e1e; background: rgba(138,30,30,.15); }
+
+.sw25-attack-card .sw25-attack-comparison {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 8px 0 4px;
+  padding: 8px 10px;
+  border: 1px solid #5b4936;
+  background: rgba(240,226,191,.35);
+}
+.sw25-attack-card .sw25-attack-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.sw25-attack-card .sw25-attack-stat-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 1.15em;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sw25-attack-card .sw25-attack-stat-summary:hover { opacity: 0.85; }
+.sw25-attack-card .sw25-attack-stat-summary::after {
+  content: " ▾";
+  font-size: 0.65em;
+  opacity: 0.5;
+  margin-left: 4px;
+}
+.sw25-attack-card .sw25-attack-roll   { font-size: 1.5em; }
+.sw25-attack-card .sw25-attack-bonus  { font-size: 1.1em; }
+.sw25-attack-card .sw25-attack-equals { margin: 0 3px; opacity: 0.55; }
+.sw25-attack-card .sw25-attack-total  { font-size: 1.4em; font-weight: 700; }
+.sw25-attack-card .sw25-attack-vs {
+  font-size: 1.25em;
+  font-weight: 700;
+  opacity: 0.6;
+  padding: 0 6px;
+}
+.sw25-attack-card .sw25-attack-stat-detail {
+  margin-top: 5px;
+  padding: 6px 8px;
+  border: 1px solid #806d55;
+  background: rgba(255,255,255,.45);
+  font-size: 0.9em;
+}
+.sw25-attack-card .sw25-roll-breakdown {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+.sw25-attack-card .sw25-roll-breakdown li {
+  margin: 2px 0;
+  font-size: 0.9em;
+}
+.sw25-attack-card .sw25-attack-critfail-note {
+  margin: 6px 0 0;
+  font-size: 0.9em;
+  font-style: italic;
+  color: #b3261e;
+}
+
+/* ── Damage card (same visual family as attack card) ───────────────────── */
+
+.sw25-damage-card .sw25-damage-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin: 7px 0;
+}
+.sw25-damage-card .sw25-damage-stat-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 1.15em;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sw25-damage-card .sw25-damage-stat-summary:hover { opacity: 0.85; }
+.sw25-damage-card .sw25-damage-stat-summary::after {
+  content: " ▾";
+  font-size: 0.65em;
+  opacity: 0.5;
+  margin-left: 4px;
+}
+.sw25-damage-card .sw25-damage-roll       { font-size: 1.5em; }
+.sw25-damage-card .sw25-damage-arrow      { opacity: 0.6; margin: 0 2px; }
+.sw25-damage-card .sw25-damage-table-value { font-size: 1.5em; font-weight: 700; }
+.sw25-damage-card .sw25-damage-plus       { opacity: 0.55; }
+.sw25-damage-card .sw25-damage-bonus      { font-size: 1.1em; }
+.sw25-damage-card .sw25-damage-equals     { margin: 0 3px; opacity: 0.55; }
+.sw25-damage-card .sw25-damage-total      { font-size: 1.5em; font-weight: 700; }
+.sw25-damage-card .sw25-damage-stat-detail {
+  margin-top: 5px;
+  padding: 6px 8px;
+  border: 1px solid #806d55;
+  background: rgba(255,255,255,.45);
+  font-size: 0.9em;
+}
+.sw25-damage-card .sw25-roll-breakdown {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+.sw25-damage-card .sw25-roll-breakdown li {
+  margin: 2px 0;
+  font-size: 0.9em;
+}
+
+/* Damage action button: single Apply Damage, full width */
+.sw25-damage-card .sw25-damage-actions {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+}
+.sw25-damage-card .sw25-damage-actions button.sw25-apply-damage {
+  width: 100%;
+}
+
+/* ── Monster Knowledge Registry Manager (F3) ───────────────────────────── */
+.sw25-mk-manager {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 10px;
+  padding: 10px;
+  overflow: hidden;
+}
+
+.sw25-mk-header {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-bottom: 1px solid #5b4936;
+  padding-bottom: 6px;
+}
+
+.sw25-mk-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: bold;
+  color: #28231e;
+}
+
+.sw25-mk-subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: #756957;
+  font-style: italic;
+}
+
+.sw25-mk-screen {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 3px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sw25-mk-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sw25-mk-btn {
+  min-height: 32px;
+  padding: 3px 12px;
+  border: 1px solid #5b4936;
+  border-radius: 2px;
+  background: linear-gradient(#695642, #493b2f);
+  color: #fff7df;
+  font-family: inherit;
+  font-weight: bold;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.sw25-mk-btn:hover {
+  box-shadow: 0 0 6px rgba(161, 120, 63, 0.4);
+}
+
+.sw25-mk-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.sw25-mk-btn-primary {
+  background: linear-gradient(#574737, #3f3329);
+}
+
+.sw25-mk-btn-secondary {
+  background: rgba(116, 91, 63, 0.18);
+  color: #3c3026;
+  border-color: #806d55;
+}
+
+.sw25-mk-btn-secondary:hover {
+  background: rgba(116, 91, 63, 0.3);
+}
+
+.sw25-mk-btn-open {
+  /* Half-size Open: icon-only trigger next to the row's status label. */
+  background: rgba(116, 91, 63, 0.12);
+  color: #5b4936;
+  border-color: #806d55;
+  padding: 2px 4px;
+  min-height: 28px;
+  min-width: 26px;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.sw25-mk-btn-open:hover {
+  background: rgba(116, 91, 63, 0.25);
+}
+
+/* Row toggle: activates/deactivates the record (one active at a time).
+   Pushes the right-side control group to the row's right edge. */
+.sw25-mk-list-toggle {
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 1px solid #806d55;
+  border-radius: 3px;
+  background: rgba(116, 91, 63, 0.12);
+  color: #5b4936;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.sw25-mk-list-toggle:hover {
+  background: rgba(116, 91, 63, 0.25);
+}
+
+/* Active/Inactive label on the main list, right of the Open button. */
+.sw25-mk-record-status {
+  display: inline-block;
+  min-width: 62px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid #756957;
+  font-size: 10px;
+  font-weight: bold;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.sw25-mk-record-status.active {
+  border-color: #5f7a4b;
+  background: rgba(92, 128, 66, 0.16);
+  color: #3f5a2e;
+}
+
+.sw25-mk-record-status.inactive {
+  background: rgba(117, 105, 87, 0.12);
+  color: #756957;
+}
+
+/* Row red X: deletes the whole record (GM correction for wrong records). */
+.sw25-mk-list-x {
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 1px solid rgba(161, 29, 20, 0.55);
+  border-radius: 11px;
+  background: transparent;
+  color: #a11d14;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.sw25-mk-list-x:hover {
+  background: rgba(161, 29, 20, 0.12);
+  color: #7a1d14;
+}
+
+.sw25-mk-btn-back {
+  background: rgba(116, 91, 63, 0.18);
+  color: #3c3026;
+  border-color: #806d55;
+}
+
+.sw25-mk-btn-back:hover {
+  background: rgba(116, 91, 63, 0.3);
+}
+
+.sw25-mk-btn-delete {
+  opacity: 0.7;
+}
+
+.sw25-mk-btn-delete:hover {
+  opacity: 1;
+  color: #7a1d14;
+}
+
+.sw25-mk-records {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sw25-mk-record {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid rgba(91, 73, 54, 0.35);
+  border-radius: 3px;
+  background: rgba(255, 250, 231, 0.4);
+}
+
+.sw25-mk-record-active {
+  border-color: #8a7357;
+  background: rgba(255, 252, 239, 0.6);
+}
+
+.sw25-mk-chip {
+  display: inline-block;
+  min-width: 95px;
+  padding: 2px 8px;
+  border: 1px solid #5b4936;
+  border-radius: 12px;
+  background: rgba(116, 91, 63, 0.18);
+  color: #3c3026;
+  font-size: 11px;
+  font-weight: bold;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.sw25-mk-chip.session {
+  border-color: #5b4936;
+}
+
+.sw25-mk-chip.campaign {
+  border-color: #7a5c33;
+}
+
+.sw25-mk-record-name {
+  flex: 1;
+  font-weight: bold;
+  color: #28231e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sw25-mk-record-count {
+  font-size: 12px;
+  color: #756957;
+  white-space: nowrap;
+}
+
+.sw25-mk-empty {
+  margin: 12px;
+  color: #756957;
+  font-style: italic;
+  text-align: center;
+}
+
+.sw25-mk-detail-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-bottom: 1px solid #5b4936;
+  padding-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.sw25-mk-detail-identity {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sw25-mk-detail-id {
+  font-size: 11px;
+  color: #756957;
+  font-family: monospace;
+}
+
+.sw25-mk-badge-active {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid #8a7357;
+  border-radius: 10px;
+  background: rgba(138, 115, 87, 0.15);
+  color: #8a7357;
+  font-size: 10px;
+  font-weight: bold;
+  white-space: nowrap;
+  margin-left: 8px;
+}
+
+.sw25-mk-discoveries {
+  border: 1px solid rgba(91, 73, 54, 0.35);
+  border-radius: 3px;
+  padding: 8px;
+  background: rgba(255, 250, 231, 0.4);
+}
+
+.sw25-mk-discoveries-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(91, 73, 54, 0.25);
+}
+
+.sw25-mk-discoveries-label {
+  font-weight: bold;
+  font-size: 13px;
+  color: #28231e;
+}
+
+.sw25-mk-discoveries-count {
+  font-size: 12px;
+  color: #756957;
+}
+
+.sw25-mk-discovery-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sw25-mk-discovery-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border: 1px solid rgba(91, 73, 54, 0.25);
+  border-radius: 2px;
+  background: rgba(255, 252, 239, 0.5);
+}
+
+.sw25-mk-species-id {
+  font-size: 11px;
+  color: #756957;
+  font-family: monospace;
+  white-space: nowrap;
+}
+
+.sw25-mk-source {
+  font-size: 10px;
+  color: #5b4936;
+  background: rgba(91, 73, 54, 0.12);
+  padding: 1px 6px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.sw25-mk-detail-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.sw25-mk-footer {
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid #5b4936;
+  font-size: 11px;
+  color: #756957;
+  text-align: center;
+}
+
+.sw25-mk-footer-hint {
+  margin: 0;
+}
+
+/* Responsive: stack on narrow windows */
+@media (max-width: 700px) {
+  .sw25-mk-detail-actions {
+    flex-direction: column;
+  }
+  .sw25-mk-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ── Monster Knowledge Registry Manager (F3) - enhanced styles ───────────── */
+
+/* Smaller buttons for the initial screen (max ~25% width each). */
+.sw25-mk-btn-small {
+  min-height: 28px;
+  padding: 2px 8px;
+  font-size: 12px;
+  max-width: 200px;
+}
+
+/* Smaller Back button in the detail header. Compact: occupies only the space
+   its label needs, aligned left, never stretched by flex parents or the
+   narrow-window full-width button rule above (higher specificity wins). */
+.sw25-mk-btn-back.sw25-mk-btn-small {
+  width: auto;
+  max-width: none;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  min-height: 24px;
+  padding: 2px 8px;
+  font-size: 12px;
+  /* Pill treatment, matching the Session/Campaign chips. */
+  border-radius: 12px;
+}
+
+/* Smaller record ID text in the detail header. */
+.sw25-mk-detail-id-small {
+  font-size: 10px;
+  color: #756957;
+  font-family: monospace;
+  margin-top: 2px;
+}
+
+/* Discovery rows keep a neutral background: the knowledge level is now
+   communicated only by the species pill colour (weakness green /
+   reputation yellow). */
+
+/* Discoverer pill: neutral chip for the CHARACTER that made the discovery
+   (never the user nor the monster). Neutral colours only: green and yellow
+   stay reserved for knowledge levels. It sits to the right of the row,
+   immediately before the withdraw X. */
+.sw25-mk-discoverer-pill {
+  margin-left: auto;
+  display: inline-block;
+  min-width: 68px;
+  max-width: 180px;
+  padding: 2px 10px;
+  border: 1px solid #806d55;
+  border-radius: 12px;
+  background: rgba(116, 91, 63, 0.14);
+  color: #3c3026;
+  font-size: 11px;
+  font-weight: bold;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Campaign name in detail header, inline with chip and Active badge. */
+.sw25-mk-campaign-name {
+  font-size: 13px;
+  font-weight: bold;
+  color: #28231e;
+  margin-left: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+/* Campaign name in records list, bold to stand out from generic label. */
+.sw25-mk-record-name.campaign-name {
+  font-weight: bold;
+}
+
+/* Detail header: single-line layout with back button on left, campaign info on right. */
+.sw25-mk-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid #5b4936;
+  padding-bottom: 8px;
+  flex-wrap: nowrap;
+}
+
+.sw25-mk-detail-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.sw25-mk-detail-identity .sw25-mk-badge-active {
+  /* Pushed to the right edge of the single header line. */
+  margin-left: auto;
+}
+
+.sw25-mk-detail-id-small {
+  font-size: 10px;
+  color: #756957;
+  font-family: monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+/* Discovery row: compact, with level color on left border. */
+.sw25-mk-discovery-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border: 1px solid rgba(91, 73, 54, 0.25);
+  border-radius: 2px;
+  background: rgba(255, 252, 239, 0.5);
+}
+
+.sw25-mk-species-id {
+  font-size: 11px;
+  color: #756957;
+  font-family: monospace;
+  white-space: nowrap;
+}
+
+/* Discoverer pill (enhanced block): neutral chip for the CHARACTER that
+   made the discovery, immediately before the withdraw X. */
+.sw25-mk-discoverer-pill {
+  margin-left: auto;
+  display: inline-block;
+  min-width: 68px;
+  max-width: 180px;
+  padding: 2px 10px;
+  border: 1px solid #806d55;
+  border-radius: 12px;
+  background: rgba(116, 91, 63, 0.14);
+  color: #3c3026;
+  font-size: 11px;
+  font-weight: bold;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Detail actions: compact button layout. */
+.sw25-mk-detail-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.sw25-mk-btn-small {
+  min-height: 24px;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+/* Knowledge-level pill for the species name (colour lives ONLY here). */
+.sw25-mk-pill {
+  display: inline-block;
+  min-width: 72px;
+  max-width: 220px;
+  padding: 2px 10px;
+  border: 1px solid #5b4936;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Weakness knowledge: soft green pill. */
+.sw25-mk-level-weakness {
+  background: rgba(160, 230, 160, 0.35);
+  border-color: #2e8b2e;
+  color: #1e5f1e;
+}
+
+/* Reputation knowledge: soft yellow pill. */
+.sw25-mk-level-reputation {
+  background: rgba(245, 220, 130, 0.35);
+  border-color: #e0a800;
+  color: #7a5c00;
+}
+
+/* Withdraw X: red icon button on the right of the discoverer pill, same
+   line. The operation withdraws the registered knowledge of the species
+   (never the character's identity or credits). */
+.sw25-mk-withdraw-x {
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 1px solid rgba(161, 29, 20, 0.55);
+  border-radius: 11px;
+  background: transparent;
+  color: #a11d14;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.sw25-mk-withdraw-x:hover {
+  background: rgba(161, 29, 20, 0.12);
+  color: #7a1d14;
+}
+
+/* Session start date/time in the detail header, on the Session chip line. */
+.sw25-mk-detail-date {
+  margin-left: auto;
+  font-size: 12px;
+  color: #756957;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Campaign inactive state chip (right-aligned on the header line). */
+.sw25-mk-chip-inactive {
+  margin-left: auto;
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid #756957;
+  border-radius: 12px;
+  background: rgba(117, 105, 87, 0.12);
+  color: #756957;
+  font-size: 10px;
+  font-weight: bold;
+  white-space: nowrap;
+}

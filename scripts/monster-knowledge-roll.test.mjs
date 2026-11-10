@@ -17,6 +17,10 @@ const chatMessages = [];
 const chatMessagesWithFlags = [];
 const actorUpdates = [];
 const dialogCalls = [];
+const socketEmissions = [];
+const gameUsers = [];
+const socketListeners = [];
+let relayAckMode = "registered"; // "registered" | "already-known" | "error" | "silent"
 
 globalThis.ChatMessage = {
   async create(data) {
@@ -44,14 +48,47 @@ globalThis.foundry = {
         "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
       })[char]);
     },
-    mergeObject: (a, b) => ({ ...a, ...b })
+    mergeObject: (a, b) => ({ ...a, ...b }),
+    randomID() { return `req-${Math.random().toString(36).slice(2)}`; }
   }
 };
 
 const worldSettings = new Map();
 globalThis.game = {
-  user: { isGM: true, character: null },
+  user: { isGM: true, character: null, id: "gm-user" },
   actors: [],
+  users: {
+    get(id) { return gameUsers.find(u => u.id === id || u._id === id) ?? null; },
+    filter(fn) { return gameUsers.filter(fn); },
+    get activeGM() { return gameUsers.find(u => u.isGM && u.active) ?? null; }
+  },
+  socket: {
+    emit(action, payload) {
+      socketEmissions.push({ action, payload });
+      // Simulated GM round-trip for real MK relay requests: the GM side is
+      // exercised for real in monster-knowledge-relay.test.mjs. Here the ack
+      // is produced synchronously (no timers) so the requesting player's
+      // promise settles the way F2-T1 defines, without running the GM
+      // handler — the player client therefore never writes the registry.
+      if (payload?.action === "mk-discovery-request" && relayAckMode !== "silent") {
+        const ack = {
+          scope: "sword-world-25",
+          action: "mk-discovery-ack",
+          requestId: payload.requestId,
+          gid: payload.gid,
+          requestedBy: payload.requesterId,
+          ...(relayAckMode === "already-known"
+            ? { status: "already-known", speciesId: payload.evidence.speciesId, recordId: null }
+            : relayAckMode === "error"
+              ? { status: "error", code: "version-too-new", error: "simulated relay failure" }
+              : { status: "registered", speciesId: payload.evidence.speciesId, recordId: "mkd-relay-mock" })
+        };
+        for (const listener of [...socketListeners]) listener(ack, "gm-user");
+      }
+      return Promise.resolve();
+    },
+    on(channel, handler) { socketListeners.push(handler); }
+  },
   settings: {
     get(scope, key) { return worldSettings.get(`${scope}.${key}`); },
     set(scope, key, value) { worldSettings.set(`${scope}.${key}`, structuredClone(value)); return value; }
@@ -59,7 +96,7 @@ globalThis.game = {
   scenes: []
 };
 
-globalThis.CONST = { DOCUMENT_OWNERSHIP_LEVELS: { NONE: 0, OWNER: 1 } };
+globalThis.CONST = { DOCUMENT_OWNERSHIP_LEVELS: { NONE: 0, OBSERVER: 2, OWNER: 1 } };
 
 globalThis.fromUuid = async uuid => {
   // Resolve Actor documents by uuid for targetMonster.uuid lookups.
@@ -140,9 +177,15 @@ globalThis.registerRollModifiersDialog = (constructor) => {
 // ── Import after mocks are in place ────────────────────────────────────────
 
 import { rollMonsterKnowledge, isSpeciesWeaknessKnown } from "../module/combat/monster-knowledge.mjs";
+import { readMkDiscoveries } from "../module/knowledge/monster-knowledge-registry.mjs";
+import { initializeMonsterKnowledgeRelay, pendingMkRelayRequestCount } from "../module/knowledge/mk-relay.mjs";
 import { resolveSkillClass } from "../module/rules/skill-resolution.mjs";
 import { SKILL_DEFINITION_MAP } from "../module/rules/skill-definitions.mjs";
 import { registerRollModifiersDialog } from "../module/rules/roll-modifiers.mjs";
+
+// Register the requester-side relay listener once (acks settle the pending
+// promise through the mock socket round-trip above).
+initializeMonsterKnowledgeRelay();
 
 // Mock dialog: returns the seed parts unchanged (simulates user clicking
 // Submit without changing anything).
@@ -199,13 +242,22 @@ const makeMonster = (overrides = {}) => {
     reputation: 10,
     ...overrides.system
   };
+  const ownership = { ...overrides.ownership };
   return {
     id: "monster-1",
     name: "Goblin",
     type: "monster",
     system,
+    ownership,
     uuid: "Actor.monster-1",
-    testUserPermission() { return true; },
+    testUserPermission(user, permission) {
+      // Foundry v14 semantics: GM always has full access; others use effective level.
+      if (user?.isGM) return true;
+      const perms = { NONE: 0, LIMITED: 1, OBSERVER: 2, OWNER: 3 };
+      const level = this.ownership[user?.id] ?? this.ownership.default ?? perms.NONE;
+      const target = (typeof permission === "string") ? (perms[permission] ?? perms.OWNER) : permission;
+      return level >= target;
+    },
     isOwner: true,
     flags: {},
     async setFlag(scope, key, value) {
@@ -216,6 +268,12 @@ const makeMonster = (overrides = {}) => {
     async getFlag(scope, key) { return this.flags[scope]?.[key]; },
     async update(data) {
       for (const [path, value] of Object.entries(data ?? {})) {
+        if (path === "ownership") {
+          for (const [key, val] of Object.entries(value ?? {})) {
+            ownership[key] = val;
+          }
+          continue;
+        }
         const parts = path.split(".");
         let obj = system;
         for (let i = 0; i < parts.length - 1; i++) {
@@ -235,8 +293,14 @@ function resetWorld() {
   actorUpdates.length = 0;
   dialogCalls.length = 0;
   warnings.length = 0;
+  socketEmissions.length = 0;
   rollResults.length = 0;
   rollFormula = "";
+  relayAckMode = "registered";
+  gameUsers.length = 0;
+  gameUsers.push({ _id: "gm-user", id: "gm-user", isGM: true, active: true, name: "GameMaster" });
+  game.user.isGM = true;
+  game.user.id = "gm-user";
   game.user.character = null;
   game.actors = [];
 }
@@ -440,7 +504,6 @@ resetWorld();
   const result = await rollMonsterKnowledge({ actor: char, targetMonster: daemon });
   assert.deepEqual(result.discoveries.map(d => d.type), ["stats", "classification", "weakness"], "stats, identification and Weak Point at threshold");
   assert.equal(isSpeciesWeaknessKnown("legion daemon"), true, "weakness registered for species");
-  assert.equal(daemon.system.revealed, true, "Dark Hunter reveals statistics");
   const successMsg = chatMessagesWithFlags[1];
   assert.ok(successMsg.flavor.includes("Success — Weakness revealed"), "weakness verdict on the successful roll");
   console.log("  ✓ PASS");
@@ -504,7 +567,6 @@ resetWorld();
   const result = await rollMonsterKnowledge({ actor: char, targetMonster: undead });
   assert.equal(result.status, "resolved", "Undead target is valid with Monster Watch");
   assert.deepEqual(result.discoveries.map(d => d.type), ["stats", "classification", "weakness"], "stats, identification and Weak Point reachable on Undead");
-  assert.equal(undead.system.revealed, true, "statistics revealed");
   assert.equal(isSpeciesWeaknessKnown("ghoul"), true, "weakness registered");
   console.log("  ✓ PASS");
 }
@@ -609,7 +671,6 @@ resetWorld();
   assert.equal(chatMessagesWithFlags.length, 1, "exactly ONE roll message");
   assert.deepEqual(result.usedClasses.map(c => c.className).sort(), ["rider", "sage"], "both native classes applicable");
   assert.deepEqual(result.discoveries.map(d => d.type), ["stats", "weakness"], "stats (any) plus Weak Point (Sage)");
-  assert.equal(monster.system.revealed, true, "statistics revealed");
   assert.equal(isSpeciesWeaknessKnown("goblin scout"), true, "Weak Point registered via Sage");
   console.log("  ✓ PASS");
 }
@@ -952,6 +1013,295 @@ resetWorld();
   assert.equal(result.mainResult?.result, 12, "main result value 12 — NOT Rider 19");
   // usedClasses order is level-desc (Rider 8 first): results [19, 12].
   assert.deepEqual(result.individualResults.map(entry => entry.result), [19, 12], "Rider 19 and Sage 12 both retained");
+  console.log("  ✓ PASS");
+}
+
+// ── OBSERVER permission tests (Fase 4 model) ──────────────────────────────
+
+// Test 28: Player Statistics discovery NEVER requests an Observer grant on the
+// original Actor. Reputation is persisted through the GM relay instead, with
+// the reputation level and the rolling character's attribution.
+console.log("Test 28: Player Statistics persists Reputation via GM relay, no Observer grant");
+resetWorld();
+{
+  const char = makeCharacter({ system: { combat: { monsterKnowledgeClassId: "cls-sage" } } });
+  // weakness 25: Sage SV 17 reaches Reputation (8) but not Weakness, so only
+  // one relay request (reputation) is expected.
+  const monster = makeMonster({ system: { weakness: 25, reputation: 8, species: "Goblin" }, ownership: { default: 0 } });
+  game.user.isGM = false;
+  game.user.id = "player-1";
+  game.user.character = char;
+  game.actors.push(char, monster);
+  rollResults.push([[4, 4]]); // dice 8, SV = 8 + 3 + 2 = 13 >= reputation 8, < weakness 25
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: monster });
+  assert.deepEqual(result.discoveries.map(d => d.type), ["stats"], "stats discovered");
+  const observerRequests = socketEmissions.filter(e => e.payload?.action === "mk-grant-observer");
+  assert.equal(observerRequests.length, 0, "NO Observer ownership request on the original Actor (Fase 4)");
+  assert.equal(monster.ownership.default, 0, "the original Actor's ownership is untouched");
+  const relayRequests = socketEmissions.filter(e => e.payload?.action === "mk-discovery-request");
+  assert.equal(relayRequests.length, 1, "the reputation discovery is relayed to the GM");
+  assert.equal(relayRequests[0].payload.gid, "gm-user", "relay targets the active GM");
+  assert.equal(relayRequests[0].payload.requesterId, "player-1", "relay carries the rolling player's id");
+  assert.equal(relayRequests[0].payload.evidence.level, "reputation", "evidence level is reputation");
+  assert.equal(relayRequests[0].payload.evidence.actorUuid, "Actor.hero-1", "evidence carries the rolling character's uuid");
+  assert.equal(relayRequests[0].payload.evidence.actorName, "Hero", "evidence carries the rolling character's name");
+  assert.equal(isSpeciesWeaknessKnown("Goblin"), false, "player client performs no local registry write");
+  console.log("  ✓ PASS");
+}
+
+// Test 29: Player already at OBSERVER on the original: ownership stays, and
+// the reputation discovery still goes through the relay (Fase 4: originals
+// are never modified regardless of the player's effective permission).
+console.log("Test 29: Already observable: originals untouched, relay carries the discovery");
+resetWorld();
+{
+  const char = makeCharacter({ system: { combat: { monsterKnowledgeClassId: "cls-sage" } } });
+  const monster = makeMonster({ system: { weakness: 25, reputation: 8, species: "Goblin" }, ownership: { default: 0, "player-1": 2 } });
+  game.user.isGM = false;
+  game.user.id = "player-1";
+  game.user.character = char;
+  game.actors.push(char, monster);
+  rollResults.push([[4, 4]]); // dice 8, SV = 8 + 3 + 2 = 13 >= reputation 8, < weakness 25
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: monster });
+  assert.deepEqual(result.discoveries.map(d => d.type), ["stats"], "stats discovered");
+  assert.equal(socketEmissions.filter(e => e.payload?.action === "mk-grant-observer").length, 0, "no Observer request regardless of current permission");
+  assert.equal(socketEmissions.filter(e => e.payload?.action === "mk-discovery-request").length, 1, "reputation discovery relayed");
+  assert.deepEqual(monster.ownership, { default: 0, "player-1": 2 }, "ownership untouched, no pendingObserver flag changes");
+  console.log("  ✓ PASS");
+}
+
+// Test 30: Player with higher explicit permission (OWNER) is not downgraded.
+console.log("Test 30: Higher explicit permission preserved");
+resetWorld();
+{
+  const char = makeCharacter({ system: { combat: { monsterKnowledgeClassId: "cls-sage" } } });
+  const monster = makeMonster({ system: { weakness: 10, reputation: 8, species: "Goblin" }, ownership: { default: 0, "player-1": 3 } });
+  game.user.isGM = false;
+  game.user.id = "player-1";
+  game.user.character = char;
+  game.actors.push(char, monster);
+  rollResults.push([[6, 6]]);
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: monster });
+  assert.deepEqual(result.discoveries.map(d => d.type).sort(), ["stats", "weakness"], "stats discovered");
+  assert.equal(socketEmissions.filter(e => e.payload?.action === "mk-grant-observer").length, 0, "no socket request for OWNER player");
+  assert.equal(monster.ownership["player-1"], 3, "OWNER entry not downgraded");
+  console.log("  ✓ PASS");
+}
+
+// Test 31: Explicit per-user entries of other users survive; the legacy
+// grant/withdraw ownership mutations no longer exist at all.
+console.log("Test 31: Explicit per-user ownership entries survive untouched");
+resetWorld();
+{
+  const char = makeCharacter({ system: { combat: { monsterKnowledgeClassId: "cls-sage" } } });
+  const monster = makeMonster({
+    system: { weakness: 25, reputation: 8, species: "Goblin" },
+    ownership: { default: 0, "player-abc": 3 }
+  });
+  game.user.isGM = false;
+  game.user.id = "player-1";
+  game.user.character = char;
+  game.actors.push(char, monster);
+  rollResults.push([[4, 4]]); // dice 8, SV = 8 + 3 + 2 = 13 >= reputation 8, < weakness 25
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: monster });
+  assert.deepEqual(result.discoveries.map(d => d.type), ["stats"], "stats discovered");
+  assert.equal(socketEmissions.filter(e => e.payload?.action === "mk-grant-observer").length, 0, "no Observer ownership flow exists");
+  assert.deepEqual(monster.ownership, { default: 0, "player-abc": 3 }, "ownership object deeply unchanged");
+  console.log("  ✓ PASS");
+}
+
+// Test 32: Weak Point only (no Statistics) does not request OBSERVER.
+console.log("Test 32: Weak Point only does not grant OBSERVER");
+resetWorld();
+{
+  const char = makeCharacter({ system: { combat: { monsterKnowledgeClassId: "cls-sage" } } });
+  // reputation 25, weakness 10: SV 20 reaches Weakness but not Reputation.
+  const monster = makeMonster({ system: { weakness: 10, reputation: 25, species: "Ogre" }, ownership: { default: 0 } });
+  game.user.isGM = false;
+  game.user.id = "player-1";
+  game.user.character = char;
+  game.actors.push(char, monster);
+  rollResults.push([[10, 5]]); // dice 15, SV = 15 + 3 + 2 = 20 >= weakness 10, < reputation 25
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: monster });
+  assert.deepEqual(result.discoveries.map(d => d.type), ["weakness"], "only Weak Point discovered");
+  // F2-T1: the player roll reaches weakness threshold and the discovery is
+  // handed to the connected GM through the MK relay. The mock's socket
+  // round-trip answers the ack but never executes the GM-side write, so the
+  // player client still does not persist anything locally — the registry
+  // write only ever happens on the GM client (GM-authoritative persistence).
+  const relayRequests = socketEmissions.filter(e => e.payload?.action === "mk-discovery-request");
+  assert.equal(relayRequests.length, 1, "weakness discovery is relayed to the GM");
+  assert.equal(relayRequests[0].payload.gid, "gm-user", "relay targets the active GM");
+  assert.equal(relayRequests[0].payload.requesterId, "player-1", "relay carries the rolling player's id");
+  assert.equal(relayRequests[0].payload.evidence.discoveredBy, "player-1", "discoveredBy is the rolling player");
+  assert.equal(isSpeciesWeaknessKnown("Ogre"), false, "player client performs no local registry write");
+  assert.equal(socketEmissions.filter(e => e.payload?.action === "mk-grant-observer").length, 0, "no OBSERVER request without Statistics");
+  assert.equal(monster.ownership.default, 0, "ownership unchanged");
+  console.log("  ✓ PASS");
+}
+
+// Test 33: No Statistics discovery: failed Reputation does not request OBSERVER.
+console.log("Test 33: No Statistics discovery: ownership unchanged");
+resetWorld();
+{
+  const char = makeCharacter({ system: { combat: { monsterKnowledgeClassId: "cls-sage" } } });
+  const monster = makeMonster({ system: { weakness: 15, reputation: 20, species: "Orc" }, ownership: { default: 0 } });
+  game.user.isGM = false;
+  game.user.id = "player-1";
+  game.user.character = char;
+  game.actors.push(char, monster);
+  rollResults.push([[3, 3]]); // dice 6, SV = 6 + 3 + 2 = 11 < reputation 20, < weakness 15
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: monster });
+  assert.deepEqual(result.discoveries.map(d => d.type), [], "no discoveries");
+  assert.equal(socketEmissions.filter(e => e.payload?.action === "mk-grant-observer" || e.payload?.action === "mk-discovery-request").length, 0, "no OBSERVER or relay request");
+  assert.equal(monster.ownership.default, 0, "ownership unchanged");
+  console.log("  ✓ PASS");
+}
+
+// Test 34: Stats by any eligible class (Sage or Rider) persists Reputation
+// through the GM relay; a single reputation discovery per roll.
+console.log("Test 34: Stats by any eligible class relays reputation once");
+resetWorld();
+{
+  const char = makeCharacter(); // Sage 3 + Rider 2
+  const monster = makeMonster({ system: { weakness: 25, reputation: 8, species: "Goblin" }, ownership: { default: 0 } });
+  game.user.isGM = false;
+  game.user.id = "player-1";
+  game.user.character = char;
+  game.actors.push(char, monster);
+  rollResults.push([[4, 4]]); // dice 8, Sage SV = 8 + 3 + 2 = 13 >= 8; Rider SV = 8 + 2 + 2 = 12 >= 8
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: monster });
+  assert.deepEqual(result.discoveries.map(d => d.type).sort(), ["stats"], "stats discovered (Sage and/or Rider)");
+  const relayRequests = socketEmissions.filter(e => e.payload?.action === "mk-discovery-request");
+  assert.equal(relayRequests.length, 1, "a single reputation discovery per roll regardless of class count");
+  assert.equal(relayRequests[0].payload.evidence.level, "reputation", "evidence level is reputation");
+  assert.equal(socketEmissions.filter(e => e.payload?.action === "mk-grant-observer").length, 0, "no Observer ownership request");
+  console.log("  ✓ PASS");
+}
+
+// Test 35: GM Statistics discovery resolves without any Observer grant attempt.
+console.log("Test 35: GM Statistics discovery: no grant, no socket request");
+resetWorld();
+{
+  const char = makeCharacter({ system: { combat: { monsterKnowledgeClassId: "cls-rider" } } });
+  const monster = makeMonster({ system: { weakness: 20, reputation: 8, species: "Goblin" }, ownership: { default: 0 } });
+  game.actors.push(char, monster);
+  rollResults.push([[4, 3]]); // dice 7, Rider SV = 7 + 2 + 2 = 11 >= 8 stats; < weakness 20
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: monster });
+  assert.deepEqual(result.discoveries.map(d => d.type), ["stats"], "Statistics discovered by GM roll");
+  assert.equal(socketEmissions.length, 0, "no socket request for GM roll");
+  assert.deepEqual(monster.ownership, { default: 0 }, "ownership untouched for GM roll");
+  assert.equal(actorUpdates.some(u => u.ownership !== undefined), false, "no ownership update issued for GM roll");
+  console.log("  ✓ PASS");
+}
+
+// Test 36: GM Weak Point discovery registers in the persistent registry.
+console.log("Test 36: GM Weak Point discovery registers in persistent registry");
+resetWorld();
+{
+  const char = makeCharacter({ system: { combat: { monsterKnowledgeClassId: "cls-sage" } } });
+  // reputation 25, weakness 10: SV 20 reaches Weakness but not Reputation.
+  const monster = makeMonster({ system: { weakness: 10, reputation: 25, species: "Ogre" }, ownership: { default: 0 } });
+  game.actors.push(char, monster);
+  rollResults.push([[10, 5]]); // dice 15, Sage SV = 15 + 3 + 2 = 20 >= weakness 10, < reputation 25
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: monster });
+  assert.deepEqual(result.discoveries.map(d => d.type), ["weakness"], "only Weak Point discovered by GM");
+  assert.equal(isSpeciesWeaknessKnown("Ogre"), true, "Weak Point registered in persistent registry for GM discovery");
+  assert.equal(socketEmissions.length, 0, "no OBSERVER request for GM roll");
+  assert.deepEqual(monster.ownership, { default: 0 }, "ownership untouched for GM roll");
+  console.log("  ✓ PASS");
+}
+
+// Test 37: GM Statistics + Weak Point: both effects resolve, no grant attempted.
+console.log("Test 37: GM stats + Weak Point both resolve, no grant");
+resetWorld();
+{
+  const char = makeCharacter({ system: { combat: { monsterKnowledgeClassId: "cls-sage" } } });
+  const monster = makeMonster({ system: { weakness: 10, reputation: 8, species: "Goblin" }, ownership: { default: 0 } });
+  game.actors.push(char, monster);
+  rollResults.push([[6, 6]]); // automatic success, SV = 12 + 3 + 2 = 17 >= 8
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: monster });
+  assert.deepEqual(result.discoveries.map(d => d.type), ["stats", "weakness"], "both effects resolve for GM roll");
+  assert.equal(isSpeciesWeaknessKnown("Goblin"), true, "Weak Point registered for GM discovery");
+  assert.equal(socketEmissions.length, 0, "no socket request for GM roll");
+  assert.deepEqual(monster.ownership, { default: 0 }, "no ownership change for GM roll");
+  console.log("  ✓ PASS");
+}
+
+// Test 38: GM failed roll registers nothing and requests nothing.
+console.log("Test 38: GM failed roll registers nothing");
+resetWorld();
+{
+  const char = makeCharacter({ system: { combat: { monsterKnowledgeClassId: "cls-sage" } } });
+  const monster = makeMonster({ system: { weakness: 15, reputation: 20, species: "Orc" }, ownership: { default: 0 } });
+  game.actors.push(char, monster);
+  rollResults.push([[3, 3]]); // dice 6, SV = 6 + 3 + 2 = 11 < reputation 20, < weakness 15
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: monster });
+  assert.deepEqual(result.discoveries.map(d => d.type), [], "no discoveries on failed GM roll");
+  assert.equal(isSpeciesWeaknessKnown("Orc"), false, "nothing registered on failed GM roll");
+  assert.equal(socketEmissions.length, 0, "no OBSERVER request");
+  assert.deepEqual(monster.ownership, { default: 0 }, "ownership untouched");
+  console.log("  ✓ PASS");
+}
+
+// Test 39: Player roll without a connected GM is not performed at all:
+// informative notice, no roll, no socket emission, no pending request.
+console.log("Test 39: Player roll without a connected GM does not happen");
+resetWorld();
+{
+  const char = makeCharacter({ system: { combat: { monsterKnowledgeClassId: "cls-sage" } } });
+  const monster = makeMonster({ system: { weakness: 10, reputation: 8, species: "Goblin" }, ownership: { default: 0 } });
+  game.user.isGM = false;
+  game.user.id = "player-1";
+  game.user.character = char;
+  gameUsers.length = 0; // no user at all: no active GM
+  game.actors.push(char, monster);
+  rollResults.push([[6, 6]]); // would be an automatic success if the roll happened
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: monster });
+  assert.equal(result.status, "no-gm", "roll refuses with an explicit no-gm status");
+  assert.deepEqual(result.phases, { dialog: false, roll: false }, "dialog and roll phases never start");
+  assert.ok(warnings.some(w => String(w).includes("Game Master")), "informative notice about the missing GM is shown");
+  assert.equal(socketEmissions.length, 0, "nothing is emitted: no relay request, no OBSERVER request");
+  assert.equal(pendingMkRelayRequestCount(), 0, "no pending relay request is created");
+  assert.equal(isSpeciesWeaknessKnown("Goblin"), false, "no local write happened");
+  assert.deepEqual(monster.ownership, { default: 0 }, "ownership untouched");
+  console.log("  ✓ PASS");
+}
+
+// Test 40: GM Statistics discovery persists a Reputation record with level
+// and the rolling character's attribution; no ownership changes anywhere.
+console.log("Test 40: GM Reputation discovery persists with level and character attribution");
+resetWorld();
+{
+  const char = makeCharacter({ system: { combat: { monsterKnowledgeClassId: "cls-sage" } } });
+  const monster = makeMonster({ system: { weakness: 25, reputation: 8, species: "Lamia" }, ownership: { default: 0 } });
+  game.actors.push(char, monster);
+  rollResults.push([[4, 4]]); // dice 8, Sage SV 13 >= reputation 8, < weakness 25 (stats only)
+
+  const result = await rollMonsterKnowledge({ actor: char, targetMonster: monster });
+  assert.deepEqual(result.discoveries.map(d => d.type), ["stats"], "Statistics discovered by GM roll");
+  const discoveries = readMkDiscoveries();
+  assert.equal(discoveries.ok, true, "registry readable");
+  const records = discoveries.data.filter(d => d.speciesId === "lamia");
+  assert.equal(records.length, 1, "exactly one reputation discovery registered");
+  assert.equal(records[0].level, "reputation", "level is reputation (weakness must not be forced)");
+  assert.equal(records[0].actorUuid, "Actor.hero-1", "discovering character uuid persisted");
+  assert.equal(records[0].actorName, "Hero", "discovering character name persisted");
+  assert.equal(records[0].source, "roll", "source is the roll origin");
+  assert.equal(socketEmissions.filter(e => e.payload?.action === "mk-grant-observer").length, 0, "no Observer ownership request on the original");
+  assert.deepEqual(monster.ownership, { default: 0 }, "original Actor ownership untouched");
   console.log("  ✓ PASS");
 }
 

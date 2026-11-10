@@ -1,0 +1,94 @@
+<div class="sw25-mk-manager">
+  <header class="sw25-mk-header">
+    <h2 class="sw25-mk-title">Monster Knowledge Manager</h2>
+    <p class="sw25-mk-subtitle">Manage Weak Point discoveries by session and campaign.</p>
+  </header>
+
+  {{#if viewIsRecords}}
+    <section class="sw25-mk-screen sw25-mk-screen-records">
+      <div class="sw25-mk-toolbar">
+        <button type="button" class="sw25-mk-btn sw25-mk-btn-primary sw25-mk-btn-small" data-action="mk-new-campaign"><i class="fas fa-layer-group"></i> New Campaign</button>
+        <button type="button" class="sw25-mk-btn sw25-mk-btn-primary sw25-mk-btn-small" data-action="mk-new-session"><i class="fas fa-clock"></i> New Session</button>
+      </div>
+
+      {{#if records.length}}
+        <div class="sw25-mk-records">
+          {{#each records as |record|}}
+            <div class="sw25-mk-record {{#if record.active}}sw25-mk-record-active{{/if}}">
+              <span class="sw25-mk-chip {{record.chipClass}}">{{#if record.active}}● {{/if}}{{record.typeLabel}}</span>
+              <span class="sw25-mk-record-name">{{record.name}}</span>
+              <span class="sw25-mk-record-count">{{record.discoveries}} discovery{{#unless record.isSingular}}ies{{/unless}}</span>
+              <button type="button" class="sw25-mk-list-toggle" data-action="mk-toggle-record" data-mk-kind="{{record.kind}}" data-mk-id="{{record.id}}" data-mk-active="{{#if record.active}}1{{else}}0{{/if}}" {{#if record.active}}disabled{{/if}} title="{{#if record.active}}Active register{{else}}Set as the active register{{/if}}" aria-label="{{#if record.active}}Active register{{else}}Set as the active register{{/if}}"><i class="{{#if record.active}}fas fa-toggle-on{{else}}fas fa-toggle-off{{/if}}"></i></button>
+              <button type="button" class="sw25-mk-btn sw25-mk-btn-open sw25-mk-btn-small" data-action="mk-open-record" data-mk-kind="{{record.kind}}" data-mk-id="{{record.id}}" title="Open {{record.typeLabel}}"><i class="fas fa-chevron-right"></i></button>
+              <span class="{{record.statusClass}}">{{record.statusLabel}}</span>
+              <button type="button" class="sw25-mk-list-x" data-action="mk-delete-record" data-mk-kind="{{record.kind}}" data-mk-id="{{record.id}}" data-mk-name="{{record.name}}" data-mk-discoveries="{{record.discoveries}}" title="Delete this {{#if record.isCampaign}}campaign{{else}}session{{/if}} and all its entries" aria-label="Delete record"><i class="fas fa-times"></i></button>
+            </div>
+          {{/each}}
+        </div>
+      {{else}}
+        <p class="sw25-mk-empty">No sessions or campaigns registered. Create one from the buttons above.</p>
+      {{/if}}
+    </section>
+  {{/if}}
+
+  {{#if viewIsDetail}}
+    <section class="sw25-mk-screen sw25-mk-screen-detail">
+      <div class="sw25-mk-detail-header">
+        <button type="button" class="sw25-mk-btn sw25-mk-btn-back sw25-mk-btn-small" data-action="mk-back"><i class="fas fa-chevron-left"></i> Back</button>
+        <div class="sw25-mk-detail-identity">
+          <span class="sw25-mk-chip {{record.chipClass}}">{{record.typeLabel}}</span>
+          {{#if record.isSession}}
+            {{#if record.startedAtLabel}}<span class="sw25-mk-detail-date" title="Session start">{{record.startedAtLabel}}</span>{{/if}}
+          {{/if}}
+          {{#if record.isCampaign}}
+            <span class="sw25-mk-campaign-name">{{record.name}}</span>
+          {{/if}}
+        </div>
+      </div>
+
+      {{#if discoveries.length}}
+        <div class="sw25-mk-discoveries">
+          <div class="sw25-mk-discoveries-heading">
+            <span class="sw25-mk-discoveries-label">Species with registered knowledge</span>
+            <span class="sw25-mk-discoveries-count">{{discoveries.length}}</span>
+          </div>
+          <ul class="sw25-mk-discovery-list">
+            {{#each discoveries as |discovery|}}
+              <li class="sw25-mk-discovery-row">
+                <span class="sw25-mk-pill {{discovery.levelPillClass}}" title="{{discovery.levelLabel}}">{{discovery.speciesLabel}}</span>
+                <span class="sw25-mk-species-id">{{discovery.speciesId}}</span>
+                <span class="sw25-mk-discoverer-pill" title="Discovering character">{{discovery.discoveredByActorName}}</span>
+                {{#if ../canWithdraw}}
+                  <button type="button" class="sw25-mk-withdraw-x" data-action="mk-remove-species" data-mk-species-id="{{discovery.speciesId}}" data-mk-species-label="{{discovery.speciesLabel}}" data-mk-species-uuid="{{discovery.monsterUuid}}" title="Remove this species entry (any level) together with its Bestiary copy" aria-label="Remove this species entry"><i class="fas fa-times"></i></button>
+                {{/if}}
+              </li>
+            {{/each}}
+          </ul>
+        </div>
+      {{else}}
+        <p class="sw25-mk-empty">This record has no discoveries.</p>
+      {{/if}}
+
+      <div class="sw25-mk-detail-actions">
+        {{#if record.active}}
+          <button type="button" class="sw25-mk-btn sw25-mk-btn-secondary sw25-mk-btn-small" disabled title="This record is the active register"><i class="fas fa-toggle-on"></i> Active register</button>
+        {{else}}
+          <button type="button" class="sw25-mk-btn sw25-mk-btn-secondary sw25-mk-btn-small" data-action="mk-activate-record" title="Set as the active register"><i class="fas fa-toggle-off"></i> Set as active register</button>
+        {{/if}}
+
+        <button type="button" class="sw25-mk-btn sw25-mk-btn-primary sw25-mk-btn-small" data-action="mk-add-monster" title="Add a monster manually"><i class="fas fa-user-plus"></i> Add Monster</button>
+        {{#if record.isCampaignAndCanDelete}}
+          <button type="button" class="sw25-mk-btn sw25-mk-btn-delete delete-button sw25-mk-btn-small" data-action="mk-delete-campaign" title="Delete this campaign and its discoveries"><i class="fas fa-trash"></i> Delete Campaign</button>
+        {{/if}}
+
+        {{#if canReset}}
+          <button type="button" class="sw25-mk-btn sw25-mk-btn-delete delete-button sw25-mk-btn-small" data-action="mk-reset-record" title="Reset this record removing all its discoveries"><i class="fas fa-undo"></i> Reset Record</button>
+        {{/if}}
+      </div>
+    </section>
+  {{/if}}
+
+  <footer class="sw25-mk-footer">
+    <span class="sw25-mk-footer-hint">Only the Game Master can modify this record. All operations go through the Monster Knowledge service.</span>
+  </footer>
+</div>

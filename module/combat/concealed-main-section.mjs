@@ -8,20 +8,15 @@ const escape = value => foundry.utils.escapeHTML(String(value ?? ""));
 const normalized = value => String(value ?? "").trim().toLowerCase();
 
 // ── Species identification for Concealed Main Section ──────────────────────
+//
+// Since F2-T2 (consumer integration) the species identity used by this
+// module is the single authoritative implementation in
+// module/knowledge/mk-identity.mjs; the pre-F1 duplicated copy is gone.
+// The re-export preserves this module's export surface for any consumer.
 
-export function normalizeSpeciesId(value) {
-  if (value === null || value === undefined) return null;
-  const trimmed = String(value).trim();
-  if (!trimmed) return null;
-  return trimmed.normalize("NFC").replace(/\s+/g, " ").toLowerCase();
-}
+import { normalizeSpeciesId, speciesId } from "../knowledge/mk-identity.mjs";
 
-export function speciesId(actor) {
-  if (!actor || !actor.system) return null;
-  const species = actor.system?.species;
-  if (!species) return null;
-  return normalizeSpeciesId(species);
-}
+export { normalizeSpeciesId, speciesId };
 
 // ── Concealed Main Section detection ───────────────────────────────────────
 
@@ -33,10 +28,11 @@ export function getConcealedMainSectionSections(actor) {
     || !/^special(?:\s*,?\s*see below)?$/i.test(String(system.mainSection.sourceValue ?? ""))
     || !Array.isArray(system.uniqueSkills)
     || !system.uniqueSkills.some(skill => /^◯\s*Concealed Main Section$/i.test(String(skill.title ?? "").trim()))) return [];
-  if (!Array.isArray(system.sections) || system.sections.length !== SECTION_NAMES.length) return [];
-  const sections = system.sections.filter(section => SECTION_NAMES.includes(normalized(section.name)));
+  const combatStyles = Array.isArray(system.combatStyles) ? system.combatStyles : [];
+  if (combatStyles.length !== SECTION_NAMES.length) return [];
+  const sections = combatStyles.filter(cs => SECTION_NAMES.includes(normalized(cs.section)));
   if (sections.length !== SECTION_NAMES.length
-    || new Set(sections.map(section => normalized(section.name))).size !== SECTION_NAMES.length) return [];
+    || new Set(sections.map(section => normalized(section.section))).size !== SECTION_NAMES.length) return [];
   return sections;
 }
 
@@ -58,7 +54,7 @@ export function selectConcealedMainSection(actor, randomIndex = cryptoRandomInde
   if (!Number.isInteger(index) || index < 0 || index >= sections.length) {
     throw new Error("Concealed Main Section selection returned an invalid index.");
   }
-  return sections[index].name;
+  return sections[index].section;
 }
 
 function tokenState(token) {
@@ -121,7 +117,7 @@ async function privateSelectionForToken(token) {
   if (!journal) throw new Error(`${token.name} concealed-section record is missing; the selection was not rerolled.`);
   const record = journal.getFlag(SYSTEM_ID, STATE_KEY);
   if (record?.tokenUuid !== token.uuid
-    || !getConcealedMainSectionSections(token.actor).some(section => section.name === record.section)) {
+    || !getConcealedMainSectionSections(token.actor).some(section => section.section === record.section)) {
     throw new Error(`${token.name} concealed-section record is malformed; the selection was not revealed.`);
   }
   return { state, section: record.section };

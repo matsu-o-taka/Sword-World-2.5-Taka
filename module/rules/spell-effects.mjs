@@ -157,20 +157,24 @@ async function requestExhaustiveHealing(message, button) {
 }
 
 export function initializeSpellEffects() {
-  Hooks.on("renderChatMessage", (message, html) => {
-    // html may be a raw HTMLElement (Foundry v14) or a jQuery result: $()
-    // accepts both, and normalizes this hook to jQuery calls.
-    const $html = $(html);
-    $html.find("[data-sw25-chat-action='end-regeneration']").on("click", event => {
-      event.preventDefault();
-      return requestCancel(event.currentTarget);
+  Hooks.on("renderChatMessageHTML", (message, html) => {
+    html.querySelectorAll("[data-sw25-chat-action='end-regeneration']").forEach(button => {
+      button.addEventListener("click", event => {
+        event.preventDefault();
+        return requestCancel(event.currentTarget);
+      });
     });
-    const healingButton = $html.find("[data-sw25-chat-action='heal-exhaustive-sucking']");
-    if (message.getFlag(FLAG_SCOPE, "exhaustiveHealingApplied")) healingButton.prop("disabled", true).html('<i class="fas fa-check"></i> Healing Applied');
-    healingButton.on("click", event => {
-      event.preventDefault();
-      return requestExhaustiveHealing(message, event.currentTarget);
-    });
+    const healingButton = html.querySelector("[data-sw25-chat-action='heal-exhaustive-sucking']");
+    if (healingButton) {
+      if (message.getFlag(FLAG_SCOPE, "exhaustiveHealingApplied")) {
+        healingButton.disabled = true;
+        healingButton.innerHTML = '<i class="fas fa-check"></i> Healing Applied';
+      }
+      healingButton.addEventListener("click", event => {
+        event.preventDefault();
+        return requestExhaustiveHealing(message, event.currentTarget);
+      });
+    }
   });
   Hooks.on("updateActor", actor => {
     if (!game.user.isGM || actor.type !== "character" || Number(actor.system.hp?.value ?? 1) > 0) return;

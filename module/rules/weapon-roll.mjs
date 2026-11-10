@@ -2,6 +2,7 @@ import { isGunWeapon, isWarriorClass, weaponDamageParts } from "./weapon-damage.
 import { damageApplicationButton } from "../combat/damage-application.mjs";
 import { criticalFailureHTML, markCriticalFailure } from "./critical-failure.mjs";
 import { resolveClassAssignment } from "./skill-resolution.mjs";
+import { signedValue } from "./roll-modifiers.mjs";
 
 export function resolveAttackingClass(actor, weapon, requestedClassId = "") {
   if (isGunWeapon(weapon)) {
@@ -23,7 +24,7 @@ export function resolveAttackingClass(actor, weapon, requestedClassId = "") {
   return assignment.classId ? actor.items.get(assignment.classId) : null;
 }
 
-export async function rollWeaponDamage({ actor, weapon, attackingClass, accumulatedPower = 0 }) {
+export async function rollWeaponDamage({ actor, weapon, attackingClass, accumulatedPower = 0, combatStyleId = null, targetActorUuid = null }) {
   const roll = await new Roll("2d6").evaluate();
   const diceTotal = Number(roll.total) || 0;
   const criticalFailure = await markCriticalFailure(actor, roll);
@@ -58,19 +59,47 @@ export async function rollWeaponDamage({ actor, weapon, attackingClass, accumula
       </button>
     </div>` : "";
 
+  const bonusTotal = total - damage.tableValue;
   await roll.toMessage({
     speaker: ChatMessage.getSpeaker({ actor }),
     flavor: `
-      <div class="sw25-weapon-roll">
-        <h3>${foundry.utils.escapeHTML(weapon.name)}</h3>
-        <p><strong>Power-table roll:</strong> ${diceTotal} → ${damage.tableValue}</p>
-        ${accumulatedPower ? `<p><strong>Accumulated power-table damage:</strong> ${powerTotal}</p>` : ""}
-        <p><strong>${foundry.utils.escapeHTML(attackingClass.name)} level:</strong> ${damage.classLevel}</p>
-        <p><strong>${damage.gun ? "Intelligence" : "Strength"} bonus:</strong> ${damage.bonus >= 0 ? "+" : ""}${damage.bonus}</p>
-        <p><strong>Weapon additional damage:</strong> ${damage.additionalDamage >= 0 ? "+" : ""}${damage.additionalDamage}</p>
-        <p><strong>Additional damage:</strong> ${situationalDamage >= 0 ? "+" : ""}${situationalDamage}</p>
-        <p class="sw25-weapon-total"><strong>Total damage: ${total}</strong></p>
-        ${damageApplicationButton(total, "physical")}
+      <div class="sw25-chat-card sw25-damage-card">
+        <h3>${foundry.utils.escapeHTML(weapon.name)} Damage</h3>
+
+        <div class="sw25-damage-stat" data-target="power-detail">
+          <div class="sw25-damage-stat-summary" role="button" tabindex="0">
+            <span class="sw25-damage-roll">${diceTotal}</span>
+            <span class="sw25-damage-arrow">→</span>
+            <span class="sw25-damage-table-value">${damage.tableValue}</span>
+          </div>
+          <div class="sw25-damage-stat-detail" id="power-detail" style="display:none;">
+            <ul class="sw25-roll-breakdown">
+              <li><strong>Power Table lookup:</strong> ${diceTotal} → ${damage.tableValue}</li>
+              ${accumulatedPower ? `<li><strong>Accumulated power-table damage:</strong> ${accumulatedPower}</li>` : ""}
+            </ul>
+          </div>
+        </div>
+
+        <div class="sw25-damage-stat" data-target="damage-detail">
+          <div class="sw25-damage-stat-summary" role="button" tabindex="0">
+            <span class="sw25-damage-table-value">${damage.tableValue}</span>
+            <span class="sw25-damage-plus">+</span>
+            <span class="sw25-damage-bonus">${signedValue(bonusTotal)}</span>
+            <span class="sw25-damage-equals">=</span>
+            <span class="sw25-damage-total">${total}</span>
+          </div>
+          <div class="sw25-damage-stat-detail" id="damage-detail" style="display:none;">
+            <ul class="sw25-roll-breakdown">
+              <li><strong>${foundry.utils.escapeHTML(attackingClass.name)} level:</strong> ${damage.classLevel}</li>
+              <li><strong>${damage.gun ? "Intelligence" : "Strength"} bonus:</strong> ${signedValue(damage.bonus)}</li>
+              <li><strong>Weapon additional damage:</strong> ${signedValue(damage.additionalDamage)}</li>
+              <li><strong>Additional damage:</strong> ${signedValue(situationalDamage)}</li>
+              ${accumulatedPower ? `<li><strong>Accumulated power-table damage:</strong> ${accumulatedPower}</li>` : ""}
+            </ul>
+          </div>
+        </div>
+
+        ${damageApplicationButton(total, "physical", false, combatStyleId, targetActorUuid)}
         ${criticalControl}
       </div>`
   });

@@ -79,18 +79,22 @@ export function parseSectionDeclaration(value = "") {
   return { sourceValue, count: match ? match[1].trim() : sourceValue, sections };
 }
 
-export function parseMainSection(value = "", uniqueSkills = []) {
+export function parseMainSection(value = "", uniqueSkills = [], combatStyles = []) {
   const sourceValue = String(value ?? "").trim();
   let type = "unspecified";
-  let names = [];
+  let combatStyleIds = [];
   if (/^none$/i.test(sourceValue)) type = "none";
   else if (/^special(?:\s*,?\s*see below)?$/i.test(sourceValue)) type = "special";
   else if (/\(\s*all\s*\)\s*$/i.test(sourceValue)) {
     type = "all";
-    names = [sourceValue.replace(/\s*\(\s*all\s*\)\s*$/i, "").trim()].filter(Boolean);
+    combatStyleIds = combatStyles.map(cs => cs.id).filter(Boolean);
   } else if (sourceValue) {
     type = "named";
-    names = sourceValue.split(",").map(name => name.trim()).filter(Boolean);
+    const names = sourceValue.split(",").map(name => name.trim()).filter(Boolean);
+    for (const name of names) {
+      const match = combatStyles.find(cs => sectionNamesEquivalent(cs.section || cs.sectionLabel || cs.style, name));
+      if (match && match.id) combatStyleIds.push(match.id);
+    }
   }
   const associatedSkills = type === "special"
     ? uniqueSkills.filter(skill => /concealed main section/i.test(skill.title || "")).map(skill => ({
@@ -98,7 +102,7 @@ export function parseMainSection(value = "", uniqueSkills = []) {
       title: skill.title
     }))
     : [];
-  return { type, sourceValue, names, associatedSkills };
+  return { type, sourceValue, combatStyleIds, associatedSkills };
 }
 
 export function associatedSkillReferences(mainSection, uniqueSkills = []) {
@@ -152,23 +156,8 @@ export function parseMonsterPage(input = "", url = "") {
   const combatHeader = rawLines.findIndex(line => /Accuracy/i.test(line) && /Damage/i.test(line) && /Evasion/i.test(line) && /Defense/i.test(line) && /\bHP\b/i.test(line));
   const combatStyles = [];
   const declaredSections = parseSectionDeclaration(field("Sections"));
-  const sections = [];
-  for (const declared of declaredSections.sections) {
-    const exactCount = /^\d+$/.test(declared.count) ? Number(declared.count) : 1;
-    const name = exactCount > 1 ? singularForm(declared.name) : declared.name;
-    for (let copy = 0; copy < exactCount; copy++) {
-      sections.push({ name, label: declared.label, count: declared.count, combatStyles: [] });
-    }
-  }
   const sectionParseErrors = [];
-  const addInferredSection = (name, label = name) => {
-    let section = sections.find(entry => normalizedSectionName(entry.name) === normalizedSectionName(name));
-    if (!section) {
-      section = { name, label, count: "", combatStyles: [] };
-      sections.push(section);
-    }
-    return section;
-  };
+  let combatStyleCounter = 0;
   if (combatHeader >= 0) {
     for (let index = combatHeader + 1; index < rawLines.length; index++) {
       const line = rawLines[index];
@@ -180,12 +169,9 @@ export function parseMonsterPage(input = "", url = "") {
       if (/Accuracy|Fighting Style/i.test(cells.join(" "))) continue;
       let compact = cells.filter(cell => cell !== "");
       const sectionAnnotation = line.match(/\(([^()]*)\)/)?.[1]?.replace(/\s+x\s*.+$/i, "").trim();
-      const isDeclaredSectionRow = Boolean(sectionAnnotation && declaredSections.sections.some(section =>
-        normalizedSectionName(section.name) === normalizedSectionName(sectionAnnotation)
-      ));
       const statisticToken = String.raw`(?:※(?:\s*[+-]\s*\d+)?|[-–—]|[-+]?\d+(?:\s*\(\s*[-+]?\d+\s*\))?|\d+d(?:6)?(?:\s*[+-]\s*\d+)?)`;
       const sourceStatisticCount = [...plain(line).matchAll(new RegExp(`(?:^|[\\s|])${statisticToken}(?=$|[\\s|])`, "gi"))].length;
-      const looksLikeCombatRow = (line.includes("|") && cells.some(Boolean)) || isDeclaredSectionRow || sourceStatisticCount >= 4;
+      const looksLikeCombatRow = (line.includes("|") && cells.some(Boolean)) || Boolean(sectionAnnotation) || sourceStatisticCount >= 4;
       if (compact.length < 7) {
         const flatLine = plain(line);
         const stat = String.raw`(?:※(?:\s*[+-]\s*\d+)?|[-–—]|[-+]?\d+(?:\s*\(\s*[-+]?\d+\s*\))?|\d+d(?:6)?(?:\s*[+-]\s*\d+)?)`;
@@ -211,36 +197,16 @@ export function parseMonsterPage(input = "", url = "") {
       const sourceSectionLabel = annotation?.[2]?.trim() || "";
       const sourceSectionName = sourceSectionLabel.replace(/\s+x\s*.+$/i, "").trim();
       const attackStyle = annotation?.[1]?.trim() || sourceStyle;
-      const findSectionForName = name => {
-        const candidates = sections.filter(section => section.name && sectionNamesEquivalent(section.name, name));
-        return candidates.find(section => !section.combatStyles.length) || candidates[0] || null;
-      };
       const sourceHeaders = tableCells(rawLines[combatHeader]).filter(Boolean);
       const rawStatistics = parseSectionCombatStatistics([attackStyle, ...compact.slice(1)], sourceHeaders);
       rawStatistics.sourceStyle = sourceStyle;
       rawStatistics.sectionLabel = sourceSectionLabel;
       rawStatistics.sourceLine = sourceLineNumber;
 
-      let section;
-      if (declaredSections.sections.length) {
-        section = sourceSectionName
-          ? findSectionForName(sourceSectionName)
-          : sections.length === 1 ? sections[0] : null;
-        if (!section) {
-          sectionParseErrors.push(sourceSectionName
-            ? `line ${sourceLineNumber}: combat row references undeclared section "${sourceSectionName}".`
-            : `line ${sourceLineNumber}: combat row "${sourceStyle}" does not identify one of the declared sections.`);
-          section = addInferredSection(sourceSectionName || sourceStyle, sourceSectionLabel || sourceStyle);
-        }
-      } else {
-        section = sourceSectionName
-          ? addInferredSection(sourceSectionName, sourceSectionLabel)
-          : addInferredSection("", "");
-      }
-      section.combatStyles.push(rawStatistics);
-
+      combatStyleCounter += 1;
       combatStyles.push({
-        style: sourceStyle || "Attack",
+        id: `cs-${combatStyleCounter}`,
+        style: attackStyle || "Attack",
         accuracy: compact[1] || "0",
         damage: compact[2] || "2d",
         evasion: compact[3] || "0",
@@ -254,46 +220,25 @@ export function parseMonsterPage(input = "", url = "") {
       });
     }
   }
-  const usedSectionIds = new Set();
-  sections.forEach((section, index) => {
-    const name = normalizedSectionName(section.name);
-    const baseId = name ? `section-${encodeURIComponent(name).toLowerCase()}` : `section-${index + 1}`;
-    let id = baseId;
-    let suffix = 2;
-    while (usedSectionIds.has(id)) id = `${baseId}-${suffix++}`;
-    section.id = id;
-    usedSectionIds.add(id);
-  });
-  const mainSection = parseMainSection(field("Main Section"), []);
+  const mainSection = parseMainSection(field("Main Section"), [], combatStyles);
 
   // Asignar isMainSection en cada entrada de combatStyles según la Main Section declarada.
   // Sólo se marca una entrada como Main Section (la primera que coincida).
-  const mainSectionNames = new Set();
-  if (mainSection.type === "named" || mainSection.type === "all") {
-    for (const name of mainSection.names) {
-      if (name) mainSectionNames.add(normalizedSectionName(name));
-    }
-  }
-  if (mainSectionNames.size > 0) {
+  if (mainSection.type === "named" && mainSection.combatStyleIds.length > 0) {
     let mainSectionAssigned = false;
     for (const cs of combatStyles) {
-      const matchesMain = [...mainSectionNames].some(name => sectionNamesEquivalent(cs.section || "", name));
-      if (matchesMain && !mainSectionAssigned) {
-        cs.isMainSection = true;
-        mainSectionAssigned = true;
-      } else {
-        cs.isMainSection = false;
-      }
+      const isMain = mainSection.combatStyleIds.includes(cs.id) && !mainSectionAssigned;
+      cs.isMainSection = isMain;
+      if (isMain) mainSectionAssigned = true;
     }
-  }
-
-  // Exact-count duplicates left without combat rows after attachment collapse
-  // back into the first record of the same name so every kept section keeps data.
-  for (let index = sections.length - 1; index > 0; index--) {
-    const section = sections[index];
-    if (!/^\d+$/.test(String(section.count || "")) || section.combatStyles.length) continue;
-    const first = sections.find(entry => entry !== section && sectionNamesEquivalent(entry.name, section.name));
-    if (first) sections.splice(index, 1);
+  } else if (mainSection.type === "all") {
+    for (const cs of combatStyles) {
+      cs.isMainSection = true;
+    }
+  } else {
+    for (const cs of combatStyles) {
+      cs.isMainSection = false;
+    }
   }
 
   const lootHeader = rawLines.findIndex(line => /\b2d\b/i.test(line) && /\bLoot\b/i.test(line));
@@ -324,28 +269,28 @@ export function parseMonsterPage(input = "", url = "") {
     const block = sourceLines.slice(uniqueStart + 1, blockEnd);
     let current = null;
     let sectionScope = "unspecified";
-    let sectionId;
+    let combatStyleId;
     for (const sourceLine of block) {
       const line = sourceLine.text;
       const visibleLine = plain(line);
       const markdownHeading = visibleLine.match(/^(#{4,6})\s+(.+)$/);
       const headingText = markdownHeading ? plain(markdownHeading[2]) : "";
       const isAllSectionsHeading = markdownHeading && /^All Sections$/i.test(headingText);
-      const matchedSection = markdownHeading
-        ? sections.find(section => section.name && sectionNamesEquivalent(section.name, headingText))
+      const matchedCombatStyle = markdownHeading
+        ? combatStyles.find(cs => cs.section && sectionNamesEquivalent(cs.section, headingText))
         : null;
-      if (isAllSectionsHeading || matchedSection) {
+      if (isAllSectionsHeading || matchedCombatStyle) {
         if (current) uniqueSkills.push(current);
         current = null;
         sectionScope = isAllSectionsHeading ? "all" : "section";
-        sectionId = matchedSection?.id;
+        combatStyleId = matchedCombatStyle?.id;
         continue;
       }
-      if (markdownHeading?.[1] === "######" && sections.length > 1) {
+      if (markdownHeading?.[1] === "######" && combatStyles.length > 1) {
         if (current) uniqueSkills.push(current);
         current = null;
         sectionScope = "unspecified";
-        sectionId = undefined;
+        combatStyleId = undefined;
         skillParseErrors.push(
           `line ${sourceLine.lineNumber}: unique skills heading "${headingText}" does not match "All Sections" or a declared monster section.`
         );
@@ -362,7 +307,7 @@ export function parseMonsterPage(input = "", url = "") {
           descriptionSource: "",
           sourceLine: sourceLine.lineNumber,
           sectionScope,
-          ...(sectionScope === "section" ? { sectionId } : {})
+          ...(sectionScope === "section" ? { combatStyleId } : {})
         };
       } else if (current && !/^Source:/i.test(plain(line))) {
         current.descriptionSource += `${current.descriptionSource ? "\n" : ""}${sourceLine.rawText}`;
@@ -395,7 +340,6 @@ export function parseMonsterPage(input = "", url = "") {
   return {
     name,
     system: {
-      revealed: false,
       sourceUrl: url,
       level: numeric(levelMatch?.[1]),
       monsterType: plain(levelMatch?.[2]),
@@ -407,7 +351,7 @@ export function parseMonsterPage(input = "", url = "") {
       fortitude: field("Fortitude"), willpower: field("Willpower"), source: field("Source"), description,
       sectionCount: declaredSections.count,
       sectionSource: declaredSections.sourceValue,
-      sections, sectionParseErrors, skillParseErrors, mainSection, combatStyles, uniqueSkills, lootTable
+      sectionParseErrors, skillParseErrors, mainSection, combatStyles, uniqueSkills, lootTable
     }
   };
 }
@@ -416,45 +360,36 @@ export function validateMonsterProfile(parsed) {
   const name = String(parsed?.name || "Monster");
   const system = parsed?.system;
   const errors = [];
-  if (!system || !Array.isArray(system.sections)) {
-    errors.push("sections: expected an array of section records");
+  if (!Array.isArray(system?.combatStyles) || !system.combatStyles.length) {
+    errors.push("combatStyles: no complete Fighting Style statistics were parsed");
   } else {
-    if (!system.sections.length) errors.push("sections: no section records were parsed");
-    for (const [index, section] of system.sections.entries()) {
-      const label = section.name || `section ${index + 1}`;
-      if (!Array.isArray(section.combatStyles) || !section.combatStyles.length) {
-        errors.push(`sections.${label}.combatStyles: no source statistics were parsed`);
-        continue;
+    for (const [styleIndex, style] of system.combatStyles.entries()) {
+      if (!style.id) {
+        errors.push(`combatStyles.${styleIndex}: missing stable id`);
       }
-      for (const [styleIndex, style] of section.combatStyles.entries()) {
-        if (!Array.isArray(style.sourceValues) || style.sourceValues.length < 7) {
-          errors.push(`sections.${label}.combatStyles.${styleIndex}: incomplete source statistics`);
-        }
+      if (!Array.isArray(style.sourceValues) || style.sourceValues.length < 7) {
+        errors.push(`combatStyles.${styleIndex}: incomplete source statistics`);
       }
     }
   }
   if (Array.isArray(system?.sectionParseErrors)) errors.push(...system.sectionParseErrors);
   if (Array.isArray(system?.skillParseErrors)) errors.push(...system.skillParseErrors);
-  if (Array.isArray(system?.sections)) {
-    const sectionIds = new Set(system.sections.map(section => section.id));
-    for (const skill of system.uniqueSkills ?? []) {
-      if (skill.sectionScope === "section" && !sectionIds.has(skill.sectionId)) {
-        errors.push(`uniqueSkills.${skill.title || "untitled"}: sectionId "${skill.sectionId ?? ""}" does not reference a parsed section`);
-      }
+  const combatStyleIds = new Set((system?.combatStyles ?? []).map(cs => cs.id));
+  for (const skill of system.uniqueSkills ?? []) {
+    if (skill.sectionScope === "section" && !combatStyleIds.has(skill.combatStyleId)) {
+      errors.push(`uniqueSkills.${skill.title || "untitled"}: combatStyleId "${skill.combatStyleId ?? ""}" does not reference a parsed combat style`);
     }
-  }
-  if (!Array.isArray(system?.combatStyles) || !system.combatStyles.length) {
-    errors.push("combatStyles: no complete Fighting Style statistics were parsed");
   }
   if (!system?.mainSection || typeof system.mainSection.sourceValue !== "string") {
     errors.push("mainSection: designation is missing or malformed");
-  } else if (Array.isArray(system.sections)) {
-    if (system.sections.length > 1 && !system.mainSection.sourceValue) {
+  } else {
+    const combatStyleCount = system.combatStyles?.length ?? 0;
+    if (combatStyleCount > 1 && !system.mainSection.sourceValue) {
       errors.push("mainSection: designation is required for a multi-section profile");
-    } else if (["named", "all"].includes(system.mainSection.type)) {
-      for (const name of system.mainSection.names) {
-        if (!system.sections.some(section => sectionNamesEquivalent(section.name, name))) {
-          errors.push(`mainSection: "${name}" does not match a parsed section`);
+    } else if (system.mainSection.type === "named") {
+      for (const id of system.mainSection.combatStyleIds ?? []) {
+        if (!combatStyleIds.has(id)) {
+          errors.push(`mainSection: combatStyleId "${id}" does not match a parsed combat style`);
         }
       }
     }

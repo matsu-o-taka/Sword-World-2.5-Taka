@@ -148,27 +148,18 @@ export function mergeMonsterCombatStyleFields(currentStyles = [], fields = [], s
   return styles;
 }
 
-const normalizeSectionName = value => String(value ?? "").replace(/\s+x\s*.+$/i, "").trim();
-const sectionIdForName = name => `section-${encodeURIComponent(normalizeSectionName(name).toLowerCase())}`;
-
-export function getMonsterSectionChoices(sections = [], combatStyles = []) {
-  const sourceSections = Array.isArray(sections) && sections.length
-    ? sections
-    : readMonsterCombatStyles(combatStyles)
-      .map(style => normalizeSectionName(style.section || style.sectionLabel))
-      .filter(Boolean)
-      .filter((name, index, names) => names.findIndex(candidate => candidate.toLowerCase() === name.toLowerCase()) === index)
-      .map(name => ({ name, id: sectionIdForName(name) }));
+export function getMonsterSectionChoices(combatStyles = []) {
+  const rows = readMonsterCombatStyles(combatStyles);
   const usedIds = new Set();
-  return sourceSections.map((section, index) => {
-    const name = String(section?.name ?? "").trim();
-    const baseId = String(section?.id || (name ? sectionIdForName(name) : `section-${index + 1}`));
-    let id = baseId;
+  return rows.map((row, index) => {
+    const name = String(row?.section || row?.sectionLabel || row?.style || `Section ${index + 1}`).trim();
+    const id = row.id || `cs-${index + 1}`;
+    let finalId = id;
     let suffix = 2;
-    while (usedIds.has(id)) id = `${baseId}-${suffix++}`;
-    usedIds.add(id);
+    while (usedIds.has(finalId)) finalId = `${id}-${suffix++}`;
+    usedIds.add(finalId);
     return {
-      id,
+      id: finalId,
       name: name || `Section ${index + 1}`,
       label: name || `Section ${index + 1}`
     };
@@ -177,16 +168,16 @@ export function getMonsterSectionChoices(sections = [], combatStyles = []) {
 
 export function createMonsterUniqueSkill(assignment, sectionChoices = [], skill = {}) {
   if (sectionChoices.length <= 1) {
-    const { sectionId: _sectionId, ...withoutSectionId } = skill;
-    return { ...withoutSectionId, sectionScope: "all" };
+    const { combatStyleId: _combatStyleId, ...withoutCombatStyleId } = skill;
+    return { ...withoutCombatStyleId, sectionScope: "all" };
   }
   if (assignment === "all") {
-    const { sectionId: _sectionId, ...withoutSectionId } = skill;
-    return { ...withoutSectionId, sectionScope: "all" };
+    const { combatStyleId: _combatStyleId, ...withoutCombatStyleId } = skill;
+    return { ...withoutCombatStyleId, sectionScope: "all" };
   }
-  const section = sectionChoices.find(choice => choice.id === assignment);
-  if (!section) return null;
-  return { ...skill, sectionScope: "section", sectionId: section.id };
+  const choice = sectionChoices.find(c => c.id === assignment);
+  if (!choice) return null;
+  return { ...skill, sectionScope: "section", combatStyleId: choice.id };
 }
 
 export function prepareMonsterUniqueSkillGroups(skills = [], sectionChoices = []) {
@@ -202,30 +193,30 @@ export function prepareMonsterUniqueSkillGroups(skills = [], sectionChoices = []
   const validIds = new Set(sectionChoices.map(section => section.id));
 
   rows.forEach((skill, index) => {
-    const assignedSectionId = !isMultiSection
+    const assignedCombatStyleId = !isMultiSection
       ? null
-      : skill?.sectionScope === "section" && validIds.has(skill.sectionId)
-        ? skill.sectionId
+      : skill?.sectionScope === "section" && validIds.has(skill.combatStyleId)
+        ? skill.combatStyleId
         : null;
-    const group = assignedSectionId
-      ? groups.find(section => section.id === assignedSectionId)
+    const group = assignedCombatStyleId
+      ? groups.find(section => section.id === assignedCombatStyleId)
       : allSections;
-    const needsReview = skill?.sectionScope === "section" && !validIds.has(skill.sectionId);
+    const needsReview = skill?.sectionScope === "section" && !validIds.has(skill.combatStyleId);
     const assignmentChoices = isMultiSection
       ? [{ value: "all", label: "All Sections" }, ...sectionChoices.map(section => ({
         value: section.id,
         label: section.name
       }))].map(choice => ({
         ...choice,
-        selected: !needsReview && choice.value === (assignedSectionId || "all")
+        selected: !needsReview && choice.value === (assignedCombatStyleId || "all")
       }))
       : [];
     group.skills.push({
       ...skill,
       index,
-      sectionAssignment: skill?.sectionScope === "section" && !validIds.has(skill.sectionId)
+      sectionAssignment: skill?.sectionScope === "section" && !validIds.has(skill.combatStyleId)
         ? ""
-        : assignedSectionId || "all",
+        : assignedCombatStyleId || "all",
       sectionAssignmentLabel: needsReview ? "Reassign section" : group.title,
       sectionAssignmentChoices: assignmentChoices,
       sectionAssignmentNeedsReview: needsReview

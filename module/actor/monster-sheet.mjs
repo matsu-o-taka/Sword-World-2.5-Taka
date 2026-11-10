@@ -7,6 +7,67 @@ import { criticalFailureHTML, markCriticalFailure, rollDiceResults } from "../ru
 import { appendMonsterCombatStyle, createMonsterUniqueSkill, getMainCombatStyleIndex, getMonsterSectionChoices, hasValidMainCombatStyle, mergeMonsterCombatStyleFields, mergeMonsterUniqueSkillFields, prepareMonsterCombatStyles, prepareMonsterUniqueSkillGroups, readMonsterActorCombatStyles, selectMainCombatStyle } from "./monster-sheet-data.mjs";
 import { rollMonsterKnowledge, findMonsterKnowledgeRoller, speciesWeaknessKnown } from "../combat/monster-knowledge.mjs";
 
+// ── Live Monster Knowledge indicator sync (F2-T2 consumer integration) ─────
+//
+// `context.weaknessKnown` is recomputed on every render from the Monster
+// Knowledge Registry (world setting `mkRegistry`), so the Weak Point check on
+// this sheet reflects the record the registry currently points at: a session
+// switch or campaign activation changes the visible knowledge when the
+// registry changes. Since F2-T1 the GM may also persist a discovery through
+// the player relay; after every registry commit the world setting updates on
+// every client and the documented v14 ClientSettings event hook
+// (`clientSettingChanged`, foundry-api-docs/official-v14/functions/
+// hookEvents.clientSettingChanged.html: "A hook event that fires when a
+// client setting changes") lets the open sheets repaint their indicator
+// without the previous manual close/reopen.
+//
+// Rendered sheets are tracked HERE (not via any window global): registration
+// happens when the sheet actually renders, so a constructed-but-never-shown
+// application is never repainted.
+
+const MK_REGISTRY_SETTING_KEY = "mkRegistry";
+
+const activeMkKnowledgeSheets = new Set();
+
+function mkRegistrySettingChanged(key) {
+  const settingKey = String(key ?? "");
+  // Tolerant match: the hook may name the bare key or the "scope.key" form.
+  return settingKey === MK_REGISTRY_SETTING_KEY
+    || settingKey.endsWith(`.${MK_REGISTRY_SETTING_KEY}`);
+}
+
+function refreshMkKnowledgeIndicators() {
+  for (const sheet of [...activeMkKnowledgeSheets]) {
+    if (typeof sheet?.render !== "function") {
+      activeMkKnowledgeSheets.delete(sheet);
+      continue;
+    }
+    try {
+      sheet.render(false);
+    } catch (error) {
+      // A failed repaint leaves this tab's indicator stale; the knowledge
+      // itself is correct on the next render (close/reopen or any re-render),
+      // so the failure is logged but never blocks the other windows.
+      console.error("Sword World 2.5 | Monster Knowledge indicator refresh failed for an open monster sheet", error);
+    }
+  }
+}
+
+/**
+ * Subscribe every client to Monster Knowledge registry changes so open
+ * monster sheets reflect discoveries (direct GM write or F2-T1 relay) and
+ * session/campaign switches on their Weak Point indicator at once.
+ * Wired from sw25.mjs; tolerant to headless environments without Hooks.
+ * @returns {void}
+ */
+export function initializeMonsterSheetKnowledgeSync() {
+  if (typeof Hooks?.on !== "function") return;
+  Hooks.on("clientSettingChanged", (key, value, options) => {
+    if (!mkRegistrySettingChanged(key)) return;
+    refreshMkKnowledgeIndicators();
+  });
+}
+
 function promptMonsterSkillSection(sectionChoices, currentAssignment = "", title = "Choose Unique Skill Section") {
   const options = [
     `<option value="all" ${currentAssignment === "all" ? "selected" : ""}>All Sections</option>`,
@@ -40,12 +101,21 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
 
   get template() { return "systems/sword-world-25/templates/actor/monster-sheet.hbs"; }
 
+  // Live consumer sync (F2-T2): rendered instances join the knowledge
+  // indicator refresh set. Registration happens per render, never per
+  // construction, so invisible applications cannot be repainted.
+  render(force, options) {
+    activeMkKnowledgeSheets.add(this);
+    return super.render(force, options);
+  }
+
   _hasInvalidMonsterSheetForm() {
     return !hasValidMainCombatStyle(readMonsterActorCombatStyles(this.actor))
       || Boolean(this.form?.querySelector("[data-monster-skill-assignment-invalid]"));
   }
 
   async close(options = {}) {
+    activeMkKnowledgeSheets.delete(this);
     if (!this._hasInvalidMonsterSheetForm()) return super.close(options);
 
     // FormApplication normally submits the form while closing. Do not let an
@@ -85,10 +155,7 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
       const fields = Object.entries(data).filter(([key]) => key.startsWith(prefix));
       if (!fields.length) continue;
       if (collection === "uniqueSkills") {
-        const sectionChoices = getMonsterSectionChoices(
-          this.actor.system.sections,
-          readMonsterActorCombatStyles(this.actor)
-        );
+        const sectionChoices = getMonsterSectionChoices(readMonsterActorCombatStyles(this.actor));
         data[`system.${collection}`] = mergeMonsterUniqueSkillFields(
           Array.isArray(this.actor.system.uniqueSkills) ? this.actor.system.uniqueSkills : [],
           fields.map(([key, value]) => [key.slice(prefix.length), value]),
@@ -100,8 +167,7 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
       if (collection === "combatStyles") {
         data[`system.${collection}`] = mergeMonsterCombatStyleFields(
           readMonsterActorCombatStyles(this.actor),
-          fields.map(([key, value]) => [key.slice(prefix.length), value]),
-          (Array.isArray(this.actor.system.sections) ? this.actor.system.sections : []).map(section => section.name)
+          fields.map(([key, value]) => [key.slice(prefix.length), value])
         );
         for (const [key] of fields) delete data[key];
         continue;
@@ -123,16 +189,11 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
     context.isGM = game.user.isGM;
     context.isOwner = Boolean(this.actor.isOwner);
     context.canManage = game.user.isGM || Boolean(this.actor.isOwner);
-    context.canRead = game.user.isGM || Boolean(this.actor.system.revealed);
     context.weaknessKnown = speciesWeaknessKnown(this.actor);
     const combatStyles = readMonsterActorCombatStyles(this.actor);
-    context.sections = Array.isArray(this.actor.system.sections) ? this.actor.system.sections : [];
-    context.combatStyles = prepareMonsterCombatStyles(
-      combatStyles,
-      context.sections.map(section => section.name)
-    );
+    context.combatStyles = prepareMonsterCombatStyles(combatStyles);
     context.mainCombatStyleIncomplete = combatStyles.length > 1 && getMainCombatStyleIndex(combatStyles) === null;
-    context.uniqueSkillSectionChoices = getMonsterSectionChoices(context.sections, combatStyles);
+    context.uniqueSkillSectionChoices = getMonsterSectionChoices(combatStyles);
     context.uniqueSkillGroups = prepareMonsterUniqueSkillGroups(
       this.actor.system.uniqueSkills,
       context.uniqueSkillSectionChoices
@@ -310,8 +371,10 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
     html.find("[data-action='add-monster-style']").on("click", async event => {
       event.preventDefault();
       const currentStyles = readMonsterActorCombatStyles(this.actor);
+      const newId = `cs-${Date.now()}`;
       await this.actor.update({
         "system.combatStyles": appendMonsterCombatStyle(currentStyles, {
+          id: newId,
           style:"New Attack", accuracy:"0", damage:"2d", evasion:"0", defense:0,
           hp:{value:0,max:0}, mp:{value:0,max:0}, isMainSection:false
         })
@@ -320,10 +383,7 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
     html.find("[data-action='delete-monster-style']").on("click", event => { event.preventDefault(); return mutate("combatStyles", list => list.splice(Number(event.currentTarget.dataset.index), 1)); });
     html.find("[data-action='add-monster-skill']").on("click", async event => {
       event.preventDefault();
-      const sectionChoices = getMonsterSectionChoices(
-        this.actor.system.sections,
-        readMonsterActorCombatStyles(this.actor)
-      );
+      const sectionChoices = getMonsterSectionChoices(readMonsterActorCombatStyles(this.actor));
       let assignment = "all";
       if (sectionChoices.length > 1) {
         assignment = await promptMonsterSkillSection(sectionChoices, "", "Assign Unique Skill");
@@ -346,14 +406,11 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
       const skills = Array.isArray(this.actor.system.uniqueSkills) ? this.actor.system.uniqueSkills : [];
       const currentSkill = skills[index];
       if (!currentSkill) return;
-      const sectionChoices = getMonsterSectionChoices(
-        this.actor.system.sections,
-        readMonsterActorCombatStyles(this.actor)
-      );
+      const sectionChoices = getMonsterSectionChoices(readMonsterActorCombatStyles(this.actor));
       if (sectionChoices.length <= 1) return;
       const currentAssignment = currentSkill.sectionScope === "section"
-        && sectionChoices.some(section => section.id === currentSkill.sectionId)
-        ? currentSkill.sectionId
+        && sectionChoices.some(section => section.id === currentSkill.combatStyleId)
+        ? currentSkill.combatStyleId
         : currentSkill.sectionScope === "section" ? "" : "all";
       const assignment = await promptMonsterSkillSection(sectionChoices, currentAssignment);
       if (!assignment) return;
