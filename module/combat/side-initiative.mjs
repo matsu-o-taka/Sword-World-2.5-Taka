@@ -90,7 +90,7 @@ class SW25SideTurnWindow extends SideTurnApplication {
     const players = characterCombatants(combat);
     const remaining = players.filter(combatant => !done.has(combatant.id));
     const naturalPower = players.map(combatant => {
-      const resource = combatant.actor?.getFlag("sw25-taka", "naturalPower") ?? combatant.actor?.getFlag("sword-world-25", "naturalPower");
+      const resource = combatant.actor?.getFlag("sw25-taka", "naturalPower");
       if (!resource || (!game.user.isGM && !combatant.actor?.isOwner)) return null;
       return {
         name:combatant.name,

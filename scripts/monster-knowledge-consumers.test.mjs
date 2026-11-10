@@ -299,7 +299,7 @@ console.log("Test D: relay discovery reflected + open sheet repaint");
   // Foundry announces the world-setting change on every client; the open
   // sheet repaints and getData recomputes the indicator.
   consumerRepaints = 0;
-  Hooks.call("clientSettingChanged", "sword-world-25.mkRegistry", worldSettings.get("sword-world-25.mkRegistry"), {});
+  Hooks.call("clientSettingChanged", "sw25-taka.mkRegistry", worldSettings.get("sw25-taka.mkRegistry"), {});
   assert.equal(consumerRepaints, 1, "open sheet repainted exactly once on the registry change");
 
   // The bare-key announcement form is also accepted; both open sheets repaint.
@@ -321,7 +321,7 @@ console.log("Test E: unrelated setting keys do not repaint consumers");
   setGM();
   const sheet = openMkSheet(makeMonster("mon-e", "Harpy"));
   consumerRepaints = 0;
-  Hooks.call("clientSettingChanged", "sword-world-25.weaknessRegistry", ["goblin"], {});
+  Hooks.call("clientSettingChanged", "sw25-taka.weaknessRegistry", ["goblin"], {});
   Hooks.call("clientSettingChanged", "unrelated-game", {}, {});
   Hooks.call("clientSettingChanged", null, null);
   Hooks.call("clientSettingChanged", undefined, undefined);
@@ -347,7 +347,7 @@ console.log("Test F: session switch updates visible knowledge");
   const started = await startMkSession({ name: "Session 2" });
   assert.equal(started.ok, true, "session replacement performed");
   assert.equal(speciesWeaknessKnown(monster), false, "a species discovered in another session is not visible");
-  Hooks.call("clientSettingChanged", "sword-world-25.mkRegistry", worldSettings.get("sword-world-25.mkRegistry"), {});
+  Hooks.call("clientSettingChanged", "sw25-taka.mkRegistry", worldSettings.get("sw25-taka.mkRegistry"), {});
   assert.equal(consumerRepaints, 1, "open sheets repaint on the session switch announcement");
 
   // The new session accepts its own discoveries independently.
@@ -356,7 +356,7 @@ console.log("Test F: session switch updates visible knowledge");
   assert.equal(again.data.status, "registered", "session 2 registers its own evidence");
   assert.equal(speciesWeaknessKnown(monster), true, "session 2 knows the species again");
   consumerRepaints = 0;
-  Hooks.call("clientSettingChanged", "sword-world-25.mkRegistry", null, {});
+  Hooks.call("clientSettingChanged", "sw25-taka.mkRegistry", null, {});
   assert.equal(consumerRepaints, 1, "repaints keep following registry changes");
   await closeMkSheet(sheet);
   console.log("  \u2713 PASS");

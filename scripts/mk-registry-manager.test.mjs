@@ -663,7 +663,7 @@ const registry22 = {
   ],
   campaigns: []
 };
-worldSettings.set(`sword-world-25.${MK_REGISTRY_KEY}`, registry22);
+worldSettings.set(`sw25-taka.${MK_REGISTRY_KEY}`, registry22);
 const deleteSession22 = await deleteMkRecord("s-del");
 assert.equal(deleteSession22.ok, true, "older session deletion accepted");
 assert.equal(deleteSession22.data.recordKind, "session", "deleted record kind reported");

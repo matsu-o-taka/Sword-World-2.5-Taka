@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 
-const filePath = 'D:/Foundry Assets/sword-world-25/docs/sw25-monster-weakness-extraction.json';
+const filePath = new URL('../docs/sw25-monster-weakness-extraction.json', import.meta.url);
 const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
 const monsters = data.monsters;
 

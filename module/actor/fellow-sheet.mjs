@@ -31,7 +31,7 @@ export class SW25FellowSheet extends foundry.appv1.sheets.ActorSheet {
     const context = await super.getData(options);
     context.actor = this.actor;
     context.system = this.actor.system;
-    const savedSheetStyle = String(this.actor.getFlag("sw25-taka", "sheetStyle") ?? this.actor.getFlag("sword-world-25", "sheetStyle") ?? "paper").toLowerCase();
+    const savedSheetStyle = String(this.actor.getFlag("sw25-taka", "sheetStyle") ?? "paper").toLowerCase();
     context.sheetStyle = ["paper", "adventurer"].includes(savedSheetStyle) ? savedSheetStyle : "paper";
     context.isPaperStyle = context.sheetStyle === "paper";
     context.isAdventurerStyle = context.sheetStyle === "adventurer";

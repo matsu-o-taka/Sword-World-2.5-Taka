@@ -296,7 +296,7 @@ game.user = { isGM: true, character: null, id: "gm-user" };
     requestId
   };
 
-  const handler = socketHandlers.get("system.sword-world-25");
+  const handler = socketHandlers.get("system.sw25-taka");
   assert.ok(handler, "socket handler registered");
 
   await handler(payload, "player-1");
@@ -394,7 +394,7 @@ console.log("Test 10: Invalid actor UUID rejected by GM handler");
 resetWorld();
 game.user = { isGM: true, id: "gm-user" };
 {
-  const handler = socketHandlers.get("system.sword-world-25");
+  const handler = socketHandlers.get("system.sw25-taka");
   assert.ok(handler, "socket handler registered");
 
   await handler({ action: "mk-grant-observer", actorUuid: "nonexistent", gid: "gm-user", requestId: "req-1" }, "player-1");
@@ -407,7 +407,7 @@ console.log("Test 11: Non-monster actor rejected by GM handler");
 resetWorld();
 game.user = { isGM: true, id: "gm-user" };
 {
-  const handler = socketHandlers.get("system.sword-world-25");
+  const handler = socketHandlers.get("system.sw25-taka");
   const character = makeCharacter({ system: { reputation: 8 }, ownership: { default: 0 } });
   game.actors = [character];
 
@@ -422,7 +422,7 @@ console.log("Test 12: Duplicate request ignored by GM handler");
 resetWorld();
 game.user = { isGM: true, id: "gm-user" };
 {
-  const handler = socketHandlers.get("system.sword-world-25");
+  const handler = socketHandlers.get("system.sw25-taka");
   const monster = makeMonster({ system: { reputation: 8, weakness: 20 }, ownership: { default: 0 } });
   game.actors = [monster];
 
@@ -480,7 +480,7 @@ gameUsers.push(makeUser("player-2", { name: "Player2" }));
   const monster = makeMonster({ system: { reputation: 8, weakness: 20 }, ownership: { default: 0, "player-1": 2 } });
   game.actors = [monster];
 
-  const handler = socketHandlers.get("system.sword-world-25");
+  const handler = socketHandlers.get("system.sw25-taka");
   assert.ok(handler, "socket handler registered");
 
   await handler({
@@ -514,7 +514,7 @@ gameUsers.push(makeGM("gm-user-2", "SecondGM"));
     requestId
   };
 
-  const handler = socketHandlers.get("system.sword-world-25");
+  const handler = socketHandlers.get("system.sw25-taka");
   assert.ok(handler, "socket handler registered");
 
   await handler(payload, "player-1");
@@ -531,7 +531,7 @@ game.user = { isGM: true, id: "gm-user-2" };
   const monster = makeMonster({ system: { reputation: 8, weakness: 20 }, ownership: { default: 0 } });
   game.actors = [monster];
 
-  const handler = socketHandlers.get("system.sword-world-25");
+  const handler = socketHandlers.get("system.sw25-taka");
   assert.ok(handler, "socket handler registered");
 
   await handler({ action: "mk-grant-observer", actorUuid: monster.uuid, gid: "gm-user", requestId: "other-gm-req" }, "player-1");
@@ -605,7 +605,7 @@ game.user = { isGM: true, character: null, id: "gm-user" };
   game.actors = [base];
   const synthetic = makeTokenSynthetic(base);
 
-  const handler = socketHandlers.get("system.sword-world-25");
+  const handler = socketHandlers.get("system.sw25-taka");
   assert.ok(handler, "socket handler registered");
 
   await handler({

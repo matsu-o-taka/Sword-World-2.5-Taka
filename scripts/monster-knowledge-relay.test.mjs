@@ -167,7 +167,7 @@ function makeEvidence({ monster = makeMonster(), speciesId = null, overrides = {
 }
 
 function allDiscoveries() {
-  const registry = worldSettings.get("sword-world-25.mkRegistry");
+  const registry = worldSettings.get("sw25-taka.mkRegistry");
   if (!registry) return [];
   return [
     ...(Array.isArray(registry.sessions) ? registry.sessions : []),
@@ -192,7 +192,7 @@ async function emitAsClient(userId, payload) {
   game.user.isGM = client?.isGM === true;
   game.user.id = client?.id ?? userId;
   try {
-    await game.socket.emit("system.sword-world-25", payload);
+    await game.socket.emit("system.sw25-taka", payload);
   } finally {
     game.user.isGM = savedIsGM;
     game.user.id = savedId;
@@ -222,7 +222,7 @@ console.log("=== Monster Knowledge GM relay (F2-T1) ===\n");
 // through the registry service, which remains the acceptance criterion 1.
 console.log("Test 1: GM client persists directly and never relays");
 {
-  assert.equal(MK_RELAY_SOCKET, "system.sword-world-25", "shared system socket channel");
+  assert.equal(MK_RELAY_SOCKET, "system.sw25-taka", "shared system socket channel");
   setGm();
   actorsCollection.push(makeMonster({ id: "monster-g", species: "Goblin GM" }));
   const result = await registerMkDiscovery(makeEvidence({
@@ -280,7 +280,7 @@ console.log("Test 2: Player request reaches the GM and persists with player attr
   const requests = relayRequestsFromLog();
   const acks = acksFromLog();
   assert.equal(requests.length, 1, "one transport request emitted");
-  assert.equal(requests[0].channel, "system.sword-world-25", "request uses the shared channel");
+  assert.equal(requests[0].channel, "system.sw25-taka", "request uses the shared channel");
   assert.equal(requests[0].senderId, "player-1", "transport records the player sender");
   assert.equal(requests[0].payload.gid, "gm-user", "request is addressed to the designated GM");
   assert.ok(requests[0].payload.requestId, "request carries a requestId");

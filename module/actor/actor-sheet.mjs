@@ -102,7 +102,7 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       active: index < soulscars
     }));
 
-    const savedSheetStyle = String(this.actor.getFlag("sw25-taka", "sheetStyle") ?? this.actor.getFlag("sword-world-25", "sheetStyle") ?? "paper").toLowerCase();
+    const savedSheetStyle = String(this.actor.getFlag("sw25-taka", "sheetStyle") ?? "paper").toLowerCase();
     context.sheetStyle = ["paper", "adventurer"].includes(savedSheetStyle) ? savedSheetStyle : "paper";
     context.isPaperStyle = context.sheetStyle === "paper";
     context.isAdventurerStyle = context.sheetStyle === "adventurer";
@@ -968,7 +968,7 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       const hasSpecialDamage = specialDamageBands(spell).length > 0;
       const exhaustiveSucking = isExhaustiveSucking(spell);
       const needsPreviousMagicPower = hasSpecialDamage || exhaustiveSucking;
-      const previousMagicPower = needsPreviousMagicPower ? this.actor.getFlag("sw25-taka", "lastMagicPowerRoll") ?? this.actor.getFlag("sword-world-25", "lastMagicPowerRoll") : null;
+      const previousMagicPower = needsPreviousMagicPower ? this.actor.getFlag("sw25-taka", "lastMagicPowerRoll") ?? null : null;
       if (needsPreviousMagicPower && (!previousMagicPower || previousMagicPower.criticalFailure || (previousMagicPower.classId && String(previousMagicPower.classId) !== String(castingClass.id)))) {
         return ui.notifications.warn(`Roll ${castingClass.name} Magic Power before casting ${spell.name}.`);
       }

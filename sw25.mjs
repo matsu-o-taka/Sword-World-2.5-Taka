@@ -144,7 +144,7 @@ Hooks.on("renderItemDirectory", (_application, html) => {
 });
 
 Hooks.on("renderChatMessageHTML", (message, html) => {
-  if (message.getFlag("sw25-taka", "naturalPowerAdded") ?? message.getFlag("sword-world-25", "naturalPowerAdded")) {
+  if (message.getFlag("sw25-taka", "naturalPowerAdded")) {
     const button = html.querySelector("[data-sw25-chat-action='add-natural-power']");
     if (button) {
       button.disabled = true;
@@ -157,11 +157,10 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
       event.preventDefault();
       const actor = game.actors.get(button.dataset.actorId);
       if (!actor?.isOwner) return ui.notifications.warn("You do not own the character receiving this MP.");
-      if (message.getFlag("sw25-taka", "naturalPowerAdded") ?? message.getFlag("sword-world-25", "naturalPowerAdded")) return ui.notifications.warn("This Natural Power result has already been added.");
+      if (message.getFlag("sw25-taka", "naturalPowerAdded")) return ui.notifications.warn("This Natural Power result has already been added.");
       button.disabled = true;
       await addNaturalPowerMP(actor, Number(button.dataset.mp || 0));
       await message.setFlag("sw25-taka", "naturalPowerAdded", true);
-      await message.setFlag("sword-world-25", "naturalPowerAdded", true);
       button.innerHTML = '<i class="fas fa-check"></i> MP Added';
     });
   });

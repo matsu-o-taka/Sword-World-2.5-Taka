@@ -127,7 +127,7 @@ resetWorld();
 // 2. An empty object (the settings default) also initializes as fresh.
 console.log("Test 2: empty object setting initializes as fresh registry");
 resetWorld();
-worldSettings.set(`sword-world-25.${MK_REGISTRY_KEY}`, {});
+worldSettings.set(`sw25-taka.${MK_REGISTRY_KEY}`, {});
 {
   const state = readMkActiveRecord();
   assert.deepEqual(state.data.record, null, "no record in an empty registry");
@@ -402,7 +402,7 @@ resetWorld();
 {
   // Hand-crafted records exercise the future-policy path without adding
   // official models in this phase.
-  worldSettings.set(`sword-world-25.${MK_REGISTRY_KEY}`, {
+  worldSettings.set(`sw25-taka.${MK_REGISTRY_KEY}`, {
     version: MK_REGISTRY_VERSION,
     active: { kind: "campaign", id: "mkc1" },
     sessions: [],
@@ -438,7 +438,7 @@ resetWorld();
   assert.equal(switchAttempt.ok, true, "activation is not capability-gated");
 
   // individualWithdraw:false also blocks withdrawal.
-  worldSettings.set(`sword-world-25.${MK_REGISTRY_KEY}`, {
+  worldSettings.set(`sw25-taka.${MK_REGISTRY_KEY}`, {
     version: MK_REGISTRY_VERSION,
     active: { kind: "campaign", id: "mkc2" },
     sessions: [],
@@ -482,7 +482,7 @@ console.log("Test 17: newest-wins on multiple session candidates");
 resetWorld();
 {
   const now = Date.now();
-  worldSettings.set(`sword-world-25.${MK_REGISTRY_KEY}`, {
+  worldSettings.set(`sw25-taka.${MK_REGISTRY_KEY}`, {
     version: MK_REGISTRY_VERSION,
     active: { kind: "session", id: "mksgone" },
     sessions: [
@@ -514,7 +514,7 @@ resetWorld();
 console.log("Test 18: corrupt records are kept and diagnosed");
 resetWorld();
 {
-  worldSettings.set(`sword-world-25.${MK_REGISTRY_KEY}`, {
+  worldSettings.set(`sw25-taka.${MK_REGISTRY_KEY}`, {
     version: MK_REGISTRY_VERSION,
     active: { kind: "campaign", id: "c1" },
     sessions: [{ id: "s1", kind: "session", name: "S", createdAt: 1, updatedAt: 1, status: "active", policy: { name: "session-generic", capabilities: {} }, discoveries: [] }, "junk-not-a-record"],
@@ -548,7 +548,7 @@ resetWorld();
 console.log("Test 19: schema version backfill and future-version protection");
 resetWorld();
 {
-  worldSettings.set(`sword-world-25.${MK_REGISTRY_KEY}`, {
+  worldSettings.set(`sw25-taka.${MK_REGISTRY_KEY}`, {
     sessions: [],
     campaigns: [],
     active: { kind: null, id: null }
@@ -557,7 +557,7 @@ resetWorld();
   assert.equal(state.registry.version, MK_REGISTRY_VERSION, "version backfilled");
   assert.ok(state.issues.some(issue => issue.code === "version-missing"), "backfill reported");
 
-  worldSettings.set(`sword-world-25.${MK_REGISTRY_KEY}`, {
+  worldSettings.set(`sw25-taka.${MK_REGISTRY_KEY}`, {
     version: 99,
     active: { kind: "session", id: "sx" },
     sessions: [{ id: "sx", kind: "session", name: "Future", createdAt: 1 }, ],
@@ -660,7 +660,7 @@ resetWorld();
   assert.equal(isSpeciesWeaknessKnown("hydra"), true, "registry knowledge visible");
   assert.equal(isSpeciesWeaknessKnown("goblin"), false, "other species remains unknown");
   // The retired legacy setting was never written by any service flow.
-  assert.equal(worldSettings.get("sword-world-25.weaknessRegistry"), undefined, "legacy weaknessRegistry setting never written");
+  assert.equal(worldSettings.get("sw25-taka.weaknessRegistry"), undefined, "legacy weaknessRegistry setting never written");
   console.log("  ✓ PASS");
 }
 
@@ -668,7 +668,7 @@ resetWorld();
 console.log("Test 24: repair persists normalization, keeps ambiguous data");
 resetWorld();
 {
-  worldSettings.set(`sword-world-25.${MK_REGISTRY_KEY}`, {
+  worldSettings.set(`sw25-taka.${MK_REGISTRY_KEY}`, {
     sessions: [],
     campaigns: [],
     active: { kind: "session", id: "niente" }

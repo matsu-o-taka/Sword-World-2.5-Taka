@@ -53,7 +53,7 @@ export async function initializeStandardScenes() {
   for (const scene of STANDARD_SCENES) {
     const managed = game.scenes.find(candidate =>
       candidate.name.toLowerCase() === scene.name.toLowerCase() &&
-      (candidate.getFlag("sw25-taka", "standardCombatMap") ?? candidate.getFlag("sword-world-25", "standardCombatMap"))
+      candidate.getFlag("sw25-taka", "standardCombatMap")
     );
     if (managed) {
       await applyBackground(managed, scene);
@@ -92,7 +92,7 @@ export async function initializeStandardScenes() {
   }
 
   if (created.length) ui.notifications.info(`Added ${created.join(" and ")} to the ${folderName} folder.`);
-  else if (repaired.length && !(game.settings.get("sw25-taka", "standardScenesCreated") ?? game.settings.get("sword-world-25", "standardScenesCreated"))) {
+  else if (repaired.length && !game.settings.get("sw25-taka", "standardScenesCreated")) {
     ui.notifications.info(`Updated ${repaired.join(" and ")} with their bundled map images.`);
   }
   await game.settings.set("sw25-taka", "standardScenesCreated", true);
