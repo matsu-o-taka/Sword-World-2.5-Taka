@@ -140,7 +140,7 @@ async function runAll() {
     assert.equal(result.ok, true, "should return ok");
     assert.equal(result.data.folderName, "Monster Knowledge Bestiary", "root folder name");
     assert.equal(mockFolders.length, 1, "exactly one root folder");
-    assert.equal(mockFolders[0].flags["sword-world-25"].mkRegistryRoot, true, "root flag set");
+    assert.equal(mockFolders[0].flags["sw25-taka"].mkRegistryRoot, true, "root flag set");
     assert.equal(mockFolders[0].type, "Actor", "root folder type is Actor");
   })();
 
@@ -159,9 +159,9 @@ async function runAll() {
     resetWorld();
     const result = await getOrCreateSessionFolder("session-1");
     assert.equal(result.ok, true, "should return ok");
-    const sessionFolders = mockFolders.filter(f => f.flags["sword-world-25"]?.mkSessionFolder === true);
+    const sessionFolders = mockFolders.filter(f => f.flags["sw25-taka"]?.mkSessionFolder === true);
     assert.equal(sessionFolders.length, 1, "exactly one Current Session folder");
-    assert.equal(sessionFolders[0].flags["sword-world-25"].mkSessionId, "session-1", "session id stored");
+    assert.equal(sessionFolders[0].flags["sw25-taka"].mkSessionId, "session-1", "session id stored");
     assert.equal(sessionFolders[0].type, "Actor", "session folder type is Actor");
   })();
 
@@ -169,12 +169,12 @@ async function runAll() {
   await test("3. getOrCreateSessionFolder reuses existing Current Session folder", async () => {
     resetWorld();
     await getOrCreateSessionFolder("session-1");
-    const firstId = mockFolders.find(f => f.flags["sword-world-25"]?.mkSessionFolder === true).id;
+    const firstId = mockFolders.find(f => f.flags["sw25-taka"]?.mkSessionFolder === true).id;
     const result = await getOrCreateSessionFolder("session-2");
     assert.equal(result.ok, true, "should return ok on reuse");
-    assert.equal(mockFolders.filter(f => f.flags["sword-world-25"]?.mkSessionFolder === true).length, 1, "no duplicate Current Session");
+    assert.equal(mockFolders.filter(f => f.flags["sw25-taka"]?.mkSessionFolder === true).length, 1, "no duplicate Current Session");
     assert.equal(result.data.folderId, firstId, "same folder returned");
-    assert.equal(mockFolders.find(f => f.flags["sword-world-25"]?.mkSessionFolder === true).flags["sword-world-25"].mkSessionId, "session-2", "session id updated");
+    assert.equal(mockFolders.find(f => f.flags["sw25-taka"]?.mkSessionFolder === true).flags["sw25-taka"].mkSessionId, "session-2", "session id updated");
   })();
 
   // ── 4. Inicio de nueva sesión reutilizando misma carpeta ────────────────
@@ -182,15 +182,15 @@ async function runAll() {
     resetWorld();
     const r1 = await startMkSession({ name: "Session A" });
     assert.equal(r1.ok, true, "first session start ok");
-    const sessionFoldersAfterFirst = mockFolders.filter(f => f.flags["sword-world-25"]?.mkSessionFolder === true);
+    const sessionFoldersAfterFirst = mockFolders.filter(f => f.flags["sw25-taka"]?.mkSessionFolder === true);
     assert.equal(sessionFoldersAfterFirst.length, 1, "one Current Session after first start");
-    assert.equal(sessionFoldersAfterFirst[0].flags["sword-world-25"].mkSessionId, r1.data.sessionId, "session id matches");
+    assert.equal(sessionFoldersAfterFirst[0].flags["sw25-taka"].mkSessionId, r1.data.sessionId, "session id matches");
 
     const r2 = await startMkSession({ name: "Session B" });
     assert.equal(r2.ok, true, "second session start ok");
-    const sessionFoldersAfterSecond = mockFolders.filter(f => f.flags["sword-world-25"]?.mkSessionFolder === true);
+    const sessionFoldersAfterSecond = mockFolders.filter(f => f.flags["sw25-taka"]?.mkSessionFolder === true);
     assert.equal(sessionFoldersAfterSecond.length, 1, "still one Current Session after second start");
-    assert.equal(sessionFoldersAfterSecond[0].flags["sword-world-25"].mkSessionId, r2.data.sessionId, "session id updated to new session");
+    assert.equal(sessionFoldersAfterSecond[0].flags["sw25-taka"].mkSessionId, r2.data.sessionId, "session id updated to new session");
   })();
 
   // ── 5. Garantía de que nunca se crean dos carpetas Current Session ──────
@@ -198,8 +198,8 @@ async function runAll() {
     resetWorld();
     await getOrCreateMkRegistryFolder();
     // Manually create two folders with mkSessionFolder: true
-    await MockFolder.create({ name: "Current Session", folder: mockFolders[0].id, type: "Actor", flags: { "sword-world-25": { mkSessionFolder: true, mkSessionId: "s1" } } });
-    await MockFolder.create({ name: "Current Session", folder: mockFolders[0].id, type: "Actor", flags: { "sword-world-25": { mkSessionFolder: true, mkSessionId: "s2" } } });
+    await MockFolder.create({ name: "Current Session", folder: mockFolders[0].id, type: "Actor", flags: { "sw25-taka": { mkSessionFolder: true, mkSessionId: "s1" } } });
+    await MockFolder.create({ name: "Current Session", folder: mockFolders[0].id, type: "Actor", flags: { "sw25-taka": { mkSessionFolder: true, mkSessionId: "s2" } } });
     const result = await getOrCreateSessionFolder("s3");
     assert.equal(result.ok, false, "should report conflict");
     assert.equal(result.code, "folder-conflict", "folder-conflict code");
@@ -212,10 +212,10 @@ async function runAll() {
     assert.equal(r1.ok, true, "first campaign folder ok");
     const r2 = await getOrCreateCampaignFolder("camp-2", "Campaign Two");
     assert.equal(r2.ok, true, "second campaign folder ok");
-    const campaignFolders = mockFolders.filter(f => Boolean(f.flags["sword-world-25"]?.mkCampaignFolder));
+    const campaignFolders = mockFolders.filter(f => Boolean(f.flags["sw25-taka"]?.mkCampaignFolder));
     assert.equal(campaignFolders.length, 2, "two independent campaign folders");
-    assert.equal(campaignFolders[0].flags["sword-world-25"].mkCampaignFolder, "camp-1", "first campaign flag");
-    assert.equal(campaignFolders[1].flags["sword-world-25"].mkCampaignFolder, "camp-2", "second campaign flag");
+    assert.equal(campaignFolders[0].flags["sw25-taka"].mkCampaignFolder, "camp-1", "first campaign flag");
+    assert.equal(campaignFolders[1].flags["sw25-taka"].mkCampaignFolder, "camp-2", "second campaign flag");
     assert.equal(campaignFolders[0].type, "Actor", "campaign folder type is Actor");
     assert.equal(campaignFolders[1].type, "Actor", "campaign folder type is Actor");
   })();
@@ -226,7 +226,7 @@ async function runAll() {
     const created = await createMkCampaign({ name: "Test Campaign" });
     assert.equal(created.ok, true, "campaign created");
     // Folder should exist from createMkCampaign integration
-    const campaignFolders = mockFolders.filter(f => f.flags["sword-world-25"]?.mkCampaignFolder === created.data.campaignId);
+    const campaignFolders = mockFolders.filter(f => f.flags["sw25-taka"]?.mkCampaignFolder === created.data.campaignId);
     assert.equal(campaignFolders.length, 1, "campaign folder exists after creation");
   })();
 
@@ -235,11 +235,11 @@ async function runAll() {
     resetWorld();
     const created = await createMkCampaign({ name: "Test Campaign" });
     await activateMkCampaign(created.data.campaignId);
-    const beforeFolders = mockFolders.filter(f => f.flags["sword-world-25"]?.mkCampaignFolder === created.data.campaignId);
+    const beforeFolders = mockFolders.filter(f => f.flags["sw25-taka"]?.mkCampaignFolder === created.data.campaignId);
     assert.equal(beforeFolders.length, 1, "folder exists before deactivation");
     const deactivated = await deactivateMkCampaign(created.data.campaignId);
     assert.equal(deactivated.ok, true, "deactivation ok");
-    const afterFolders = mockFolders.filter(f => f.flags["sword-world-25"]?.mkCampaignFolder === created.data.campaignId);
+    const afterFolders = mockFolders.filter(f => f.flags["sw25-taka"]?.mkCampaignFolder === created.data.campaignId);
     assert.equal(afterFolders.length, 1, "folder still exists after deactivation");
   })();
 
@@ -247,11 +247,11 @@ async function runAll() {
   await test("9. deleteMkCampaign deletes campaign folder", async () => {
     resetWorld();
     const created = await createMkCampaign({ name: "Test Campaign" });
-    const beforeFolders = mockFolders.filter(f => f.flags["sword-world-25"]?.mkCampaignFolder === created.data.campaignId);
+    const beforeFolders = mockFolders.filter(f => f.flags["sw25-taka"]?.mkCampaignFolder === created.data.campaignId);
     assert.equal(beforeFolders.length, 1, "folder exists before deletion");
     const deleted = await deleteMkCampaign(created.data.campaignId);
     assert.equal(deleted.ok, true, "deletion ok");
-    const afterFolders = mockFolders.filter(f => f.flags["sword-world-25"]?.mkCampaignFolder === created.data.campaignId);
+    const afterFolders = mockFolders.filter(f => f.flags["sw25-taka"]?.mkCampaignFolder === created.data.campaignId);
     assert.equal(afterFolders.length, 0, "campaign folder removed after deletion");
   })();
 
@@ -277,16 +277,16 @@ async function runAll() {
     const created = await createMkCampaign({ name: "Orphaned Campaign" });
     assert.equal(created.ok, true, "campaign created");
     // Folder should exist from createMkCampaign integration
-    let folders = mockFolders.filter(f => f.flags["sword-world-25"]?.mkCampaignFolder === created.data.campaignId);
+    let folders = mockFolders.filter(f => f.flags["sw25-taka"]?.mkCampaignFolder === created.data.campaignId);
     assert.equal(folders.length, 1, "folder exists after campaign creation");
     // Manually delete the folder to simulate it being removed
     await folders[0].delete();
-    folders = mockFolders.filter(f => f.flags["sword-world-25"]?.mkCampaignFolder === created.data.campaignId);
+    folders = mockFolders.filter(f => f.flags["sw25-taka"]?.mkCampaignFolder === created.data.campaignId);
     assert.equal(folders.length, 0, "folder manually deleted");
     // Reconciliation should restore it
     const reconciled = await reconcileMkFolders();
     assert.equal(reconciled.ok, true, "reconciliation ok");
-    const restored = mockFolders.filter(f => f.flags["sword-world-25"]?.mkCampaignFolder === created.data.campaignId);
+    const restored = mockFolders.filter(f => f.flags["sw25-taka"]?.mkCampaignFolder === created.data.campaignId);
     assert.equal(restored.length, 1, "folder restored by reconciliation");
   })();
 
@@ -294,8 +294,8 @@ async function runAll() {
   await test("12. reconcileMkFolders reports duplicate Current Session folders", async () => {
     resetWorld();
     await getOrCreateMkRegistryFolder();
-    await MockFolder.create({ name: "Current Session", folder: mockFolders[0].id, type: "Actor", flags: { "sword-world-25": { mkSessionFolder: true, mkSessionId: "s1" } } });
-    await MockFolder.create({ name: "Current Session", folder: mockFolders[0].id, type: "Actor", flags: { "sword-world-25": { mkSessionFolder: true, mkSessionId: "s2" } } });
+    await MockFolder.create({ name: "Current Session", folder: mockFolders[0].id, type: "Actor", flags: { "sw25-taka": { mkSessionFolder: true, mkSessionId: "s1" } } });
+    await MockFolder.create({ name: "Current Session", folder: mockFolders[0].id, type: "Actor", flags: { "sw25-taka": { mkSessionFolder: true, mkSessionId: "s2" } } });
     const reconciled = await reconcileMkFolders();
     assert.equal(reconciled.ok, true, "reconciliation ok");
     const reviewIssues = reconciled.data.issues.filter(i => i.severity === "review");
@@ -345,7 +345,7 @@ async function runAll() {
     assert.equal(r2.ok, true, "second call ok");
     const r3 = await getOrCreateCampaignFolder("camp-1", "Campaign One");
     assert.equal(r3.ok, true, "third call ok");
-    const campaignFolders = mockFolders.filter(f => f.flags["sword-world-25"]?.mkCampaignFolder === "camp-1");
+    const campaignFolders = mockFolders.filter(f => f.flags["sw25-taka"]?.mkCampaignFolder === "camp-1");
     assert.equal(campaignFolders.length, 1, "only one folder despite repeated calls");
   })();
 
@@ -354,8 +354,8 @@ async function runAll() {
     resetWorld();
     const c1 = await createMkCampaign({ name: "Campaign One" });
     const c2 = await createMkCampaign({ name: "Campaign Two" });
-    const c1FolderId = mockFolders.find(f => f.flags["sword-world-25"]?.mkCampaignFolder === c1.data.campaignId).id;
-    const c2FolderId = mockFolders.find(f => f.flags["sword-world-25"]?.mkCampaignFolder === c2.data.campaignId).id;
+    const c1FolderId = mockFolders.find(f => f.flags["sw25-taka"]?.mkCampaignFolder === c1.data.campaignId).id;
+    const c2FolderId = mockFolders.find(f => f.flags["sw25-taka"]?.mkCampaignFolder === c2.data.campaignId).id;
     await deleteMkCampaign(c1.data.campaignId);
     const c1Folder = mockFolders.find(f => f.id === c1FolderId);
     const c2Folder = mockFolders.find(f => f.id === c2FolderId);
@@ -379,10 +379,10 @@ async function runAll() {
     const root = await getOrCreateMkRegistryFolder();
     const session = await getOrCreateSessionFolder("session-1");
     assert.equal(session.ok, true, "session folder ok");
-    const sessionFolder = mockFolders.find(f => f.flags["sword-world-25"]?.mkSessionFolder === true);
+    const sessionFolder = mockFolders.find(f => f.flags["sw25-taka"]?.mkSessionFolder === true);
     assert.ok(sessionFolder, "session folder exists");
     assert.equal(sessionFolder.folder, root.data.folderId, "session folder parent is the Bestiary root (folder field)");
-    const rootFolder = mockFolders.find(f => f.flags["sword-world-25"]?.mkRegistryRoot === true);
+    const rootFolder = mockFolders.find(f => f.flags["sw25-taka"]?.mkRegistryRoot === true);
     assert.equal(rootFolder.folder, null, "root folder has no parent");
   })();
 
@@ -392,10 +392,10 @@ async function runAll() {
     const root = await getOrCreateMkRegistryFolder();
     // Simulate the old-build folder created at the Actors directory root
     // (created with the wrong field, folder === null).
-    await MockFolder.create({ name: "Current Session", type: "Actor", flags: { "sword-world-25": { mkSessionFolder: true, mkSessionId: "s-old" } } });
+    await MockFolder.create({ name: "Current Session", type: "Actor", flags: { "sw25-taka": { mkSessionFolder: true, mkSessionId: "s-old" } } });
     const result = await getOrCreateSessionFolder("session-1");
     assert.equal(result.ok, true, "reuse ok");
-    const sessionFolders = mockFolders.filter(f => f.flags["sword-world-25"]?.mkSessionFolder === true);
+    const sessionFolders = mockFolders.filter(f => f.flags["sw25-taka"]?.mkSessionFolder === true);
     assert.equal(sessionFolders.length, 1, "no duplicate session folder");
     assert.equal(sessionFolders[0].folder, root.data.folderId, "misplaced folder was moved under the Bestiary root");
   })();
@@ -404,10 +404,10 @@ async function runAll() {
   await test("20. getOrCreateCampaignFolder reparents a misplaced campaign folder", async () => {
     resetWorld();
     const root = await getOrCreateMkRegistryFolder();
-    await MockFolder.create({ name: "Campaign", type: "Actor", flags: { "sword-world-25": { mkCampaignFolder: "camp-1", mkRegistryRoot: false } } });
+    await MockFolder.create({ name: "Campaign", type: "Actor", flags: { "sw25-taka": { mkCampaignFolder: "camp-1", mkRegistryRoot: false } } });
     const result = await getOrCreateCampaignFolder("camp-1", "Campaign One");
     assert.equal(result.ok, true, "reuse ok");
-    const campaignFolders = mockFolders.filter(f => f.flags["sword-world-25"]?.mkCampaignFolder === "camp-1");
+    const campaignFolders = mockFolders.filter(f => f.flags["sw25-taka"]?.mkCampaignFolder === "camp-1");
     assert.equal(campaignFolders.length, 1, "no duplicate campaign folder");
     assert.equal(campaignFolders[0].folder, root.data.folderId, "misplaced campaign folder was moved under the Bestiary root");
   })();
@@ -419,8 +419,8 @@ async function runAll() {
     await getOrCreateSessionFolder("s1");
     const campaign = await createMkCampaign({ name: "Campaign One" });
     // Force both managed folders out of the root (old-build state).
-    const sessionFolder = mockFolders.find(f => f.flags["sword-world-25"]?.mkSessionFolder === true);
-    const campaignFolder = mockFolders.find(f => f.flags["sword-world-25"]?.mkCampaignFolder === campaign.data.campaignId);
+    const sessionFolder = mockFolders.find(f => f.flags["sw25-taka"]?.mkSessionFolder === true);
+    const campaignFolder = mockFolders.find(f => f.flags["sw25-taka"]?.mkCampaignFolder === campaign.data.campaignId);
     assert.ok(sessionFolder, "session folder exists before reconcile");
     assert.ok(campaignFolder, "campaign folder exists before reconcile");
     sessionFolder.folder = null;

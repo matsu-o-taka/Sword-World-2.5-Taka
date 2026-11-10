@@ -72,7 +72,7 @@ globalThis.game = {
       // handler — the player client therefore never writes the registry.
       if (payload?.action === "mk-discovery-request" && relayAckMode !== "silent") {
         const ack = {
-          scope: "sword-world-25",
+          scope: "sw25-taka",
           action: "mk-discovery-ack",
           requestId: payload.requestId,
           gid: payload.gid,
@@ -338,7 +338,7 @@ resetWorld();
   assert.equal(bonusPart.enabled, true, "fixed bonus part is enabled");
   assert.equal(bonusPart.temporary, false, "fixed bonus is permanent (not temporary)");
   assert.ok(chatMessagesWithFlags.length > 0, "roll was posted to chat");
-  assert.ok(chatMessagesWithFlags[0].flags["sword-world-25"]?.monsterKnowledge, "message has monsterKnowledge flag");
+  assert.ok(chatMessagesWithFlags[0].flags["sw25-taka"]?.monsterKnowledge, "message has monsterKnowledge flag");
   console.log("  ✓ PASS");
 }
 
@@ -406,7 +406,7 @@ resetWorld();
 
   const result = await rollMonsterKnowledge({ actor: char, targetMonster: monster });
   const msg = chatMessagesWithFlags[chatMessagesWithFlags.length - 1];
-  assert.ok(msg.flags["sword-world-25"].monsterKnowledge.targetTokenUuids.includes(monster.uuid), "monster uuid in targetTokenUuids");
+  assert.ok(msg.flags["sw25-taka"].monsterKnowledge.targetTokenUuids.includes(monster.uuid), "monster uuid in targetTokenUuids");
   // Dice-only roll: 12. Sage result 12+3+2 = 17, Rider result 12+2+2 = 16.
   assert.equal(result.rollTotal, 12, "roll total is the dice only (12)");
   const sage4 = result.individualResults.find(entry => entry.className === "sage");
@@ -494,7 +494,7 @@ resetWorld();
   assert.deepEqual(partial.discoveries.map(d => d.type), ["classification"], "only classification identified below both thresholds");
   assert.ok(partial.discoveries[0].classification === "daemon", "classification recorded");
   const partialMsg = chatMessagesWithFlags[0];
-  assert.ok(partialMsg.flags["sword-world-25"].monsterKnowledge.usedClasses?.[0]?.className === "dark hunter", "used Dark Hunter");
+  assert.ok(partialMsg.flags["sw25-taka"].monsterKnowledge.usedClasses?.[0]?.className === "dark hunter", "used Dark Hunter");
   assert.ok(partialMsg.flavor.includes("Partial success — Classification identified"), "classification verdict on the partial roll");
 
   // Second roll above weakness -> stats + identification + Weak Point.

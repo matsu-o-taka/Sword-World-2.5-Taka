@@ -90,7 +90,7 @@ function resetWorld() {
 }
 
 function storedRegistry() {
-  return worldSettings.get(`sword-world-25.${MK_REGISTRY_KEY}`);
+  return worldSettings.get(`sw25-taka.${MK_REGISTRY_KEY}`);
 }
 
 function makeMonster(overrides = {}) {

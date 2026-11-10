@@ -196,7 +196,7 @@ function makeEvidence(monster, speciesIdText) {
 }
 
 const legacyValue = () => {
-  const value = worldSettings.get("sword-world-25.weaknessRegistry");
+  const value = worldSettings.get("sw25-taka.weaknessRegistry");
   return value === undefined ? undefined : structuredClone(value);
 };
 

@@ -30,7 +30,7 @@ Hooks.once("init", () => {
 
   // Keep the system stylesheet after Foundry's core theme styles. Foundry V14
   // otherwise allows core form/button rules to win depending on load order.
-  const stylesheetPath = "systems/sword-world-25/styles/sw25.css";
+  const stylesheetPath = "systems/sw25-taka/styles/sw25.css";
   const existingStylesheet = document.querySelector(`link[data-sw25-stylesheet]`);
   if (!existingStylesheet) {
     const stylesheet = document.createElement("link");
@@ -51,30 +51,30 @@ Hooks.once("init", () => {
   };
 
   foundry.documents.collections.Actors.unregisterSheet("core", foundry.appv1.sheets.ActorSheet);
-  foundry.documents.collections.Actors.registerSheet("sword-world-25", SW25ActorSheet, {
+  foundry.documents.collections.Actors.registerSheet("sw25-taka", SW25ActorSheet, {
     types: ["character"],
     makeDefault: true
   });
-  foundry.documents.collections.Actors.registerSheet("sword-world-25", SW25MonsterSheet, {
+  foundry.documents.collections.Actors.registerSheet("sw25-taka", SW25MonsterSheet, {
     types: ["monster"],
     makeDefault: true
   });
-  foundry.documents.collections.Actors.registerSheet("sword-world-25", SW25NPCSheet, {
+  foundry.documents.collections.Actors.registerSheet("sw25-taka", SW25NPCSheet, {
     types: ["npc"],
     makeDefault: true
   });
-  foundry.documents.collections.Actors.registerSheet("sword-world-25", SW25FellowSheet, {
+  foundry.documents.collections.Actors.registerSheet("sw25-taka", SW25FellowSheet, {
     types: ["fellow"],
     makeDefault: true
   });
 
   foundry.documents.collections.Items.unregisterSheet("core", foundry.appv1.sheets.ItemSheet);
-  foundry.documents.collections.Items.registerSheet("sword-world-25", SW25ItemSheet, {
+  foundry.documents.collections.Items.registerSheet("sw25-taka", SW25ItemSheet, {
     types: ["race", "class", "feat", "ability", "weapon", "armour", "skill", "spell", "equipment"],
     makeDefault: true
   });
 
-  game.settings.register("sword-world-25", "standardScenesCreated", {
+  game.settings.register("sw25-taka", "standardScenesCreated", {
     scope:"world",
     config:false,
     type:Boolean,
@@ -82,7 +82,7 @@ Hooks.once("init", () => {
   });
   // Monster Knowledge Registry (module/knowledge/): schema v2 store. Only the
   // registry service writes this setting.
-  game.settings.register("sword-world-25", "mkRegistry", {
+  game.settings.register("sw25-taka", "mkRegistry", {
     scope:"world",
     config:false,
     type:Object,
@@ -91,7 +91,7 @@ Hooks.once("init", () => {
 
   // Monster Knowledge Manager menu (F3): opens the GM-only registry
   // management window from Configure Settings → Sword World 2.5.
-  game.settings.registerMenu("sword-world-25", "mkRegistryManager", {
+  game.settings.registerMenu("sw25-taka", "mkRegistryManager", {
     name: "Monster Knowledge Manager",
     label: "Open MKM",
     hint: "Manage Monster Knowledge discoveries by session and campaign.",
@@ -144,7 +144,7 @@ Hooks.on("renderItemDirectory", (_application, html) => {
 });
 
 Hooks.on("renderChatMessageHTML", (message, html) => {
-  if (message.getFlag("sword-world-25", "naturalPowerAdded")) {
+  if (message.getFlag("sw25-taka", "naturalPowerAdded") ?? message.getFlag("sword-world-25", "naturalPowerAdded")) {
     const button = html.querySelector("[data-sw25-chat-action='add-natural-power']");
     if (button) {
       button.disabled = true;
@@ -157,9 +157,10 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
       event.preventDefault();
       const actor = game.actors.get(button.dataset.actorId);
       if (!actor?.isOwner) return ui.notifications.warn("You do not own the character receiving this MP.");
-      if (message.getFlag("sword-world-25", "naturalPowerAdded")) return ui.notifications.warn("This Natural Power result has already been added.");
+      if (message.getFlag("sw25-taka", "naturalPowerAdded") ?? message.getFlag("sword-world-25", "naturalPowerAdded")) return ui.notifications.warn("This Natural Power result has already been added.");
       button.disabled = true;
       await addNaturalPowerMP(actor, Number(button.dataset.mp || 0));
+      await message.setFlag("sw25-taka", "naturalPowerAdded", true);
       await message.setFlag("sword-world-25", "naturalPowerAdded", true);
       button.innerHTML = '<i class="fas fa-check"></i> MP Added';
     });

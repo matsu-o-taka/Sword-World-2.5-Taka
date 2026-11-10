@@ -1,10 +1,12 @@
-# Sword World 2.5 (Taka fork)
+# Sword World 2.5: Taka Edition
+
+> **Disclaimer:** Sword World 2.5: Taka Edition is an unofficial, independently maintained community fork of Daedalus's Sword World 2.5 Foundry system. It is not an official product of Group SNE or KADOKAWA, nor is it affiliated with or endorsed by either organization.
 
 This is a fork of [Sword-World-2.5-Foundry](https://github.com/DaedaIus/Sword-World-2.5-Foundry) by **Daedalus**, adding patches and new features on top of the original system.
 
 A note from me: I am not a programmer. I am building and maintaining this fork as a hobby, with the help of AI, purely as a fan of Sword World 2.5. I test everything as I go hoping it works, but expect rough edges.
 
-![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sword--world--25%200.18.0%2B-blue)
+![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sw25--taka%200.18.0%2B-blue)
 
 ## Features at a glance
 

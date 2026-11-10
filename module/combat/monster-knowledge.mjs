@@ -4,8 +4,8 @@ import { normalizeSpeciesId, speciesId } from "../knowledge/mk-identity.mjs";
 import { isMkSpeciesKnown, registerMkDiscovery, withdrawMkDiscovery } from "../knowledge/monster-knowledge-registry.mjs";
 import { requestMkRelayDiscovery, publishMkBestiaryReveal } from "../knowledge/mk-relay.mjs";
 
-const SYSTEM_ID = "sword-world-25";
-export const MK_OBSERVER_SOCKET = "system.sword-world-25";
+const SYSTEM_ID = "sw25-taka";
+export const MK_OBSERVER_SOCKET = "system.sw25-taka";
 
 // Re-export the shared species identity (single authoritative module) so the
 // pre-F1 consumers of monster-knowledge keep importing from here.
@@ -1135,7 +1135,7 @@ export async function rollMonsterKnowledge({
 
   // Chat flags shared by both branches (GM compatibility path + tests).
   const mkFlags = {
-    "sword-world-25": {
+    "sw25-taka": {
       monsterKnowledge: {
         successValue: Number(roll.total),
         natural,

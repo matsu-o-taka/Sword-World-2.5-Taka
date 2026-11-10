@@ -548,13 +548,13 @@ resetWorld();
 setGM();
 await startMkSession({ name: "Sesión 1" });
 await registerMkDiscovery({ speciesId: "Goblin", speciesLabel: "Goblin", source: "roll", level: "weakness" });
-const registryBefore18 = JSON.stringify(worldSettings.get("sword-world-25.mkRegistry"));
+const registryBefore18 = JSON.stringify(worldSettings.get("sw25-taka.mkRegistry"));
 globalThis.game.user.isGM = false;
 try {
   const refused18 = await withdrawMkDiscovery({ speciesIdentifier: "goblin" });
   assert.equal(refused18.ok, false, "withdrawal refused without GM");
   assert.equal(refused18.code, "not-gm", "refusal code is not-gm");
-  assert.equal(JSON.stringify(worldSettings.get("sword-world-25.mkRegistry")), registryBefore18, "registry unchanged (no local write)");
+  assert.equal(JSON.stringify(worldSettings.get("sw25-taka.mkRegistry")), registryBefore18, "registry unchanged (no local write)");
 } finally {
   globalThis.game.user.isGM = true;
 }

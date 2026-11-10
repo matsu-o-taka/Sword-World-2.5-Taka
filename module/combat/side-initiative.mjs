@@ -1,9 +1,9 @@
 import { expireNaturalPower, naturalPowerRemainder } from "../rules/spell-damage.mjs";
 import { processRegenerationTurn } from "../rules/spell-effects.mjs";
 
-const FLAG_SCOPE = "sword-world-25";
+const FLAG_SCOPE = "sw25-taka";
 const FLAG_KEY = "sideInitiative";
-const SOCKET = "system.sword-world-25";
+const SOCKET = "system.sw25-taka";
 let sideTurnWindow = null;
 
 export const firstSide = (playerValues = [], monsterValue = 0) =>
@@ -75,7 +75,7 @@ class SW25SideTurnWindow extends SideTurnApplication {
     return foundry.utils.mergeObject(super.defaultOptions, {
       id:"sw25-side-turn-window",
       title:"Sword World Side Turns",
-      template:"systems/sword-world-25/templates/apps/side-turn-window.hbs",
+      template:"systems/sw25-taka/templates/apps/side-turn-window.hbs",
       width:330,
       height:"auto",
       resizable:false,
@@ -90,7 +90,7 @@ class SW25SideTurnWindow extends SideTurnApplication {
     const players = characterCombatants(combat);
     const remaining = players.filter(combatant => !done.has(combatant.id));
     const naturalPower = players.map(combatant => {
-      const resource = combatant.actor?.getFlag("sword-world-25", "naturalPower");
+      const resource = combatant.actor?.getFlag("sw25-taka", "naturalPower") ?? combatant.actor?.getFlag("sword-world-25", "naturalPower");
       if (!resource || (!game.user.isGM && !combatant.actor?.isOwner)) return null;
       return {
         name:combatant.name,

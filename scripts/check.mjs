@@ -11,7 +11,7 @@ const assert = (condition, message) => {
   if (!condition) throw new Error(message);
 };
 
-assert(manifest.id === "sword-world-25", "The system id must remain sword-world-25.");
+assert(manifest.id === "sw25-taka", "The system id must be sw25-taka.");
 assert(Number(manifest.compatibility.minimum) === 14, "Minimum Foundry version must be 14.");
 assert(Number(manifest.compatibility.verified) === 14, "Verified Foundry version must be 14.");
 assert(manifest.documentTypes?.Actor?.character, "Character Actor type is missing.");

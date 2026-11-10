@@ -389,7 +389,7 @@ console.log("Test 6: GM sender, inactive sender, unknown sender, requester spoof
   // Craft a request pretending it comes from a GM sender: only possible by
   // forging the transport, because requestMkRelayDiscovery refuses GM senders.
   const forgedFromGm = structuredClone(relayRequestsFromLog().at(-1)?.payload ?? {
-    scope: "sword-world-25",
+    scope: "sw25-taka",
     action: MK_RELAY_REQUEST_ACTION,
     requestId: `req-${Math.random().toString(36).slice(2)}`,
     gid: "gm-user",
@@ -402,7 +402,7 @@ console.log("Test 6: GM sender, inactive sender, unknown sender, requester spoof
   const inactiveUser = { _id: "player-idle", id: "player-idle", isGM: false, active: false, name: "Idle" };
   gameUsers.push(inactiveUser);
   const idleRequest = {
-    scope: "sword-world-25",
+    scope: "sw25-taka",
     action: MK_RELAY_REQUEST_ACTION,
     requestId: `req-${Math.random().toString(36).slice(2)}`,
     gid: "gm-user",
@@ -413,7 +413,7 @@ console.log("Test 6: GM sender, inactive sender, unknown sender, requester spoof
   assert.deepEqual(allDiscoveries(), [], "no write is authorized for an inactive sender");
 
   const unknownRequest = {
-    scope: "sword-world-25",
+    scope: "sw25-taka",
     action: MK_RELAY_REQUEST_ACTION,
     requestId: `req-${Math.random().toString(36).slice(2)}`,
     gid: "gm-user",
@@ -424,7 +424,7 @@ console.log("Test 6: GM sender, inactive sender, unknown sender, requester spoof
   assert.deepEqual(allDiscoveries(), [], "no write is authorized for an unknown sender");
 
   const spoofedRequest = {
-    scope: "sword-world-25",
+    scope: "sw25-taka",
     action: MK_RELAY_REQUEST_ACTION,
     requestId: `req-${Math.random().toString(36).slice(2)}`,
     gid: "gm-user",
@@ -451,7 +451,7 @@ console.log("Test 7: Spoofed speciesId, forced source and discoveredBy cannot di
   actorsCollection.push(monster);
 
   const hostile = {
-    scope: "sword-world-25",
+    scope: "sw25-taka",
     action: MK_RELAY_REQUEST_ACTION,
     requestId: `req-${Math.random().toString(36).slice(2)}`,
     gid: "gm-user",
@@ -481,7 +481,7 @@ console.log("Test 8: Requests referencing missing or speciesless monsters are re
 {
   resetWorld();
   const missingRequest = {
-    scope: "sword-world-25",
+    scope: "sw25-taka",
     action: MK_RELAY_REQUEST_ACTION,
     requestId: `req-${Math.random().toString(36).slice(2)}`,
     gid: "gm-user",
@@ -499,7 +499,7 @@ console.log("Test 8: Requests referencing missing or speciesless monsters are re
   const noSpeciesMonster = makeMonster({ id: "monster-ns", species: null });
   actorsCollection.push(noSpeciesMonster);
   const specieslessRequest = {
-    scope: "sword-world-25",
+    scope: "sw25-taka",
     action: MK_RELAY_REQUEST_ACTION,
     requestId: `req-${Math.random().toString(36).slice(2)}`,
     gid: "gm-user",
@@ -525,7 +525,7 @@ console.log("Test 9: Missing or foreign gid is ignored, no processing and no ack
   actorsCollection.push(monster);
 
   const noGid = {
-    scope: "sword-world-25",
+    scope: "sw25-taka",
     action: MK_RELAY_REQUEST_ACTION,
     requestId: `req-${Math.random().toString(36).slice(2)}`,
     gid: null,
@@ -570,7 +570,7 @@ console.log("Test 10: Forged player acks cannot settle a request");
 
   // Forge an ack as a player client: it must be ignored.
   await emitAsClient("player-2", {
-    scope: "sword-world-25",
+    scope: "sw25-taka",
     action: MK_RELAY_ACK_ACTION,
     requestId,
     gid: "gm-user",
@@ -584,7 +584,7 @@ console.log("Test 10: Forged player acks cannot settle a request");
 
   // A real ack from the GM settles the request through its stored resolver.
   await emitAsClient("gm-user", {
-    scope: "sword-world-25",
+    scope: "sw25-taka",
     action: MK_RELAY_ACK_ACTION,
     requestId,
     gid: "gm-user",
@@ -839,7 +839,7 @@ console.log("Test 16: Successful relay publishes the Bestiary reveal notice to t
   assert.ok(Array.isArray(notice.whisper) && notice.whisper.includes("player-2"), "the notice reaches the requester");
   assert.ok(Array.isArray(notice.whisper) && notice.whisper.includes("player-1"), "the notice reaches every active player (table-wide knowledge)");
   assert.ok(Array.isArray(notice.whisper) && !notice.whisper.includes("gm-user"), "the GM is never a whisper target");
-  assert.ok(notice.flags && notice.flags["sword-world-25"] && notice.flags["sword-world-25"].mkReveal === true, "notice flagged as an MK reveal message");
+  assert.ok(notice.flags && notice.flags["sw25-taka"] && notice.flags["sw25-taka"].mkReveal === true, "notice flagged as an MK reveal message");
 
   // Repeating the discovery (already-known) also reveals: the existing copy
   // pointer travels through the ack, so the player can still consult it.

@@ -256,7 +256,7 @@ export class MKRegistryManagerApp extends foundry.appv1.api.FormApplication {
     return foundry.utils.mergeObject(super.defaultOptions, {
       id: APP_ID,
       classes: ["sw25", "sw25-mk-registry-manager"],
-      template: "systems/sword-world-25/templates/ui/mk-registry-manager.hbs",
+      template: "systems/sw25-taka/templates/ui/mk-registry-manager.hbs",
       title: TITLE,
       width: 900,
       height: 650,

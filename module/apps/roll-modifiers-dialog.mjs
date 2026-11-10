@@ -40,7 +40,7 @@ export class RollModifiersDialog extends foundry.appv1.api.Application {
     return foundry.utils.mergeObject(super.defaultOptions, {
       id: "sw25-roll-modifiers-dialog",
       classes: ["sw25", "sw25-roll-modifiers"],
-      template: "systems/sword-world-25/templates/apps/roll-modifiers-dialog.hbs",
+      template: "systems/sw25-taka/templates/apps/roll-modifiers-dialog.hbs",
       width: 460,
       height: "auto",
       resizable: false

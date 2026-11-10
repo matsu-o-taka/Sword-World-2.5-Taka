@@ -1,7 +1,7 @@
 import { abilityBonus } from "../rules/weapon-damage.mjs";
 import { criticalFailureHTML, markCriticalFailure } from "../rules/critical-failure.mjs";
 
-const FLAG_SCOPE = "sword-world-25";
+const FLAG_SCOPE = "sw25-taka";
 const FLAG_KEY = "evasionChallenge";
 
 export function staticAccuracy(value) {

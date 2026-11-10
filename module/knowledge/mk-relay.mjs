@@ -38,13 +38,13 @@ import { normalizeSpeciesId } from "./mk-identity.mjs";
 import { registerMkDiscovery } from "./monster-knowledge-registry.mjs";
 import { generateMkId } from "./monster-knowledge-store.mjs";
 
-const SYSTEM_ID = "sword-world-25";
+const SYSTEM_ID = "sw25-taka";
 
 /**
  * Shared system socket channel (same channel already used by the damage
  * application, spell effects, side initiative and OBSERVER relays).
  */
-export const MK_RELAY_SOCKET = "system.sword-world-25";
+export const MK_RELAY_SOCKET = "system.sw25-taka";
 
 /** Player -> GM action name. */
 export const MK_RELAY_REQUEST_ACTION = "mk-discovery-request";

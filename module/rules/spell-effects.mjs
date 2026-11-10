@@ -1,8 +1,8 @@
 import { damageApplicationButton } from "../combat/damage-application.mjs";
 
-const FLAG_SCOPE = "sword-world-25";
+const FLAG_SCOPE = "sw25-taka";
 const FLAG_KEY = "timedRegeneration";
-const SOCKET = "system.sword-world-25";
+const SOCKET = "system.sw25-taka";
 const REGENERATION_SPECS = {
   "reproducer-bloody-petal":{ sourceKey:"reproducer-bloody-petal", healing:5, turns:6 },
   "reproducer-living-tree":{ sourceKey:"reproducer-living-tree", healing:10, turns:6 }

@@ -236,9 +236,9 @@ async function runAll() {
     assert.notEqual(copy.id, original.id, "copy has different id");
     assert.notEqual(copy.uuid, original.uuid, "copy has different uuid");
     assert.equal(copy.name, "Goblin", "copy preserves name");
-    assert.equal(copy.flags["sword-world-25"].mkbestiary, true, "copy has bestiary flag");
-    assert.equal(copy.flags["sword-world-25"].speciesId, "goblin", "copy has speciesId");
-    assert.equal(copy.flags["sword-world-25"].sourceActorUuid, original.uuid, "copy references original");
+    assert.equal(copy.flags["sw25-taka"].mkbestiary, true, "copy has bestiary flag");
+    assert.equal(copy.flags["sw25-taka"].speciesId, "goblin", "copy has speciesId");
+    assert.equal(copy.flags["sw25-taka"].sourceActorUuid, original.uuid, "copy references original");
     assert.equal(copy.ownership.default, CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER, "players have OBSERVER ownership");
     assert.notEqual(copy.ownership.default, CONST.DOCUMENT_OWNERSHIP_LEVELS.LIMITED, "not LIMITED ownership");
   })();
@@ -269,7 +269,7 @@ async function runAll() {
     const stillOriginal = mockActors.find(a => a.id === originalId);
     assert.ok(stillOriginal, "original actor still exists");
     assert.equal(stillOriginal.uuid, originalUuid, "original uuid unchanged");
-    assert.equal(stillOriginal.flags?.["sword-world-25"]?.mkbestiary, undefined, "original has no bestiary flag");
+    assert.equal(stillOriginal.flags?.["sw25-taka"]?.mkbestiary, undefined, "original has no bestiary flag");
     assert.equal(stillOriginal.ownership.default, CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE, "original ownership unchanged");
   })();
 
@@ -294,11 +294,11 @@ async function runAll() {
     await createBestiaryActorCopy(discovery, "session-1", "session");
 
     const copy = mockActors[1];
-    assert.equal(copy.flags["sword-world-25"].mkbestiary, true, "mkbestiary flag is true");
-    assert.equal(copy.flags["sword-world-25"].speciesId, "troll", "speciesId flag");
-    assert.equal(copy.flags["sword-world-25"].sourceActorUuid, original.uuid, "sourceActorUuid flag");
-    assert.equal(copy.flags["sword-world-25"].recordKind, "session", "recordKind flag");
-    assert.equal(copy.flags["sword-world-25"].recordId, "session-1", "recordId flag");
+    assert.equal(copy.flags["sw25-taka"].mkbestiary, true, "mkbestiary flag is true");
+    assert.equal(copy.flags["sw25-taka"].speciesId, "troll", "speciesId flag");
+    assert.equal(copy.flags["sw25-taka"].sourceActorUuid, original.uuid, "sourceActorUuid flag");
+    assert.equal(copy.flags["sw25-taka"].recordKind, "session", "recordKind flag");
+    assert.equal(copy.flags["sw25-taka"].recordId, "session-1", "recordId flag");
   })();
 
   // ── 4. Promoción Reputation → Weakness sin duplicación ──────────────────
@@ -412,8 +412,8 @@ async function runAll() {
     assert.equal(mockActors.length, 3, "session copy is separate from campaign copy");
 
     const sessionCopy = mockActors[2];
-    assert.equal(sessionCopy.flags["sword-world-25"].recordKind, "session", "session copy recordKind");
-    assert.equal(sessionCopy.flags["sword-world-25"].recordId, reg2.data.recordId, "session copy recordId");
+    assert.equal(sessionCopy.flags["sw25-taka"].recordKind, "session", "session copy recordKind");
+    assert.equal(sessionCopy.flags["sw25-taka"].recordId, reg2.data.recordId, "session copy recordId");
   })();
 
   // ── 7. Reinicio de sesión y limpieza de su contenido ────────────────────
@@ -526,7 +526,7 @@ async function runAll() {
       uuid: "Actor.goblin-copy-1",
       folder: mockFolders[0]?.id ?? null,
       flags: {
-        "sword-world-25": {
+        "sw25-taka": {
           mkbestiary: true,
           speciesId: "goblin",
           recordId: "session-1",
@@ -541,7 +541,7 @@ async function runAll() {
       uuid: "Actor.goblin-copy-2",
       folder: mockFolders[0]?.id ?? null,
       flags: {
-        "sword-world-25": {
+        "sw25-taka": {
           mkbestiary: true,
           speciesId: "goblin",
           recordId: "session-1",
@@ -610,7 +610,7 @@ async function runAll() {
       type: "monster",
       uuid: "Actor.orphaned-goblin",
       flags: {
-        "sword-world-25": {
+        "sw25-taka": {
           mkbestiary: true,
           speciesId: "goblin",
           recordId: "deleted-campaign-id",
@@ -746,12 +746,12 @@ async function runAll() {
     assert.equal(reg2.ok, true, "weakness registered");
     assert.equal(reg2.data.status, "promoted", "status is promoted");
     assert.equal(mockActors.length, 2, "promotion created the missing copy");
-    const copy = mockActors.find(a => a.flags?.["sword-world-25"]?.mkbestiary === true);
+    const copy = mockActors.find(a => a.flags?.["sw25-taka"]?.mkbestiary === true);
     assert.ok(copy, "copy exists with the bestiary flag");
     const disc2 = readMkDiscoveries(reg2.data.recordId).data.find(d => d.speciesId === "goblin");
     assert.ok(disc2, "discovery still present after promotion");
     assert.equal(disc2.bestiaryActorUuid, copy.uuid, "promotion stamped bestiaryActorUuid on the discovery");
-    assert.equal(copy.folder, mockFolders.find(f => f.flags["sword-world-25"]?.mkSessionFolder === true).id, "copy lives in the session folder (not undefined)");
+    assert.equal(copy.folder, mockFolders.find(f => f.flags["sw25-taka"]?.mkSessionFolder === true).id, "copy lives in the session folder (not undefined)");
   })();
 
   // ── 17. Ruta v14 de producción: la copia usa Actor.create ───────────────
@@ -781,15 +781,15 @@ async function runAll() {
       assert.equal(reg.ok, true, "knowledge registered without the collection method");
       assert.ok(!reg.data.bestiaryCopyFailed, "no copy failure reported: " + (reg.data.bestiaryCopyFailed ?? ""));
       assert.equal(mockActors.length, 2, "copy created via Actor.create");
-      const copy = mockActors.find(a => a.flags?.["sword-world-25"]?.mkbestiary === true);
+      const copy = mockActors.find(a => a.flags?.["sw25-taka"]?.mkbestiary === true);
       assert.ok(copy, "copy carries the bestiary flag");
       assert.equal(reg.data.bestiaryActorUuid, copy.uuid, "copy uuid surfaced in the registration result");
       const disc = readMkDiscoveries(reg.data.recordId).data.find(d => d.speciesId === "goblin");
       assert.equal(disc.bestiaryActorUuid, copy.uuid, "copy uuid stamped on the discovery");
       assert.equal(copy.type, "monster", "copy type preserved");
       assert.equal(copy.ownership?.default, 2, "players get OBSERVER (2) on the copy");
-      assert.ok(copy.flags["sword-world-25"].speciesId === "goblin", "copy carries the species flag");
-      assert.ok(copy.flags["sword-world-25"].sourceActorUuid === original.uuid, "copy references the source actor");
+      assert.ok(copy.flags["sw25-taka"].speciesId === "goblin", "copy carries the species flag");
+      assert.ok(copy.flags["sw25-taka"].sourceActorUuid === original.uuid, "copy references the source actor");
     } finally {
       game.actors.create = previousCollectionCreate;
     }
@@ -895,7 +895,7 @@ async function runAll() {
     const rec = await reconcileMkBestiary();
     assert.equal(rec.ok, true, "reconciliation ok: " + JSON.stringify(rec.data));
     assert.ok(rec.data.issues.some(i => i.code === "bestiary-copy-created"), "copy creation issue reported");
-    const copy = mockActors.find(a => a.flags?.["sword-world-25"]?.mkbestiary === true);
+    const copy = mockActors.find(a => a.flags?.["sw25-taka"]?.mkbestiary === true);
     assert.ok(copy, "reconcile created the missing copy");
     const disc = readMkDiscoveries(reg.data.recordId).data.find(d => d.speciesId === "goblin");
     assert.equal(disc.bestiaryActorUuid, copy.uuid, "reconcile re-stamped bestiaryActorUuid");

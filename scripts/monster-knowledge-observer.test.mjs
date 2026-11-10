@@ -271,7 +271,7 @@ game.user = { isGM: false, character: null, id: "player-1" };
   assert.equal(result.granted, false, "player grant not resolved immediately");
   assert.equal(result.reason, "not-granted", "reason is not-granted (awaiting GM)");
   assert.equal(socketEmissions.length, 1, "one socket emission");
-  assert.equal(socketEmissions[0].action, "system.sword-world-25", "socket action is system.sword-world-25");
+  assert.equal(socketEmissions[0].action, "system.sw25-taka", "socket action is system.sw25-taka");
   assert.equal(socketEmissions[0].payload.action, "mk-grant-observer", "payload action is mk-grant-observer");
   assert.equal(socketEmissions[0].payload.actorUuid, monster.uuid, "payload has actorUuid");
   assert.ok(socketEmissions[0].payload.requestId, "payload has requestId");

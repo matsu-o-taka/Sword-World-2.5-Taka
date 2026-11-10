@@ -81,18 +81,18 @@ export function naturalPowerRemainder(state) {
 
 export async function trackNaturalPowerSpending(actor, amount, spell = null) {
   const spent = Math.max(0, Number(amount) || 0);
-  const state = actor.getFlag("sword-world-25", "naturalPower");
+  const state = actor.getFlag("sw25-taka", "naturalPower") ?? actor.getFlag("sword-world-25", "naturalPower");
   if (!state || !spent || !isNatureMagic(spell)) return;
-  await actor.setFlag("sword-world-25", "naturalPower", { ...state, spent:(Number(state.spent) || 0) + spent });
+  await actor.setFlag("sw25-taka", "naturalPower", { ...state, spent:(Number(state.spent) || 0) + spent });
 }
 
 export async function addNaturalPowerMP(actor, amount) {
   const gained = Math.max(0, Number(amount) || 0);
   if (!gained) return;
-  const state = actor.getFlag("sword-world-25", "naturalPower") || { added:0, spent:0 };
+  const state = actor.getFlag("sw25-taka", "naturalPower") ?? (actor.getFlag("sword-world-25", "naturalPower") || { added:0, spent:0 });
   const currentMP = Number(actor.system.mp?.value ?? 0);
   await actor.update({ "system.mp.value":currentMP + gained });
-  await actor.setFlag("sword-world-25", "naturalPower", {
+  await actor.setFlag("sw25-taka", "naturalPower", {
     added:(Number(state.added) || 0) + gained,
     spent:Number(state.spent) || 0,
     combatId:game.combat?.id || "",
@@ -101,13 +101,14 @@ export async function addNaturalPowerMP(actor, amount) {
 }
 
 export async function expireNaturalPower(actor) {
-  const state = actor?.getFlag("sword-world-25", "naturalPower");
+  const state = actor?.getFlag("sw25-taka", "naturalPower") ?? actor?.getFlag("sword-world-25", "naturalPower");
   if (!state) return 0;
   const remainder = naturalPowerRemainder(state);
   if (remainder) {
     const currentMP = Number(actor.system.mp?.value ?? 0);
     await actor.update({ "system.mp.value":Math.max(0, currentMP - remainder) });
   }
+  await actor.unsetFlag("sw25-taka", "naturalPower");
   await actor.unsetFlag("sword-world-25", "naturalPower");
   return remainder;
 }
@@ -134,7 +135,7 @@ export function resolveSpecialSpellDamage(bands, diceTotal, magicPowerResult) {
 }
 
 export async function rememberMagicPowerRoll(actor, roll, classId = "") {
-  await actor.setFlag("sword-world-25", "lastMagicPowerRoll", {
+  await actor.setFlag("sw25-taka", "lastMagicPowerRoll", {
     total:Number(roll.total) || 0,
     classId:String(classId || ""),
     criticalFailure:isCriticalFailure(roll),
@@ -145,7 +146,7 @@ export async function rememberMagicPowerRoll(actor, roll, classId = "") {
 export async function rollSpecialSpellDamage({ actor, spell, castingClass }) {
   const bands = specialDamageBands(spell);
   if (!bands.length) return false;
-  const previous = actor.getFlag("sword-world-25", "lastMagicPowerRoll");
+  const previous = actor.getFlag("sw25-taka", "lastMagicPowerRoll") ?? actor.getFlag("sword-world-25", "lastMagicPowerRoll");
   if (!previous || !Number.isFinite(Number(previous.total))) {
     ui.notifications.warn(`Roll ${castingClass.name} Magic Power before casting ${spell.name}.`);
     return false;
@@ -175,7 +176,7 @@ export async function rollSpecialSpellDamage({ actor, spell, castingClass }) {
 
 export async function rollDoubleStompDamage({ actor, spell, castingClass, targets }) {
   const bands = specialDamageBands(spell);
-  const previous = actor.getFlag("sword-world-25", "lastMagicPowerRoll");
+  const previous = actor.getFlag("sw25-taka", "lastMagicPowerRoll") ?? actor.getFlag("sword-world-25", "lastMagicPowerRoll");
   if (!previous || !Number.isFinite(Number(previous.total)) || (previous.classId && String(previous.classId) !== String(castingClass.id))) {
     ui.notifications.warn(`Roll ${castingClass.name} Magic Power before casting ${spell.name}.`);
     return false;

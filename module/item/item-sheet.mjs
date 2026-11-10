@@ -14,7 +14,7 @@ export class SW25ItemSheet extends foundry.appv1.sheets.ItemSheet {
   }
 
   get template() {
-    return "systems/sword-world-25/templates/item/item-sheet.hbs";
+    return "systems/sw25-taka/templates/item/item-sheet.hbs";
   }
 
   async getData(options = {}) {
@@ -73,7 +73,7 @@ export class SW25ItemSheet extends foundry.appv1.sheets.ItemSheet {
     const hasSpecialDamage = specialDamageBands(spell).length > 0;
     const exhaustiveSucking = isExhaustiveSucking(spell);
     const needsPreviousMagicPower = hasSpecialDamage || exhaustiveSucking;
-    const previousMagicPower = needsPreviousMagicPower ? actor.getFlag("sword-world-25", "lastMagicPowerRoll") : null;
+    const previousMagicPower = needsPreviousMagicPower ? actor.getFlag("sw25-taka", "lastMagicPowerRoll") ?? actor.getFlag("sword-world-25", "lastMagicPowerRoll") : null;
     if (needsPreviousMagicPower && (!previousMagicPower || previousMagicPower.criticalFailure || (previousMagicPower.classId && String(previousMagicPower.classId) !== String(castingClass.id)))) {
       return ui.notifications.warn(`Roll ${castingClass.name} Magic Power before casting ${spell.name}.`);
     }

@@ -1,7 +1,7 @@
 import { criticalFailureHTML, markCriticalFailure } from "./critical-failure.mjs";
 import { characterAbilityScore, characterHPMaximum } from "./resources.mjs";
 
-const FLAG_SCOPE = "sword-world-25";
+const FLAG_SCOPE = "sw25-taka";
 const escape = value => foundry.utils.escapeHTML(String(value ?? ""));
 
 export function recoveryResource(item = {}) {

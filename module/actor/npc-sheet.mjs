@@ -10,14 +10,14 @@ export class SW25NPCSheet extends foundry.appv1.sheets.ActorSheet {
   }
 
   get template() {
-    return "systems/sword-world-25/templates/actor/npc-sheet.hbs";
+    return "systems/sw25-taka/templates/actor/npc-sheet.hbs";
   }
 
   async getData(options = {}) {
     const context = await super.getData(options);
     context.actor = this.actor;
     context.system = this.actor.system;
-    const savedSheetStyle = String(this.actor.getFlag("sword-world-25", "sheetStyle") ?? "paper").toLowerCase();
+    const savedSheetStyle = String(this.actor.getFlag("sw25-taka", "sheetStyle") ?? this.actor.getFlag("sword-world-25", "sheetStyle") ?? "paper").toLowerCase();
     context.sheetStyle = ["paper", "adventurer"].includes(savedSheetStyle) ? savedSheetStyle : "paper";
     context.isPaperStyle = context.sheetStyle === "paper";
     context.isAdventurerStyle = context.sheetStyle === "adventurer";
@@ -29,7 +29,7 @@ export class SW25NPCSheet extends foundry.appv1.sheets.ActorSheet {
     html.find("[data-action='set-sheet-style']").on("change", async event => {
       event.preventDefault();
       const style = String(event.currentTarget.value || "paper").toLowerCase();
-      await this.actor.setFlag("sword-world-25", "sheetStyle", style === "adventurer" ? "adventurer" : "paper");
+      await this.actor.setFlag("sw25-taka", "sheetStyle", style === "adventurer" ? "adventurer" : "paper");
       this.render(false);
     });
   }

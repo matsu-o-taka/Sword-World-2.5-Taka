@@ -1,4 +1,4 @@
-const SOCKET = "system.sword-world-25";
+const SOCKET = "system.sw25-taka";
 
 const escape = value => foundry.utils.escapeHTML(String(value ?? ""));
 

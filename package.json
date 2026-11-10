@@ -1,6 +1,6 @@
 {
-  "name": "sword-world-25-foundry",
-  "version": "0.18.0",
+  "name": "sw25-taka-foundry",
+  "version": "0.18.1",
   "private": true,
   "type": "module",
   "scripts": {

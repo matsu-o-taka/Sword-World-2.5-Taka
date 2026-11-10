@@ -37,7 +37,7 @@
 // Ambiguous data is NEVER deleted or merged automatically.
 
 /** World setting scope id of the Sword World 2.5 system. */
-export const SYSTEM_ID = "sword-world-25";
+export const SYSTEM_ID = "sw25-taka";
 
 /** World setting key of the registry store. */
 export const MK_REGISTRY_KEY = "mkRegistry";

@@ -18,7 +18,7 @@ export class TargetSelectionDialog extends foundry.applications.api.ApplicationV
     return foundry.utils.mergeObject(super.DEFAULT_OPTIONS, {
       id: "sw25-target-selection-dialog",
       classes: ["sw25", "sw25-target-selection"],
-      template: "systems/sword-world-25/templates/apps/target-selection-dialog.hbs",
+      template: "systems/sw25-taka/templates/apps/target-selection-dialog.hbs",
       width: 460,
       height: "auto",
       resizable: false
@@ -62,7 +62,7 @@ export class TargetSelectionDialog extends foundry.applications.api.ApplicationV
 
   async _renderHTML(options = {}) {
     const context = await this._prepareContext(options);
-    return await renderTemplate("systems/sword-world-25/templates/apps/target-selection-dialog.hbs", context);
+    return await renderTemplate("systems/sw25-taka/templates/apps/target-selection-dialog.hbs", context);
   }
 
   _onFirstRender(html) {

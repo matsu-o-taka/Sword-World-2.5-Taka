@@ -3,20 +3,20 @@ const STANDARD_SCENES = [
     name:"Combat A",
     width:1200,
     height:1688,
-    src:"systems/sword-world-25/assets/maps/combat-a-map.webp"
+    src:"systems/sw25-taka/assets/maps/combat-a-map.webp"
   },
   {
     name:"Combat B",
     width:1709,
     height:1200,
-    src:"systems/sword-world-25/assets/maps/combat-b-map.webp"
+    src:"systems/sw25-taka/assets/maps/combat-b-map.webp"
   },
   {
     name:"Coliseum",
     width:794,
     height:1123,
     gridSize:50,
-    src:"systems/sword-world-25/assets/maps/coliseum-map.webp"
+    src:"systems/sw25-taka/assets/maps/coliseum-map.webp"
   }
 ];
 
@@ -53,7 +53,7 @@ export async function initializeStandardScenes() {
   for (const scene of STANDARD_SCENES) {
     const managed = game.scenes.find(candidate =>
       candidate.name.toLowerCase() === scene.name.toLowerCase() &&
-      candidate.getFlag("sword-world-25", "standardCombatMap")
+      (candidate.getFlag("sw25-taka", "standardCombatMap") ?? candidate.getFlag("sword-world-25", "standardCombatMap"))
     );
     if (managed) {
       await applyBackground(managed, scene);
@@ -83,7 +83,7 @@ export async function initializeStandardScenes() {
       },
       tokenVision:false,
       fogExploration:false,
-      flags:{ "sword-world-25":{ standardCombatMap:true } }
+      flags:{ "sw25-taka":{ standardCombatMap:true } }
     }]);
     if (document) {
       await applyBackground(document, scene);
@@ -92,8 +92,8 @@ export async function initializeStandardScenes() {
   }
 
   if (created.length) ui.notifications.info(`Added ${created.join(" and ")} to the ${folderName} folder.`);
-  else if (repaired.length && !game.settings.get("sword-world-25", "standardScenesCreated")) {
+  else if (repaired.length && !(game.settings.get("sw25-taka", "standardScenesCreated") ?? game.settings.get("sword-world-25", "standardScenesCreated"))) {
     ui.notifications.info(`Updated ${repaired.join(" and ")} with their bundled map images.`);
   }
-  await game.settings.set("sword-world-25", "standardScenesCreated", true);
+  await game.settings.set("sw25-taka", "standardScenesCreated", true);
 }

@@ -154,18 +154,18 @@ const randomIndex = length => {
 };
 const firstState = await initializeConcealedMainSectionToken(firstToken, { randomIndex });
 const firstJournal = documents.get(firstState.secretJournalUuid);
-const firstSection = firstJournal.getFlag("sword-world-25", "concealedMainSection").section;
+const firstSection = firstJournal.getFlag("sw25-taka", "concealedMainSection").section;
 assert.ok(sectionNames.includes(firstSection));
 assert.equal(actor.system.concealedMainSection, undefined);
 assert.equal(actor.updateCount, 0);
 assert.equal(firstJournal.ownership.default, 0);
-assert.equal(firstToken.getFlag("sword-world-25", "concealedMainSection").section, undefined);
-assert.deepEqual(firstToken.getFlag("sword-world-25", "concealedMainSection"), {
+assert.equal(firstToken.getFlag("sw25-taka", "concealedMainSection").section, undefined);
+assert.deepEqual(firstToken.getFlag("sw25-taka", "concealedMainSection"), {
   secretJournalUuid: firstJournal.uuid,
   revealed: false
 });
 const serializedBeforeReveal = JSON.parse(JSON.stringify(firstToken.flags));
-assert.equal(serializedBeforeReveal["sword-world-25"].concealedMainSection.section, undefined);
+assert.equal(serializedBeforeReveal["sw25-taka"].concealedMainSection.section, undefined);
 
 const again = await initializeConcealedMainSectionToken(firstToken, { randomIndex });
 assert.deepEqual(again, firstState);
@@ -190,10 +190,10 @@ const copiedToken = makeToken(actor, "copy", firstToken.flags);
 initializeConcealedMainSection();
 const preCreateToken = hooks.get("preCreateToken")[0];
 preCreateToken(copiedToken);
-assert.equal(copiedToken.getFlag("sword-world-25", "concealedMainSection"), undefined);
+assert.equal(copiedToken.getFlag("sw25-taka", "concealedMainSection"), undefined);
 const createToken = hooks.get("createToken")[0];
 await createToken(copiedToken);
-const copiedState = copiedToken.getFlag("sword-world-25", "concealedMainSection");
+const copiedState = copiedToken.getFlag("sw25-taka", "concealedMainSection");
 assert.notEqual(copiedState.secretJournalUuid, firstState.secretJournalUuid);
 assert.equal(selectionCalls, 3);
 await hooks.get("deleteToken")[0](copiedToken);
@@ -210,14 +210,14 @@ game.user = { isGM: true };
 const missToken = makeToken(actor, "miss");
 const missState = await initializeConcealedMainSectionToken(missToken, { randomIndex });
 const missSection = documents.get(missState.secretJournalUuid)
-  .getFlag("sword-world-25", "concealedMainSection").section;
+  .getFlag("sw25-taka", "concealedMainSection").section;
 documents.set(missToken.uuid, missToken);
 await resolveMonsterKnowledgeMessage({
   ...knowledgeMessage(21, [missToken.uuid])
 });
 assert.doesNotMatch(chatContents.at(-1), new RegExp(missSection));
 assert.doesNotMatch(chatContents.at(-1), /Accuracy \+1/);
-assert.equal(missToken.getFlag("sword-world-25", "concealedMainSection").revealed, false);
+assert.equal(missToken.getFlag("sw25-taka", "concealedMainSection").revealed, false);
 
 const hitToken = makeToken(actor, "hit");
 const hitState = await initializeConcealedMainSectionToken(hitToken, { randomIndex });
@@ -243,7 +243,7 @@ await assert.rejects(resolveMonsterKnowledgeMessage({
 const highToken = makeToken(actor, "high");
 const highState = await initializeConcealedMainSectionToken(highToken, { randomIndex });
 const highSection = documents.get(highState.secretJournalUuid)
-  .getFlag("sword-world-25", "concealedMainSection").section;
+  .getFlag("sw25-taka", "concealedMainSection").section;
 assert.equal((await resolveConcealedMainSectionKnowledgeCheck(highToken, 23)).section, highSection);
 
 const serializedToken = JSON.parse(JSON.stringify({
@@ -262,7 +262,7 @@ const restoredJournal = {
 documents.set(restoredJournal.uuid, restoredJournal);
 const restoredToken = makeToken(actor, "hit", serializedToken.flags);
 restoredToken.uuid = serializedToken.uuid;
-const journalFlag = documents.get(hitState.secretJournalUuid)?.getFlag("sword-world-25", "concealedMainSection");
+const journalFlag = documents.get(hitState.secretJournalUuid)?.getFlag("sw25-taka", "concealedMainSection");
 assert.ok(journalFlag?.section, "journal has concealed main section section");
 const restoredSection = await resolveConcealedMainSectionKnowledgeCheck(restoredToken, 22);
 assert.ok(restoredSection.section, "restored token can resolve concealed section");

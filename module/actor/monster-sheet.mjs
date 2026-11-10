@@ -99,7 +99,7 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
     });
   }
 
-  get template() { return "systems/sword-world-25/templates/actor/monster-sheet.hbs"; }
+  get template() { return "systems/sw25-taka/templates/actor/monster-sheet.hbs"; }
 
   // Live consumer sync (F2-T2): rendered instances join the knowledge
   // indicator refresh set. Registration happens per render, never per

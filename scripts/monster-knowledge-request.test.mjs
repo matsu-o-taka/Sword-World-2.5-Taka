@@ -306,9 +306,9 @@ resetWorld();
   assert.equal(result.status, "resolved", "roll resolves");
   assert.equal(result.rollTotal, 12, "natural total is 12");
 
-  const mkMsg = chatMessages.find(m => m.flags?.["sword-world-25"]?.monsterKnowledge);
+  const mkMsg = chatMessages.find(m => m.flags?.["sw25-taka"]?.monsterKnowledge);
   assert.ok(mkMsg, "message with MK flags found");
-  assert.ok(mkMsg.flags["sword-world-25"].monsterKnowledge.targetTokenUuids.includes(monster.uuid), "monster UUID in targets");
+  assert.ok(mkMsg.flags["sw25-taka"].monsterKnowledge.targetTokenUuids.includes(monster.uuid), "monster UUID in targets");
   assert.ok(mkMsg.flavor?.includes("Success — Weakness revealed"), "verdict shows Success — Weakness revealed");
   console.log("  ✓ PASS");
 }
@@ -417,9 +417,9 @@ resetWorld();
   assert.equal(result.monster, undefined, "no monster target");
   assert.equal(result.discoveries.length, 0, "no discoveries without target");
 
-  const mkMsg = chatMessages.find(m => m.flags?.["sword-world-25"]?.monsterKnowledge);
+  const mkMsg = chatMessages.find(m => m.flags?.["sw25-taka"]?.monsterKnowledge);
   assert.ok(mkMsg, "message with MK flags posted");
-  assert.equal(mkMsg.flags["sword-world-25"].monsterKnowledge.targetTokenUuids.length, 0, "no target UUIDs");
+  assert.equal(mkMsg.flags["sw25-taka"].monsterKnowledge.targetTokenUuids.length, 0, "no target UUIDs");
 
   assert.ok(mkMsg.flavor?.includes("sw25-mk-roll-card"), "roll card published");
   assert.ok(!mkMsg.flavor.includes("Die:"), "card does not duplicate the die result");

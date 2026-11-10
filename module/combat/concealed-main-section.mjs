@@ -1,4 +1,4 @@
-const SYSTEM_ID = "sword-world-25";
+const SYSTEM_ID = "sw25-taka";
 const STATE_KEY = "concealedMainSection";
 const SECTION_NAMES = ["musician", "instrument"];
 const CURSED_ARTIST_SOURCE = /(?:^|\/)monster:cursed-artist(?:$|[?#])/i;
