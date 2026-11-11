@@ -7,7 +7,15 @@
       {{#if canEndPlayer}}<button type="button" data-action="end-player-turn"><i class="fas fa-check"></i> End My Turn</button>{{else}}<p class="sw25-side-waiting">Waiting for the remaining players.</p>{{/if}}
       {{#if gmPlayerControls}}<div class="sw25-gm-turn-controls"><h3>GM Controls</h3>{{#each remainingPlayers as |player|}}<button type="button" data-action="gm-end-player-turn" data-combatant-id="{{player.id}}"><i class="fas fa-user-check"></i> End {{player.name}}'s Turn</button>{{/each}}{{#if remainingPlayers.length}}<button type="button" data-action="gm-end-all-player-turns"><i class="fas fa-users"></i> End All Player Turns</button>{{/if}}</div>{{/if}}
     {{else}}
-      <p class="sw25-side-progress">The monsters are acting.</p>
+      <p class="sw25-side-progress"><strong>{{doneMonsters}} / {{totalMonsters}}</strong> monsters finished</p>
+      <div class="sw25-monster-turn-list">
+        {{#each monsters as |monster|}}
+          <div class="sw25-monster-turn-row">
+            <span>{{monster.name}}</span>
+            {{#if monster.done}}<span class="sw25-monster-done"><i class="fas fa-check"></i> Acted</span>{{else}}{{#if ../gmMonsterControls}}<button type="button" data-action="gm-end-monster-turn" data-combatant-id="{{monster.id}}"><i class="fas fa-user-check"></i> Mark Acted</button>{{else}}<span class="sw25-side-waiting">Pending</span>{{/if}}{{/if}}
+          </div>
+        {{/each}}
+      </div>
       {{#if canEndMonsters}}<button type="button" data-action="end-monster-turn"><i class="fas fa-forward"></i> End Monster Turn</button>{{else}}<p class="sw25-side-waiting">Waiting for the GM.</p>{{/if}}
     {{/if}}
   {{else}}

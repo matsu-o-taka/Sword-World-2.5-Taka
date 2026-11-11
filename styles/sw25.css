@@ -2118,6 +2118,10 @@ form.sw25-official-sheet .offense-selector > label input {
 .sw25-gm-turn-controls { margin-top:10px; padding-top:8px; border-top:1px solid #8b8172; }
 .sw25-gm-turn-controls h3 { margin:0 0 5px; }
 .sw25-gm-turn-controls button { margin-top:4px; }
+.sw25-monster-turn-list { display:grid; gap:4px; margin:8px 0; }
+.sw25-monster-turn-row { display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:14px; }
+.sw25-monster-turn-row button { width:auto; margin:0; padding:2px 8px; }
+.sw25-monster-turn-row .sw25-monster-done { color:#2f668a; font-weight:bold; }
 .sw25-damage-actions { display:flex; gap:4px; margin-top:6px; }
 .sw25-damage-actions button { flex:1 1 0; display:inline-flex; align-items:center; justify-content:center; gap:4px; }
 .sw25-official-sheet .temporary-box { width:54px; border:1px solid #555; border-top:0; background:#eee5d6; font-size:7px; text-transform:uppercase; }

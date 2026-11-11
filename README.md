@@ -6,19 +6,34 @@ This is a fork of [Sword-World-2.5-Foundry](https://github.com/DaedaIus/Sword-Wo
 
 A note from me: I am not a programmer. I am building and maintaining this fork as a hobby, with the help of AI, purely as a fan of Sword World 2.5. I test everything as I go hoping it works, but expect rough edges.
 
-![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sw25--taka%200.18.0%2B-blue)
+![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sw25--taka%200.18.2%2B-blue)
 
 ## Features at a glance
 
 - **Character sheets** — four actor types (`character`, `monster`, `npc`, `fellow`) and nine item types (race, class, feat, ability, weapon, armour, skill, spell, equipment), each with its own sheet.
 - **Weapons and attacks** — attack rolls with a temporary modifier dialog (class level, Dexterity, Accuracy Mod, weapon accuracy), power-table damage, critical hits with accumulated power, and per-defense damage application.
 - **Monster actors** — wiki import preserving multi-section statistics with per-section combat styles and Unique Skill assignments, active/passive evasion (real 2d6 vs fixed value), and validated imports.
+- **Side Initiative & monster turns** — Side Initiative combat: characters roll `2d6 + modifier` (from their sheet or the native combat tracker), monsters act on their fixed Initiative value without dice, and the Side Turn window tracks each side's turns with per-monster progress during the monster phase.
 - **Target selection** — when attacking a multi-section monster the player picks the targeted section; that choice decides which evasion answers the accuracy contest and which combat style row takes the damage.
 - **Monster Knowledge** — per-class rolls (Sage, Rider, Dark Hunter, plus Druid/Daemonologist spells) reveal Statistics, Classification and Weak Points; knowledge is shared per species and discoveries are shared between players via whispered Bestiary links.
 - **Bestiary copies** — every discovery creates an independent Bestiary copy Actor readable by all players (OBSERVER), leaving the original monster untouched.
 - **Skill checks** — reorganized catalogue with per-check class lists and automatic highest-level selection.
 - **Spell drag & drop** — spells dropped on a character go straight to the viewed class page or open a wizard-type picker.
 - **Standard combat maps** — Combat A, Combat B and Coliseum scenes auto-created in a Simplified Combat Battlefields folder.
+
+## v0.18.2 - Side Initiative tracker integration, monster fixed initiative and turn tracking
+
+- **Native combat tracker follows Side Initiative rules** — the tracker's own dice buttons (per-combatant, **Roll All**, **Roll NPC**) now route through the Side Initiative system: characters roll `2d6 + modifier` exactly like the sheet button (chat message "Initiative Check", critical failure tracking, total applied to every combatant of the actor), while monsters receive their fixed `Initiative` value without any dice. This also fixes the regression where the native tracker assigned initiative **0** to everyone. Verified live against Foundry v14.
+- **Monster fixed initiative (no dice)** — when a monster joins an encounter (or is added mid-combat) it is automatically assigned its fixed `system.initiative` value instead of rolling: zero is a valid value, previously assigned initiatives are respected, and the assignment is idempotent. Non-GM clients never write. The native initiative formula is now an inert `"0"` so no un-intercepted path can ever roll random dice for monsters.
+- **Side Turn window: monster progress list** — during the monster phase the window shows a per-monster list with done/pending state and a `done / total` counter; the GM can mark individual monsters as acted ("Mark Acted"), and the phase completes automatically when every monster has acted. Players and monsters trackers reset on round advance.
+- **New sheet logo** — character, NPC and Fellow sheets use a new star-field logo (`stars.webp`) in the header.
+- **Updated Coliseum battlemap** — the standard Coliseum combat map was replaced with a higher-resolution version.
+- **New automated tests** — `tracker-initiative.test.mjs` (native tracker actions under Side rules) and `monster-initiative.test.mjs` (fixed assignment, activation sync, individual monster tracking); `npm run check` now runs 24 suites.
+
+## v0.18.1 - Taka Edition identity migration
+
+- **Fork identity** — system ID changed from `sword-world-25` to `sw25-taka`, title "Sword World 2.5: Taka Edition", package renamed `sw25-taka-foundry`, and all asset/template paths, socket channels and internal `SYSTEM_ID`/`FLAG_SCOPE` constants updated. Backward-compatible dual reads keep old settings and flags readable, and the `game.sw25` global API is preserved for external compatibility. The README gained a disclaimer about the unofficial community fork status.
+- **Fixes** — TargetSelectionDialog no longer registers duplicate listeners (registration now happens only in `_onRender`); test mocks and namespaces updated to the new ID.
 
 ## v0.18.0 - Monster Knowledge Manager, Bestiary copies and target selection
 

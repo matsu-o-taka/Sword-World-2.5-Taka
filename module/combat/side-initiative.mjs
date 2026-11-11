@@ -1,5 +1,8 @@
 import { expireNaturalPower, naturalPowerRemainder } from "../rules/spell-damage.mjs";
 import { processRegenerationTurn } from "../rules/spell-effects.mjs";
+import { resolveClassAssignment } from "../rules/skill-resolution.mjs";
+import { abilityBonus } from "../rules/weapon-damage.mjs";
+import { criticalFailureHTML, markCriticalFailure } from "../rules/critical-failure.mjs";
 
 const FLAG_SCOPE = "sw25-taka";
 const FLAG_KEY = "sideInitiative";
@@ -14,6 +17,31 @@ export const playerInitiativeModifier = (scoutLevel = 0, tacticianLevel = 0, agi
   return (classLevel > 0 ? classLevel + (Number(agilityModifier) || 0) : 0) + (Number(bonus) || 0);
 };
 
+/**
+ * Initiative modifier of a character Actor, computed exactly like the sheet:
+ * the resolved Scout/Tactician class level (saved selection while valid,
+ * otherwise the highest-level one) + Agility bonus + saved bonus. Without a
+ * Scout/Tactician class the ability modifier is never added (RAW).
+ * Lets the native tracker dice produce `2d6 + modifier` without persisting
+ * derived data into the Actor document.
+ */
+export function characterInitiativeModifier(actor) {
+  const system = actor?.system ?? {};
+  const classes = [...(actor?.items ?? [])].filter(item =>
+    item?.type === "class" && /^(scout|tactician)$/i.test(String(item.name ?? "").trim())
+  );
+  const resolved = resolveClassAssignment({
+    classes,
+    savedValue: system.combat?.initiativeClassId
+  });
+  return playerInitiativeModifier(
+    resolved.level,
+    0,
+    abilityBonus(system, "agility"),
+    Number(system.combat?.initiativeBonus ?? 0)
+  );
+}
+
 export const sideTransition = (startingSide, completedSide) => ({
   phase: startingSide === completedSide ? (completedSide === "players" ? "monsters" : "players") : startingSide,
   newRound: startingSide !== completedSide
@@ -23,6 +51,11 @@ const activeCombat = () => game.combat;
 const stateFor = combat => combat?.getFlag(FLAG_SCOPE, FLAG_KEY) || null;
 const characterCombatants = combat => [...(combat?.combatants || [])].filter(combatant => combatant.actor?.type === "character" && !combatant.defeated);
 const monsterCombatants = combat => [...(combat?.combatants || [])].filter(combatant => combatant.actor?.type === "monster" && !combatant.defeated);
+const hasInitiative = combatant => combatant.initiative !== null && combatant.initiative !== undefined && Number.isFinite(Number(combatant.initiative));
+// Automatic monster initiative assignments still in flight (combatant id ->
+// Promise). activateSideTurnsFromTracker awaits these before snapshotting so
+// the side state can never be built from incomplete values.
+const pendingMonsterAssignments = new Map();
 
 function clearIndividualTurnMarkers() {
   const tokens = canvas?.tokens;
@@ -87,8 +120,10 @@ class SW25SideTurnWindow extends SideTurnApplication {
     const combat = game.combats.get(this.combatId);
     const state = stateFor(combat);
     const done = new Set(state?.playersDone || []);
+    const monstersDone = new Set(state?.monstersDone || []);
     const players = characterCombatants(combat);
     const remaining = players.filter(combatant => !done.has(combatant.id));
+    const monsters = monsterCombatants(combat);
     const naturalPower = players.map(combatant => {
       const resource = combatant.actor?.getFlag("sw25-taka", "naturalPower");
       if (!resource || (!game.user.isGM && !combatant.actor?.isOwner)) return null;
@@ -111,6 +146,10 @@ class SW25SideTurnWindow extends SideTurnApplication {
       gmPlayerControls:state?.phase === "players" && game.user.isGM,
       remainingPlayers:remaining.map(combatant => ({ id:combatant.id, name:combatant.name })),
       canEndMonsters:state?.phase === "monsters" && game.user.isGM,
+      gmMonsterControls:state?.phase === "monsters" && game.user.isGM,
+      monsters:monsters.map(combatant => ({ id:combatant.id, name:combatant.name, done:monstersDone.has(combatant.id) })),
+      doneMonsters:monsters.filter(combatant => monstersDone.has(combatant.id)).length,
+      totalMonsters:monsters.length,
       naturalPower
     };
   }
@@ -133,6 +172,10 @@ class SW25SideTurnWindow extends SideTurnApplication {
       event.preventDefault();
       return requestGMPlayerEnd(game.combats.get(this.combatId));
     });
+    html.find("[data-action='gm-end-monster-turn']").on("click", event => {
+      event.preventDefault();
+      return markMonstersDone(game.combats.get(this.combatId), [event.currentTarget.dataset.combatantId]);
+    });
   }
 
   async close(options = {}) {
@@ -148,15 +191,19 @@ function openSideTurnWindow(combat = activeCombat()) {
   sideTurnWindow.render(true);
 }
 
-async function activateSideTurnsFromTracker(combat = activeCombat()) {
+export async function activateSideTurnsFromTracker(combat = activeCombat()) {
   if (!combat) return ui.notifications.warn("There is no active combat encounter.");
   if (!game.user.isGM) return ui.notifications.warn("Only the GM can activate side turns.");
   if (stateFor(combat)?.active) return openSideTurnWindow(combat);
 
+  // Wait for in-flight automatic monster initiative assignments so the
+  // snapshot below is never taken from incomplete values. Failed assignments
+  // surface through the missing-initiative warning underneath.
+  if (pendingMonsterAssignments.size) await Promise.allSettled([...pendingMonsterAssignments.values()]);
+
   const players = characterCombatants(combat);
   const monsters = monsterCombatants(combat);
   if (!players.length || !monsters.length) return ui.notifications.warn("Side turns require at least one player and one monster.");
-  const hasInitiative = combatant => combatant.initiative !== null && combatant.initiative !== undefined && Number.isFinite(Number(combatant.initiative));
   const missingPlayers = players.filter(combatant => !hasInitiative(combatant));
   const missingMonsters = monsters.filter(combatant => !hasInitiative(combatant));
   if (missingPlayers.length || missingMonsters.length) {
@@ -172,6 +219,7 @@ async function activateSideTurnsFromTracker(combat = activeCombat()) {
     phase:startingSide,
     firstPhase:startingSide,
     playersDone:[],
+    monstersDone:[],
     playerInitiatives,
     monsterInitiative,
     round:Math.max(1, Number(combat.round || 1))
@@ -192,37 +240,124 @@ export async function recordPlayerInitiative(actor, total) {
   ui.notifications.info(`${actor.name}'s side initiative is ${total}.`);
 }
 
-export async function beginMonsterInitiative(actor, total) {
-  const combat = activeCombat();
-  if (!combat) return ui.notifications.warn("There is no active combat encounter.");
-  if (!game.user.isGM) return ui.notifications.warn("Only the GM can roll the monster side initiative.");
-  const monsters = monsterCombatants(combat);
-  const matching = monsters.filter(combatant => combatant.actor?.id === actor.id);
-  if (!matching.length) return ui.notifications.warn(`${actor.name} is not in the active combat encounter.`);
-  for (const combatant of matching) await combat.setInitiative(combatant.id, Number(total));
+/**
+ * Native tracker dice for a character combatant: same flow as the character
+ * sheet button (2d6 + modifier, critical failure tracking, chat message) and
+ * then recordPlayerInitiative. Replaces the inert "0" native formula roll.
+ */
+export async function rollCharacterTrackerInitiative(combatant) {
+  const actor = combatant?.actor;
+  if (actor?.type !== "character") return false;
+  const modifier = characterInitiativeModifier(actor);
+  const roll = await new Roll(`2d6 + ${modifier}`).evaluate();
+  const criticalFailure = await markCriticalFailure(actor, roll);
+  await roll.toMessage({
+    speaker: ChatMessage.getSpeaker({ actor }),
+    flavor: `Initiative Check${criticalFailure ? criticalFailureHTML() : ""}`
+  });
+  await recordPlayerInitiative(actor, roll.total);
+  return true;
+}
 
-  const players = characterCombatants(combat);
-  const missing = players.filter(combatant => combatant.initiative === null || combatant.initiative === undefined || !Number.isFinite(Number(combatant.initiative)));
-  if (missing.length) return ui.notifications.warn(`Waiting for initiative: ${missing.map(combatant => combatant.name).join(", ")}.`);
+/**
+ * Execute a native tracker initiative action under Side Initiative rules.
+ * Characters roll 2d6 + their modifier; monsters receive their fixed
+ * `system.initiative` value (no dice); other types are left untouched so the
+ * inert "0" system formula can never produce random values for them.
+ *
+ * @param {Combat} combat The viewed combat encounter.
+ * @param {string} action Native tracker action: "rollInitiative",
+ *   "rollAll" or "rollNPC" (camelCase names used by the v14 CombatTracker).
+ * @param {string|null} [combatantId] Combatant id for "rollInitiative".
+ * @returns {Promise<"character"|"monster"|"all"|"npc"|false>} What was
+ *   handled; false leaves the action to native Foundry behavior.
+ */
+export async function resolveTrackerRollAction(combat, action, combatantId = null) {
+  if (!combat) return false;
+  if (action === "rollInitiative") {
+    const combatant = combat.combatants.get(combatantId);
+    if (!combatant) return false;
+    const type = combatant.actor?.type;
+    if (type === "character") { await rollCharacterTrackerInitiative(combatant); return "character"; }
+    if (type === "monster") { await beginMonsterInitiative(combatant.actor, combat); return "monster"; }
+    return false;
+  }
+  if (action !== "rollAll" && action !== "rollNPC") return false;
+  const rows = action === "rollNPC" ? monsterCombatants(combat) : [...(combat.combatants || [])];
+  for (const combatant of rows) {
+    const type = combatant.actor?.type;
+    if (type === "character") await rollCharacterTrackerInitiative(combatant);
+    else if (type === "monster") await beginMonsterInitiative(combatant.actor, combat);
+  }
+  return action === "rollNPC" ? "npc" : "all";
+}
 
-  const playerInitiatives = Object.fromEntries(players.map(combatant => [combatant.id, Number(combatant.initiative)]));
-  const startingSide = firstSide(Object.values(playerInitiatives), total);
-  const state = {
-    active: true,
-    phase: startingSide,
-    firstPhase: startingSide,
-    playersDone: [],
-    playerInitiatives,
-    monsterInitiative: Number(total),
-    round: Math.max(1, Number(combat.round || 1))
-  };
-  await saveState(combat, state);
-  // Save the side state before starting combat. Foundry V14 renders the
-  // tracker during startCombat(), so the panel must already have state to read.
-  if (!combat.started) await combat.startCombat();
-  if (combat.turn !== null) await combat.update({ turn:null });
-  queueSideControls(combat);
-  await announce(`<h3>Side Initiative</h3><p><strong>Players:</strong> ${Math.max(...Object.values(playerInitiatives))} &nbsp; <strong>Monsters:</strong> ${total}</p><p><strong>${startingSide === "players" ? "Players" : "Monsters"} act first.</strong></p>`);
+/**
+ * Capture-phase document listener routing the native tracker initiative
+ * controls through Side Initiative rules. Capture on `document` fires before
+ * any listener inside the tracker application regardless of the phase Foundry
+ * binds with, so the native roll never starts. Scoped to the combat sidebar
+ * (v14 adds a `<tabName>-sidebar` class to the tracker root, hence
+ * `.combat-sidebar`) and left transparent for actions other than the three
+ * initiative controls (v14 uses camelCase action names: "rollInitiative",
+ * "rollAll", "rollNPC" — verified against the v14 tracker template).
+ */
+function handleTrackerRollClick(event) {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target?.closest?.(".combat-sidebar")) return;
+  const action = target.closest("[data-action]")?.dataset?.action ?? "";
+  if (action !== "rollInitiative" && !/^roll(All|NPC)$/.test(action)) return;
+  const combat = ui.combat?.viewed ?? activeCombat();
+  if (!combat) return;
+  if (action === "rollInitiative") {
+    const row = target.closest("[data-combatant-id]");
+    if (!row) return;
+    const combatant = combat.combatants.get(row.dataset.combatantId);
+    if (!combatant || (combatant.actor?.type !== "character" && combatant.actor?.type !== "monster")) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    resolveTrackerRollAction(combat, action, row.dataset.combatantId);
+    return;
+  }
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  resolveTrackerRollAction(combat, action);
+}
+
+/**
+ * Assign a monster Actor's fixed initiative value (`system.initiative`) to
+ * every combatant of that Actor within a combat encounter. Assignment only:
+ * activating Side Initiative (state, startCombat, announcement) is exclusively
+ * `activateSideTurnsFromTracker`'s responsibility.
+ *
+ * Historically (v0.15.1) this function also started Side Initiative from a
+ * monster-sheet button that read the same fixed value; the button was removed
+ * in v0.17.2. The assignment half is now reused automatically when monster
+ * combatants are created, and activation stays with the tracker panel.
+ *
+ * @param {Actor} actor Monster Actor whose fixed initiative is assigned.
+ * @param {Combat} [combat] Combat containing the actor's combatants
+ *   (defaults to the active combat).
+ * @returns {Promise<boolean>} true when an assignment was attempted.
+ */
+export async function beginMonsterInitiative(actor, combat = activeCombat()) {
+  if (!game.user.isGM) return false;
+  if (!combat || actor?.type !== "monster") return false;
+  // Zero is a valid RAW fixed initiative value, not an absence of data.
+  const value = Number(actor.system?.initiative ?? 0);
+  const matching = monsterCombatants(combat).filter(combatant => combatant.actor?.id === actor.id);
+  if (!matching.length) return false;
+  for (const combatant of matching) {
+    if (hasInitiative(combatant)) continue; // Respect values already assigned (manual edits).
+    try {
+      await combat.setInitiative(combatant.id, value);
+    } catch (error) {
+      // Explicit failure handling: the combatant stays without initiative and
+      // activation will list it in the "Roll or enter initiative" warning.
+      console.warn("Sword World 2.5 | Could not assign the fixed initiative of", actor.name, error);
+    }
+  }
+  return true;
 }
 
 async function handleAction(payload, userId) {
@@ -258,14 +393,30 @@ async function handleAction(payload, userId) {
     const complete = allIds.length > 0 && allIds.every(id => playersDone.includes(id));
     if (!complete) await saveState(combat, { ...state, playersDone, phase:"players" });
     else if (state.firstPhase === "players") {
-      await saveState(combat, { ...state, playersDone, phase:"monsters" });
+      await saveState(combat, { ...state, playersDone, monstersDone:[], phase:"monsters" });
       await announce("<h3>Monster Turn</h3><p>All players have ended their turns.</p>");
     } else {
       const nextRound = Math.max(1, Number(combat.round || state.round || 1) + 1);
       await combat.update({ round:nextRound, turn:null });
-      await saveState(combat, { ...state, playersDone:[], phase:"monsters", round:nextRound });
+      await saveState(combat, { ...state, playersDone:[], monstersDone:[], phase:"monsters", round:nextRound });
       await announce(`<h3>Round ${nextRound}</h3><p><strong>Monsters act first.</strong></p>`);
     }
+    return;
+  }
+  if (payload.action === "end-monster") {
+    const requested = new Set(payload.combatantIds || []);
+    const alreadyDone = new Set(state.monstersDone || []);
+    const validCombatants = monsterCombatants(combat).filter(combatant => requested.has(combatant.id) && !alreadyDone.has(combatant.id));
+    const valid = validCombatants.map(combatant => combatant.id);
+    if (!valid.length) {
+      console.warn("Sword World 2.5 | End Monster Turn request did not match an unfinished monster combatant.", { userId, requested:[...requested] });
+      return;
+    }
+    const monstersDone = [...new Set([...alreadyDone, ...valid])];
+    const allIds = monsterCombatants(combat).map(combatant => combatant.id);
+    const complete = allIds.length > 0 && allIds.every(id => monstersDone.includes(id));
+    if (!complete) await saveState(combat, { ...state, monstersDone, phase:"monsters" });
+    else await completeMonsterPhase(combat, state, monstersDone);
   }
 }
 
@@ -289,7 +440,7 @@ async function requestPlayerEnd(combat) {
   }
 }
 
-async function requestGMPlayerEnd(combat, combatantIds = null) {
+export async function requestGMPlayerEnd(combat, combatantIds = null) {
   if (!game.user.isGM) return;
   const state = stateFor(combat);
   if (state?.phase !== "players") return;
@@ -300,19 +451,38 @@ async function requestGMPlayerEnd(combat, combatantIds = null) {
   await handleAction({ action:"end-player", combatId:combat.id, combatantIds:ids, gmOverride:true }, game.user.id);
 }
 
-async function endMonsterPhase(combat) {
-  if (!game.user.isGM) return;
-  const state = stateFor(combat);
-  if (state?.phase !== "monsters") return;
-  if (state.firstPhase === "monsters") {
-    await saveState(combat, { ...state, phase:"players", playersDone:[] });
+/** Shared transition when the monster phase finishes (all marked or early end). */
+async function completeMonsterPhase(combat, state, monstersDone) {
+  const transition = sideTransition(state.firstPhase, "monsters");
+  if (!transition.newRound) {
+    await saveState(combat, { ...state, phase:transition.phase, playersDone:[], monstersDone });
     await announce("<h3>Player Turn</h3><p>The monsters have ended their turn.</p>");
   } else {
     const nextRound = Math.max(1, Number(combat.round || state.round || 1) + 1);
     await combat.update({ round:nextRound, turn:null });
-    await saveState(combat, { ...state, phase:"players", playersDone:[], round:nextRound });
+    await saveState(combat, { ...state, phase:transition.phase, playersDone:[], monstersDone:[], round:nextRound });
     await announce(`<h3>Round ${nextRound}</h3><p><strong>Players act first.</strong></p>`);
   }
+}
+
+/** GM-only early end of the monster phase (kept as the tracker window button). */
+export async function endMonsterPhase(combat) {
+  if (!game.user.isGM) return;
+  const state = stateFor(combat);
+  if (state?.phase !== "monsters") return;
+  await completeMonsterPhase(combat, state, [...new Set(state.monstersDone || [])]);
+}
+
+/** GM-only: mark specific monster combatants as having acted this round. */
+export async function markMonstersDone(combat, combatantIds = null) {
+  if (!game.user.isGM) return;
+  const state = stateFor(combat);
+  if (state?.phase !== "monsters") return;
+  const done = new Set(state.monstersDone || []);
+  const ids = combatantIds?.filter(Boolean)
+    || monsterCombatants(combat).filter(combatant => !done.has(combatant.id)).map(combatant => combatant.id);
+  if (!ids.length) return ui.notifications.warn("There are no unfinished monster turns.");
+  await handleAction({ action:"end-monster", combatId:combat.id, combatantIds:ids, gmOverride:true }, game.user.id);
 }
 
 function renderSideControls(app, html) {
@@ -371,6 +541,21 @@ export async function initializeSideInitiative() {
     }
     handleAction(payload, payload.userId || senderId);
   });
+  // Automatic fixed-initiative assignment for monster combatants (GM only).
+  // Fires for the initial encounter build and for later additions; it only
+  // writes Combatant.initiative and never touches Side Initiative state, so
+  // snapshots of an active phase (phase, playersDone, monstersDone) are
+  // never modified by a mid-combat addition.
+  Hooks.on("createCombatant", combatant => {
+    if (!game.user.isGM) return;
+    if (combatant.actor?.type !== "monster") return;
+    const combat = combatant.combat ?? activeCombat();
+    const promise = beginMonsterInitiative(combatant.actor, combat).catch(error => {
+      console.warn("Sword World 2.5 | Automatic monster initiative assignment failed.", error);
+    });
+    pendingMonsterAssignments.set(combatant.id, promise);
+    promise.finally(() => pendingMonsterAssignments.delete(combatant.id));
+  });
   Hooks.on("createChatMessage", message => {
     if (!game.user.isGM) return;
     const request = message.getFlag(FLAG_SCOPE, "sideTurnRequest");
@@ -393,11 +578,15 @@ export async function initializeSideInitiative() {
     queueSideControls(combat);
   });
   Hooks.on("updateActor", actor => {
-    if (actor.type === "character" && sideTurnWindow?.rendered) sideTurnWindow.render(false);
+    if ((actor.type === "character" || actor.type === "monster") && sideTurnWindow?.rendered) sideTurnWindow.render(false);
   });
   Hooks.on("canvasReady", () => {
     if (stateFor(activeCombat())?.active) clearIndividualTurnMarkers();
   });
+  // Route the native tracker initiative controls (per-combatant dice,
+  // Roll All, Roll NPC) through Side Initiative rules. Capture phase on the
+  // document guarantees the native roll never starts before the interception.
+  document.addEventListener("click", handleTrackerRollClick, true);
   Hooks.on("refreshToken", token => {
     if (!stateFor(activeCombat())?.active || !token?.turnMarker) return;
     token.turnMarker.visible = false;

@@ -81,6 +81,10 @@ globalThis.ui = { notifications: { info() {}, warn() {}, error() {} } };
 globalThis.ChatMessage = { getSpeaker: () => ({}) };
 globalThis.Roll = class Roll { constructor() {} };
 globalThis.canvas = null;
+// Side Initiative registers a capture-phase tracker listener on the document
+// during its "ready" initializer; this environment has no DOM, so provide the
+// minimal surface the registration needs.
+globalThis.document = { addEventListener() {} };
 
 await import(new URL("../sw25.mjs", import.meta.url).href);
 
