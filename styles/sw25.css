@@ -917,10 +917,10 @@
 /* Optional Adventurer character-sheet presentation. */
 .sw25-theme-adventurer { background:linear-gradient(rgba(235,239,230,.93),rgba(218,226,213,.93)),repeating-linear-gradient(0deg,transparent 0 3px,rgba(25,71,49,.025) 3px 4px); }
 .sw25-theme-adventurer .official-page { background:linear-gradient(rgba(246,247,239,.42),rgba(246,247,239,.32)),#f6f7ef; }
-.sw25-theme-adventurer .official-page-one { background:linear-gradient(rgba(246,247,239,.42),rgba(246,247,239,.32)),url("../assets/adventurer-sheet-background.png") center bottom / 100% auto no-repeat,#f6f7ef; }
+.sw25-theme-adventurer .official-page-one { background:linear-gradient(rgba(246,247,239,.42),rgba(246,247,239,.32)),url("../assets/adventurer-sheet-background.webp") center bottom / 100% auto no-repeat,#f6f7ef; }
 .sw25-theme-adventurer .official-page-two { background:linear-gradient(rgba(246,247,239,.42),rgba(246,247,239,.32)),url("../assets/adventurer-page-two-background.webp") center bottom / 100% auto no-repeat,#f6f7ef; }
 .sw25-theme-adventurer .sw25-npc-page,
-.sw25-theme-adventurer .sw25-fellow-page { background:linear-gradient(rgba(246,247,239,.42),rgba(246,247,239,.32)),url("../assets/adventurer-sheet-background.png") center bottom / 100% auto no-repeat,#f6f7ef; }
+.sw25-theme-adventurer .sw25-fellow-page { background:linear-gradient(rgba(246,247,239,.42),rgba(246,247,239,.32)),url("../assets/adventurer-sheet-background.webp") center bottom / 100% auto no-repeat,#f6f7ef; }
 .sw25-theme-adventurer .paper-panel { background:rgba(250,250,241,.62); backdrop-filter:blur(1px); }
 .sw25-theme-adventurer .official-page-one > .class-box,
 .sw25-theme-adventurer .official-page-one > .portrait-column,
@@ -2194,7 +2194,7 @@ form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-ba
 form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-fairy-tamer { background:linear-gradient(rgba(246,247,239,.38),rgba(246,247,239,.28)),url("../assets/fairy-tamer-background.webp") center bottom / contain no-repeat,#f6f7ef; }
 form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-tactician { background:linear-gradient(rgba(246,247,239,.38),rgba(246,247,239,.28)),url("../assets/tactician-background.webp") center 35% / cover no-repeat,#f6f7ef; }
 form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-heritor { background:linear-gradient(rgba(246,247,239,.38),rgba(246,247,239,.28)),url("../assets/heritor-background.webp") left bottom / contain no-repeat,#f6f7ef; }
-form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-rider { background:linear-gradient(rgba(246,247,239,.38),rgba(246,247,239,.28)),url("../assets/adventurer-sheet-background.png") center bottom / 100% auto no-repeat,#f6f7ef; }
+form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-rider { background:linear-gradient(rgba(246,247,239,.38),rgba(246,247,239,.28)),url("../assets/adventurer-sheet-background.webp") center bottom / 100% auto no-repeat,#f6f7ef; }
 form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-dark-hunter,
 form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-daemonologist { background:linear-gradient(rgba(246,247,239,.38),rgba(246,247,239,.28)),url("../assets/abyss-gazer-background.png") left bottom / contain no-repeat,#f6f7ef; }
 form.sw25-official-sheet.sw25-theme-adventurer .class-feature-page.class-page-alchemist,
@@ -3021,3 +3021,205 @@ form.sw25-official-sheet .weapon-table .combat-weapon-row .weapon-mods-toggle in
   font-weight: bold;
   white-space: nowrap;
 }
+
+/* ── Effects tab (T1.5): list of the system's persistent sw25Effect documents ── */
+/* Full-width page: deliberately NOT inside the official-page-two grid, whose
+   fixed column areas would auto-place this panel into a 300px slot. */
+
+.official-page.effects-page { display: flex; flex-direction: column; }
+.effects-panel { flex: 1; }
+
+.effects-panel .effects-head,
+.effects-panel .effects-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(56px, .35fr) minmax(0, 1fr) minmax(0, .9fr) minmax(96px, .5fr);
+  width: 100%;
+  box-sizing: border-box;
+  align-items: center;
+}
+.effects-panel .effects-head {
+  font-size: 10px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: #4b4237;
+  border-top: 1px solid #a99d87;
+  border-bottom: 2px solid #6b5b45;
+  background: rgba(70, 55, 40, .10);
+}
+.effects-panel .effects-head > *,
+.effects-panel .effects-row > * {
+  min-width: 0;
+  padding: 6px 10px;
+}
+.effects-panel .effects-list { min-height: 96px; }
+.effects-panel .effects-row {
+  border-bottom: 1px solid #cfc4ae;
+  font-size: 12px;
+}
+.effects-panel .effects-row:nth-child(even) { background: rgba(70, 55, 40, .045); }
+.effects-panel .effects-row:hover { background: rgba(114, 90, 50, .10); }
+.effects-panel .effects-row.needs-review {
+  background: rgba(170, 51, 51, .07);
+  box-shadow: inset 3px 0 0 #a33;
+}
+.effects-panel .effects-row.needs-review:hover { background: rgba(170, 51, 51, .12); }
+.effects-panel .effect-name-cell { display: flex; align-items: center; gap: 8px; }
+.effects-panel .effect-icon {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  color: #6b5b45;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .25));
+}
+.effects-panel .effect-name-cell .paper-link {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: bold;
+  color: #40342a;
+}
+.effects-panel .effect-review-flag { flex: 0 0 auto; color: #a33; }
+.effects-panel .effect-sv { font-variant-numeric: tabular-nums; text-align: center; }
+.effects-panel .effect-duration,
+.effects-panel .effect-source { color: #55493c; }
+.effects-panel .effect-state {
+  justify-self: start;
+  display: inline-block;
+  padding: 1px 9px;
+  border: 1px solid #8a7d68;
+  border-radius: 9px;
+  font-size: 9px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: #4b4237;
+  background: rgba(255, 252, 239, .6);
+}
+.effects-panel .effects-repair {
+  height: 22px;
+  min-height: 0;
+  padding: 1px 10px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  border: 1px solid #403b35;
+  border-radius: 2px;
+  background: #f5f0e5;
+  color: #292622;
+}
+.effects-panel .effects-repair:hover { background: #e9e0cd; }
+.effects-panel .effects-review-note {
+  margin: 10px;
+  padding: 7px 12px;
+  border: 1px solid rgba(200, 130, 20, .55);
+  border-radius: 3px;
+  background: rgba(200, 130, 20, .09);
+  color: #6b4a08;
+  font-size: 11.5px;
+}
+.effects-panel .effects-review-note i { margin-right: 4px; }
+
+/* ── Individual effect inspection dialog (ApplicationV2, read-only) ─────────── */
+
+.sw25-effect-inspector .window-content {
+  padding: 10px 14px;
+  overflow-y: auto;
+  background: #f6f1e5;
+}
+.sw25-effect-inspector-body { font-size: 12px; color: #3b322a; }
+.sw25-effect-inspector-banner {
+  margin: 2px 0 10px;
+  padding: 7px 10px;
+  border: 1px solid rgba(170, 51, 51, .45);
+  border-radius: 3px;
+  background: rgba(170, 51, 51, .10);
+  color: #6e1f1f;
+}
+.sw25-effect-inspector-banner.future-version {
+  border-color: rgba(200, 130, 20, .55);
+  background: rgba(200, 130, 20, .11);
+  color: #6b4a08;
+}
+.sw25-effect-inspector-section h3 {
+  margin: 10px 0 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #4b4237;
+  background: rgba(100, 95, 85, .14);
+  border-bottom: 2px solid #4b4742;
+}
+.sw25-effect-inspector-section dl {
+  display: grid;
+  grid-template-columns: minmax(130px, .42fr) minmax(0, 1fr);
+  gap: 3px 10px;
+  margin: 6px 0 0;
+}
+.sw25-effect-inspector-section dt {
+  font-weight: bold;
+  color: #4b4237;
+  /* Foundry core (`foundry2.css`: `dl dt { text-shadow: 1px 1px #000 }`) paints
+     a hard black offset shadow under the bold labels — the source of the blurry
+     look on the paper background. Removed on purpose. */
+  text-shadow: none;
+}
+.sw25-effect-inspector-section dd { margin: 0; min-width: 0; overflow-wrap: anywhere; color: #3b322a; }
+.sw25-effect-inspector-uuid { font-size: 10px; opacity: .75; font-family: monospace; color: #55493c; }
+.sw25-effect-inspector-changes { width: 100%; border-collapse: collapse; margin-top: 2px; color: #3b322a; }
+.sw25-effect-inspector-changes th,
+.sw25-effect-inspector-changes td { border: 1px solid #b3a893; padding: 3px 8px; text-align: left; font-size: 11px; color: #3b322a; }
+.sw25-effect-inspector-changes th {
+  background: rgba(70, 55, 40, .10);
+  font-weight: bold;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: .04em;
+  color: #4b4237;
+}
+.sw25-effect-inspector-empty { margin: 2px 0; font-style: italic; color: #6b5b45; }
+.sw25-effect-inspector-findings { margin: 2px 0; padding-left: 18px; color: #6e1f1f; }
+.sw25-effect-inspector-findings li { margin: 2px 0; }
+.sw25-effect-inspector-footer {
+  margin-top: 12px;
+  padding-top: 6px;
+  border-top: 1px solid #a99d87;
+  text-align: right;
+}
+.sw25-effect-inspector-footer button {
+  padding: 2px 12px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  border: 1px solid #403b35;
+  border-radius: 2px;
+  background: #f5f0e5;
+  color: #292622;
+}
+.sw25-effect-inspector-footer button:hover { background: #e9e0cd; }
+
+/* ── Target section selection dialog (ApplicationV2) ──────────────────────── */
+/* The dialog previously had no system CSS at all; the core left the footer
+   buttons stacked vertically. Minimal layout fix matching the inspector
+   footer's paper-button look. */
+.sw25-target-selection .sw25-target-selection-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 10px;
+}
+.sw25-target-selection .sw25-target-selection-footer button {
+  padding: 2px 12px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  border: 1px solid #403b35;
+  border-radius: 2px;
+  background: #f5f0e5;
+  color: #292622;
+}
+.sw25-target-selection .sw25-target-selection-footer button:hover { background: #e9e0cd; }
