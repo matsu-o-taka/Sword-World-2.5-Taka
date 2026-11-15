@@ -134,7 +134,9 @@ function sanitizeEvidence(evidence) {
     classResult: Number.isFinite(classResult) ? classResult : null,
     level: evidence.level === "weakness" ? "weakness" : "reputation",
     actorUuid: typeof evidence.actorUuid === "string" ? evidence.actorUuid : null,
-    actorName: typeof evidence.actorName === "string" ? evidence.actorName : null
+    actorName: typeof evidence.actorName === "string" ? evidence.actorName : null,
+    weakness: typeof evidence.weakness === "number" ? evidence.weakness : null,
+    concealedMainSection: evidence?.concealedMainSection ?? null
     // `source` is forced to "roll" by the relay protocol; `discoveredBy` is
     // never taken from the caller (the GM stamps the requester's id).
   };

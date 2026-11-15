@@ -401,6 +401,8 @@ export async function registerMkDiscovery(evidence, options = {}) {
         existing.discoveredBy = evidence?.discoveredBy ?? existing.discoveredBy;
         existing.discoveredAt = Number.isFinite(Number(evidence?.discoveredAt)) ? Number(evidence.discoveredAt) : existing.discoveredAt;
         existing.source = evidence?.source === "roll" ? "roll" : existing.source;
+        existing.weakness = typeof evidence?.weakness === "number" ? evidence.weakness : existing.weakness;
+        existing.concealedMainSection = evidence?.concealedMainSection ?? existing.concealedMainSection;
         record.updatedAt = Date.now();
         return ok({
           status: "promoted",
@@ -435,6 +437,8 @@ export async function registerMkDiscovery(evidence, options = {}) {
       discoveredAt,
       source: evidence?.source === "roll" ? "roll" : "gm-manual",
       level,
+      weakness: typeof evidence?.weakness === "number" ? evidence.weakness : null,
+      concealedMainSection: evidence?.concealedMainSection ?? null,
       bestiaryActorUuid: null
     };
     record.discoveries.push(discovery);
@@ -456,13 +460,20 @@ export async function registerMkDiscovery(evidence, options = {}) {
         ? rec.discoveries.find(d => d && d.id === result.data.discoveryId)
         : null;
       if (disc) {
-        // Create a Bestiary copy for a brand-new registration, or for a
-        // promoted discovery that still has no copy (e.g. registered before
-        // the Bestiary existed or after a folder failure). Already-known
-        // records and promoted discoveries that already carry a copy are
-        // untouched. The copy is created outside the Registry commit so a
-        // folder failure does not roll back knowledge.
-        if ((result.data.status === "registered" || result.data.status === "promoted") && disc.monsterUuid && !disc.bestiaryActorUuid) {
+        // Create or update a Bestiary copy when:
+        // - A brand-new discovery is registered ("registered")
+        // - A reputation discovery is promoted to weakness ("promoted")
+        // - An already-known discovery carries weakness/concealedMainSection
+        //   data that needs syncing to the copy ("already-known" with data)
+        // The last Weakness discovery processed for a species wins: its Main
+        // Section replaces any previously displayed one.
+        const shouldUpdateCopy = disc.monsterUuid && (
+          result.data.status === "registered" ||
+          result.data.status === "promoted" ||
+          (result.data.status === "already-known" &&
+            (typeof disc.weakness === "number" || disc.concealedMainSection))
+        );
+        if (shouldUpdateCopy) {
           // Pass the owning record's kind explicitly: manual additions may
           // target a record that is NOT the active one, and the copy's
           // folder/idempotency bucket follow the record, not the pointer.
@@ -1168,7 +1179,7 @@ async function getBestiaryActorFolder(recordKind, recordId) {
 }
 
 /**
- * Create an independent Bestiary copy of a monster Actor in the folder for
+ * Create or update a Bestiary copy of a monster Actor in the folder for
  * the given record. GM-authoritative.
  *
  * The copy:
@@ -1176,9 +1187,19 @@ async function getBestiaryActorFolder(recordKind, recordId) {
  *   - Lives in the Bestiary folder for the record (session or campaign).
  *   - Grants players OBSERVER ownership so they can view it.
  *   - Carries system flags identifying it as a Bestiary copy.
+ *   - Is named after the species, not the individual source monster.
  *   - Does not modify the original Actor.
+ *   - Does not copy the hidden concealed Main Section Active Effect or its
+ *     raw gmOnly-protected data; only the revealed section (already
+ *     disclosed through a successful Weakness discovery) is transferred.
  *
- * @param {object} discovery - The discovery record (must have monsterUuid).
+ * When a copy already exists for this species and record, it is updated
+ * in place (name, weakness, concealed Main Section) instead of creating a
+ * duplicate. The last Weakness discovery processed for a species wins:
+ * its Main Section replaces any previously displayed one.
+ *
+ * @param {object} discovery - The discovery record (must have monsterUuid,
+ *   speciesId, speciesLabel, weakness, concealedMainSection).
  * @param {string} recordId - The registry record id.
  * @param {string} [recordKind] - "session" or "campaign"; defaults to active.
  * @returns {Promise<{ok: true, data: {bestiaryActorUuid: string, actorId: string}} | {ok: false, code: string, error: string}>}
@@ -1208,20 +1229,43 @@ export async function createBestiaryActorCopy(discovery, recordId, recordKind = 
       return { ok: false, code: "monster-not-found", error: "The original monster Actor could not be resolved." };
     }
 
+    // Species name is used as the Bestiary Actor name (not the individual
+    // monster's name). Fall back to the source monster's name when the
+    // species label is unavailable.
+    const speciesName = typeof discovery.speciesLabel === "string" && discovery.speciesLabel.trim()
+      ? discovery.speciesLabel.trim()
+      : original.name;
+
     // Check idempotency: if a Bestiary copy already exists for this species
-    // and record, reuse it instead of duplicating. The match intentionally
+    // and record, update it instead of duplicating. The match intentionally
     // IGNORES the recordKind flag: copies created before the kind was passed
     // correctly (e.g. manual additions that landed in the active-kind bucket)
     // are found and reused instead of creating a duplicate.
     const existing = await findExistingBestiaryCopy(discovery.speciesId, recordId);
     if (existing) {
+      await existing.update({
+        name: speciesName,
+        flags: {
+          ...(existing.flags ?? {}),
+          [SYSTEM_ID]: {
+            ...(existing.flags?.[SYSTEM_ID] ?? {}),
+            mkbestiary: true,
+            speciesId: discovery.speciesId,
+            recordKind: kind,
+            recordId,
+            sourceActorUuid: discovery.monsterUuid,
+            mkbestiaryWeakness: typeof discovery.weakness === "number" ? discovery.weakness : null,
+            mkbestiaryConcealedMainSection: discovery.concealedMainSection ?? null
+          }
+        }
+      });
       return ok({ bestiaryActorUuid: existing.uuid, actorId: existing.id });
     }
 
     // Build the copy data from the original, overriding identity and ownership.
     const sourceData = original.toObject ? original.toObject() : structuredClone(original);
     const copyData = {
-      name: sourceData.name,
+      name: speciesName,
       type: "monster",
       folder: folderResult.data.folderId,
       ownership: {
@@ -1233,7 +1277,9 @@ export async function createBestiaryActorCopy(discovery, recordId, recordKind = 
           speciesId: discovery.speciesId,
           recordKind: kind,
           recordId,
-          sourceActorUuid: discovery.monsterUuid
+          sourceActorUuid: discovery.monsterUuid,
+          mkbestiaryWeakness: typeof discovery.weakness === "number" ? discovery.weakness : null,
+          mkbestiaryConcealedMainSection: discovery.concealedMainSection ?? null
         }
       },
       system: sourceData.system,

@@ -284,6 +284,61 @@ export function getConcealedMainSectionPresentation(actor) {
 }
 
 /**
+ * Synchronous read of the concealed Main Section for Monster Knowledge
+ * Weakness discovery revelation.
+ *
+ * This is the AUTHORIZED revelation path: when an MK roll successfully
+ * reaches the Weakness discovery threshold, the selected Main Section is
+ * revealed alongside the Weakness. Unlike `getConcealedMainSectionPresentation`
+ * (which is GM-only for sheet render paths), this function has no GM gate
+ * because the Weakness discovery itself is already being revealed to the
+ * rolling player — the section is disclosed as part of that same revelation.
+ *
+ * The effect's `system.gmOnly: true` flag is UNCHANGED: players still cannot
+ * see the effect in the Effects tab or inspector, and cannot read the
+ * selection through any other path. This function is ONLY called from the MK
+ * Weakness discovery resolution (`resolveMonsterKnowledgeResult`).
+ *
+ * Returns the same presentation shape as `getConcealedMainSectionPresentation`:
+ *   - "none"     → no selection effect, or a legacy marker without a record.
+ *   - "assigned" → a valid selection; `section`/`sectionId` are populated.
+ *   - "error"    → malformed/legacy-encrypted record ("record-invalid") or
+ *                  removed/excluded section ("selection-invalid").
+ * Never a fallback, never a re-roll.
+ * @param {Actor} actor - The monster actor involved in the MK roll.
+ * @returns {{status: "none"|"assigned"|"error", section: string|null,
+ *   sectionId: string|null, effectId: string|null, code: string|null,
+ *   message: string|null}}
+ */
+export function getConcealedMainSectionMkReveal(actor) {
+  if (!actor || actor.type !== "monster") {
+    return { status: "none", section: null, sectionId: null, effectId: null, code: null, message: null };
+  }
+  const effect = findConcealedEffect(actor);
+  if (!effect) {
+    return { status: "none", section: null, sectionId: null, effectId: null, code: null, message: null };
+  }
+  const record = effect.flags?.[CONCEALED_FLAG_NAMESPACE]?.[CONCEALED_FLAG_RECORD_KEY];
+  if (!record) {
+    // Legacy marker effect without any selection record: controlled "no
+    // valid selection" state; an explicit Special save replaces the marker
+    // with a real record.
+    return { status: "none", section: null, sectionId: null, effectId: effect.id ?? null, code: null, message: null };
+  }
+  if (typeof record !== "object" || Array.isArray(record)
+    || typeof record.sectionId !== "string" || record.sectionId === "") {
+    const message = `The concealed Main Section record of ${actor.name} is malformed (or is a legacy encrypted record from the previous implementation). Re-save the rule in the Main Sections dialog to replace it.`;
+    return { status: "error", section: null, sectionId: null, effectId: effect.id ?? null, code: "record-invalid", message };
+  }
+  const match = candidateMatch(getActiveCandidates(actor), record.sectionId);
+  if (!match) {
+    const message = `The concealed Main Section selection of ${actor.name} is no longer valid (the selected section was removed or excluded). The controlled invalid state is preserved; no automatic re-selection.`;
+    return { status: "error", section: null, sectionId: null, effectId: effect.id ?? null, code: "selection-invalid", message };
+  }
+  return { status: "assigned", section: match.section, sectionId: match.id, effectId: effect.id ?? null, code: null, message: null };
+}
+
+/**
  * Read the concealed Main Section selection.
  *
  * GM-only: non-GM callers receive null without ever reading the record.

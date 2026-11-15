@@ -3,6 +3,7 @@ import { assembleRollFormula, openRollModifiersDialog } from "../rules/roll-modi
 import { normalizeSpeciesId, speciesId } from "../knowledge/mk-identity.mjs";
 import { isMkSpeciesKnown, registerMkDiscovery, withdrawMkDiscovery } from "../knowledge/monster-knowledge-registry.mjs";
 import { requestMkRelayDiscovery, publishMkBestiaryReveal } from "../knowledge/mk-relay.mjs";
+import { getConcealedMainSectionMkReveal } from "../combat/concealed-main-section.mjs";
 
 const SYSTEM_ID = "sw25-taka";
 export const MK_OBSERVER_SOCKET = "system.sw25-taka";
@@ -250,9 +251,13 @@ export async function toggleMonsterWeakness(monster, { notify = true } = {}) {
  * @param {object} [options]
  * @param {boolean} [options.suppressRevealNotice] - Suppress the requester's
  *   per-request reveal whisper (the caller publishes one per roll).
+ * @param {string|null} [options.weakness] - The discovered Weakness value (weakness level only).
+ * @param {object|null} [options.concealedMainSection] - The revealed concealed
+ *   Main Section for this monster ({ section, sectionId } or { error, message }
+ *   or null when not assigned). Weakness level only.
  * @returns {Promise<{ok: boolean, data?: object, code?: string, error?: string}>}
  */
-async function persistMkDiscovery(monster, entry, level = "weakness", { suppressRevealNotice = false } = {}) {
+async function persistMkDiscovery(monster, entry, level = "weakness", { suppressRevealNotice = false, weakness = null, concealedMainSection = null } = {}) {
   const id = speciesId(monster);
   if (!id) return { ok: false, code: "no-species", error: "A discovery requires a monster species identifier." };
   const evidence = {
@@ -266,6 +271,8 @@ async function persistMkDiscovery(monster, entry, level = "weakness", { suppress
     classResult: Number.isFinite(Number(entry?.result)) ? Number(entry.result) : null,
     source: "roll",
     level,
+    weakness,
+    concealedMainSection,
     discoveredBy: game.user?.id ?? null
   };
   if (game?.user?.isGM) {
@@ -728,22 +735,52 @@ export async function resolveMonsterKnowledgeResult({
       }
     }
   }
-    if (weaknessEntry) {
+
+  if (weaknessEntry) {
+    // Reveal the concealed Main Section alongside the Weakness. Both
+    // discoveries result from the same successful MK roll. The section is
+    // read from the exact monster Actor involved in the roll (not merely
+    // another Actor of the same species), through the MK revelation path
+    // (getConcealedMainSectionMkReveal) that does not weaken the effect's
+    // gmOnly protection — players still cannot see the effect in the Effects
+    // tab or inspector.
+    const concealedReveal = getConcealedMainSectionMkReveal(monster);
+
     const weaknessPersist = await persistMkDiscovery(monster, {
       ...weaknessEntry,
       actorUuid: actor?.uuid,
       actorName: actor?.name
-    }, "weakness", { suppressRevealNotice: true });
+    }, "weakness", {
+      suppressRevealNotice: true,
+      weakness,
+      concealedMainSection: concealedReveal
+    });
     if (weaknessPersist?.ok && weaknessPersist.data?.bestiaryActorUuid) {
       reveal.bestiaryActorUuid = weaknessPersist.data.bestiaryActorUuid;
     }
-    discoveries.push({
+    const weaknessDiscovery = {
       type: "weakness",
       monster,
       className: weaknessEntry.className,
       classLabel: weaknessEntry.label
-    });
-    lines.push(`<li>${esc(monster.name)}: Weakness discovered.</li>`);
+    };
+    if (concealedReveal.status === "assigned") {
+      weaknessDiscovery.concealedMainSection = {
+        section: concealedReveal.section,
+        sectionId: concealedReveal.sectionId
+      };
+      lines.push(`<li>${esc(monster.name)}: Weakness discovered. Main Section: ${esc(concealedReveal.section)}.</li>`);
+    } else if (concealedReveal.status === "error") {
+      weaknessDiscovery.concealedMainSection = {
+        error: concealedReveal.code,
+        message: concealedReveal.message
+      };
+      lines.push(`<li>${esc(monster.name)}: Weakness discovered. Main Section: ${esc(concealedReveal.message)}.</li>`);
+    } else {
+      // status === "none": no concealed selection configured for this monster.
+      lines.push(`<li>${esc(monster.name)}: Weakness discovered. No concealed Main Section selected.</li>`);
+    }
+    discoveries.push(weaknessDiscovery);
   }
 
   // One reveal per monster per roll: the copy exists at (or was promoted to)
