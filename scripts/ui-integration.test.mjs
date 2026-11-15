@@ -131,6 +131,26 @@ assert.match(
 );
 assert.match(monsterModule, /getMonsterActiveCombatRolls\(/, "monster-sheet respects the toggle for manual rolls");
 assert.match(
+  monsterModule,
+  /wireSw25EffectsTabHandlers\(this, html\)/,
+  "monster-sheet wires the SHARED Effects-section listeners (no duplicated handlers)"
+);
+assert.match(
+  monsterModule,
+  /prepareSw25EffectsTab\(this\.actor, context\.isGM === true\)/,
+  "monster-sheet prepares the effects context with the viewer's GM state"
+);
+assert.match(
+  monsterModule,
+  /attachSw25ConcealedSelectionLabel\(/,
+  "monster-sheet attaches the concealed selection label (GM-only)"
+);
+assert.match(
+  await readFile(new URL("../module/actor/effects-tab-ui.mjs", import.meta.url), "utf8"),
+  /gmOnly === true && game\.user\.isGM !== true/,
+  "the shared Effects wiring keeps the gmOnly inspector guard"
+);
+assert.match(
   monsterSheet,
   /name="system\.activeCombatRolls"/,
   "Monster sheet keeps the toggle control bound to the data path"

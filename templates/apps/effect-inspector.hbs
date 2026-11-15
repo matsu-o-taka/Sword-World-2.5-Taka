@@ -1,0 +1,77 @@
+<div class="sw25-effect-inspector-body">
+  {{#if effect.gmOnly}}
+  <p class="sw25-effect-inspector-banner">This effect is visible only to the GM: players never see it in the Effects tab or the inspector. (This hides presentation only — the document still replicates like any other ActiveEffect.)</p>
+  {{/if}}
+  {{#if effect.needsReview}}
+  <p class="sw25-effect-inspector-banner{{#if effect.futureVersion}} future-version{{/if}}">
+    {{#if effect.futureVersion}}This effect was written by a newer schema version: repair is refused until the system is updated. The data is intact and displayed as stored.{{else}}This effect's data needs GM review (it was kept intact, never silently corrected).{{/if}}
+  </p>
+  {{/if}}
+
+  <section class="sw25-effect-inspector-section">
+    <h3>Identity</h3>
+    <dl>
+      <dt>Family</dt><dd>{{#if effect.family}}{{effect.family}}{{else}}—{{/if}}</dd>
+      <dt>Rank</dt><dd>{{effect.rankLabel}}</dd>
+      <dt>Canonical Name</dt><dd>{{#if effect.canonicalName}}{{effect.canonicalName}}{{else}}— (cannot be reconstructed from the stored data){{/if}}</dd>
+      <dt>Effect Type</dt><dd>{{#if effect.effectType}}{{effect.effectType}}{{else}}—{{/if}}</dd>
+      <dt>Document Name</dt><dd>{{#if effect.name}}{{effect.name}}{{else}}—{{/if}}</dd>
+    </dl>
+  </section>
+
+  <section class="sw25-effect-inspector-section">
+    <h3>Values &amp; Duration</h3>
+    <dl>
+      <dt>Success Value</dt><dd>{{effect.successValueLabel}}</dd>
+      <dt>Initial Duration</dt><dd>{{effect.initialDurationLabel}}</dd>
+      <dt>Remaining Duration</dt><dd>{{effect.remainingDurationLabel}}</dd>
+      <dt>Duration Mode</dt><dd>{{effect.durationMode}}</dd>
+    </dl>
+    {{#if effect.changes.length}}
+    <h3>Changes</h3>
+    <table class="sw25-effect-inspector-changes">
+      <thead><tr><th>Key</th><th>Type</th><th>Value</th><th>Phase</th><th>Priority</th></tr></thead>
+      <tbody>
+        {{#each effect.changes as |change|}}
+        <tr>
+          <td>{{#if change.key}}{{change.key}}{{else}}—{{/if}}</td>
+          <td>{{#if change.type}}{{change.type}}{{else}}—{{/if}}</td>
+          <td>{{#if change.value}}{{change.value}}{{else}}—{{/if}}</td>
+          <td>{{#if change.phase}}{{change.phase}}{{else}}—{{/if}}</td>
+          <td>{{#if change.priority}}{{change.priority}}{{else}}—{{/if}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{else}}
+    <h3>Changes</h3>
+    <p class="sw25-effect-inspector-empty">No mechanical changes stored.</p>
+    {{/if}}
+  </section>
+
+  <section class="sw25-effect-inspector-section">
+    <h3>Provenance &amp; State</h3>
+    <dl>
+      <dt>State</dt><dd>{{effect.stateLabel}}</dd>
+      <dt>Temporary</dt><dd>{{#if effect.temporary}}Yes (temporary duration){{else}}{{#if (eq effect.temporary false)}}No{{else}}—{{/if}}{{/if}}</dd>
+      <dt>Transfer</dt><dd>{{#if effect.transfer}}Yes{{else}}{{#if (eq effect.transfer false)}}No{{else}}—{{/if}}{{/if}}</dd>
+      <dt>Origin (document)</dt><dd class="sw25-effect-inspector-uuid" title="{{effect.originUUID}}">{{#if effect.originUUID}}{{effect.originUUID}}{{else}}—{{/if}}</dd>
+      <dt>Origin (resolved)</dt><dd>{{#if effect.originName}}{{effect.originName}}{{else}}—{{/if}}</dd>
+      <dt>Caster</dt><dd class="sw25-effect-inspector-uuid" title="{{effect.casterUUID}}">{{#if effect.casterUUID}}{{effect.casterUUID}}{{else}}—{{/if}}</dd>
+      <dt>Caster (resolved)</dt><dd>{{#if effect.casterName}}{{effect.casterName}}{{else}}—{{/if}}</dd>
+    </dl>
+  </section>
+
+  {{#if effect.reviewDetails.length}}
+  <section class="sw25-effect-inspector-section">
+    <h3>Review Findings</h3>
+    <ul class="sw25-effect-inspector-findings">
+      {{#each effect.reviewDetails as |detail|}}<li>{{detail}}</li>{{/each}}
+    </ul>
+  </section>
+  {{/if}}
+
+  <footer class="sw25-effect-inspector-footer">
+    <button type="button" data-inspector-close><i class="fas fa-xmark"></i> Close</button>
+  </footer>
+</div>

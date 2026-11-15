@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
   appendMonsterCombatStyle,
+  applyMonsterMainSectionPolicyToStyles,
   createMonsterUniqueSkill,
   getMainCombatStyleIndex,
   getMonsterSectionChoices,
@@ -12,7 +13,8 @@ import {
   prepareMonsterUniqueSkillGroups,
   readMonsterActorCombatStyles,
   readMonsterCombatStyles,
-  selectMainCombatStyle
+  selectMainCombatStyle,
+  setMonsterMainSectionFlag
 } from "../module/actor/monster-sheet-data.mjs";
 import { parseMonsterPage } from "../module/importer/monster-parser.mjs";
 
@@ -73,6 +75,17 @@ const multipleStyles = [
 assert.equal(getMainCombatStyleIndex(multipleStyles), 1);
 assert.equal(prepareMonsterCombatStyles(multipleStyles)[1].isMainSection, true);
 
+// Multi-main profile (legitimate, CR I p. 387): the checkbox display reflects
+// the persisted flags while the exclusive radio UI state stays untouched.
+const multiFlagged = [
+  { style: "Bite", sectionLabel: "Neck", isMainSection: true },
+  { style: "Claw", sectionLabel: "Head", isMainSection: true },
+  { style: "None", sectionLabel: "Body", isMainSection: false }
+];
+assert.equal(getMainCombatStyleIndex(multiFlagged), null);
+assert.equal(hasValidMainCombatStyle(multiFlagged), true);
+assert.deepEqual(prepareMonsterCombatStyles(multiFlagged).map(style => style.isMainSection), [true, true, false]);
+
 const incompleteStyles = [{ style: "Bite" }, { style: "Tail" }];
 assert.equal(getMainCombatStyleIndex(incompleteStyles), null);
 assert.equal(hasValidMainCombatStyle(incompleteStyles), false);
@@ -95,7 +108,23 @@ const selectionCounts = [multipleStyles, selectedSecond, clickedSelectedRow].map
 );
 assert.deepEqual(selectionCounts, [1, 1, 1]);
 assert.equal(selectMainCombatStyle(incompleteStyles, 1, true).filter(style => style.isMainSection).length, 1);
-assert.equal(hasValidMainCombatStyle([{ isMainSection: true }, { isMainSection: true }]), false);
+// Relaxed validation (CR I p. 387): several marked Main Sections are a
+// legitimate profile ("any one of the listed Main Sections" incapacitates);
+// the marking control stays exclusive, the validation no longer refuses it.
+assert.equal(hasValidMainCombatStyle([{ isMainSection: true }, { isMainSection: true }]), true);
+assert.equal(hasValidMainCombatStyle([{ isMainSection: false }, { isMainSection: false }]), false);
+assert.equal(hasValidMainCombatStyle([{ isMainSection: true }, { isMainSection: false }]), true);
+
+// Concealed Main Section profiles (mainSection.type = "special", or an
+// explicit "special" policy) are valid WITHOUT marked rows: the Main Section
+// is the GM's secret selection, never a row flag (CR III p. 368). The
+// original type meaning is only read; a non-special system keeps the flag
+// rule.
+const specialImportedSystem = { mainSection: { type: "special", sourceValue: "Special" } };
+assert.equal(hasValidMainCombatStyle(incompleteStyles, specialImportedSystem), true);
+assert.equal(hasValidMainCombatStyle(incompleteStyles, { mainSectionPolicy: "special" }), true);
+assert.equal(hasValidMainCombatStyle(incompleteStyles, { mainSection: { type: "all" } }), false);
+assert.equal(hasValidMainCombatStyle(incompleteStyles, null), false);
 
 const removedSelectedStyle = multipleStyles.slice(1);
 assert.equal(getMainCombatStyleIndex(removedSelectedStyle), 0);
@@ -147,6 +176,7 @@ assert.deepEqual(oldCombinedPrepared[0], {
   legacyCombinedStyle: "Sword (Head)",
   isMainSection: true,
   mainSectionCheckboxDisabled: true,
+  sectionDestroyed: false,
   defenseEditable: true,
   hpValueEditable: true,
   hpMaxEditable: true,
@@ -336,6 +366,22 @@ assert.match(template, /uniqueSkillGroups as \|group\|/);
 assert.match(template, /data-action="choose-monster-skill-section"/);
 assert.doesNotMatch(template, /monster-skill-assignment">Section/);
 
+// Effects section (monster sheet): reuses the character sheet's Effects
+// markup (effects-panel styling, inspect action, empty state) stacked
+// between Combat Statistics and Unique Skills, with the GM-only concealed
+// selection badge.
+const effectsPanelIndex = template.indexOf('class="monster-panel effects-panel"');
+assert.ok(effectsPanelIndex >= 0, "the monster sheet carries an effects-panel section");
+assert.match(template, /\{\{#each effectsTab\.rows as \|row\|\}\}/, "the effects section lists the prepared rows");
+assert.match(template, /data-action="inspect-sw25-effect"/, "effect rows open the shared inspector");
+assert.match(template, /data-action="repair-sw25-effect-data"/, "the effects heading carries the GM repair control");
+assert.match(template, /monster-concealed-selection/, "the concealed selection badge renders");
+assert.match(template, /<p class="paper-empty">No persistent effects\.<\/p>/, "the same empty state as the character sheet");
+const combatIndex = template.indexOf("Combat Statistics");
+const skillsIndex = template.indexOf("monster-unique-skills");
+assert.ok(combatIndex >= 0 && combatIndex < effectsPanelIndex && effectsPanelIndex < skillsIndex,
+  "the effects section sits between Combat Statistics and Unique Skills");
+
 const combatStylesForChoices = [
   { id: "cs-head", style: "Head Attack", section: "Head", sectionLabel: "Head" },
   { id: "cs-body", style: "Body Attack", section: "Body", sectionLabel: "Body" },
@@ -463,5 +509,89 @@ assert.deepEqual(afterSectionAddition.map(group => group.id), [
   "cs-head",
   "cs-body"
 ]);
+
+// ── Policy-aware Main Section preparation (the sheet renders markers
+//    consistently with the resolved policy) ───────────────────────────────
+
+const multiRows = [
+  { style: "Bite", sectionLabel: "Head", hp: { value: 30, max: 40 }, isMainSection: false },
+  { style: "Tail", sectionLabel: "Body", hp: { value: 0, max: 40 }, isMainSection: true },
+  { style: "Wing", sectionLabel: "Wing", hp: { value: 40, max: 40 }, isMainSection: false }
+];
+
+// Explicit All: every row is a main section, checkboxes locked.
+const preparedAll = prepareMonsterCombatStyles(multiRows, [], { policy: "all", source: "explicit" });
+assert.deepEqual(preparedAll.map(row => row.isMainSection), [true, true, true]);
+assert.deepEqual(preparedAll.map(row => row.mainSectionCheckboxDisabled), [true, true, true]);
+assert.deepEqual(preparedAll.map(row => row.sectionDestroyed), [false, true, false]);
+
+// Explicit None: no row is a main section, checkboxes locked.
+const preparedNone = prepareMonsterCombatStyles(multiRows, [], { policy: "none", source: "explicit" });
+assert.deepEqual(preparedNone.map(row => row.isMainSection), [false, false, false]);
+assert.deepEqual(preparedNone.map(row => row.mainSectionCheckboxDisabled), [true, true, true]);
+
+// Any: flags preserved independently, checkboxes editable.
+const preparedAny = prepareMonsterCombatStyles(multiRows, [], { policy: "any", source: "explicit" });
+assert.deepEqual(preparedAny.map(row => row.isMainSection), [false, true, false]);
+assert.deepEqual(preparedAny.map(row => row.mainSectionCheckboxDisabled), [false, false, false]);
+
+// Derived / unknown policy: flags preserved, checkboxes editable (imported
+// data keeps its own marks).
+const preparedDerived = prepareMonsterCombatStyles(multiRows, [], { policy: "all", source: "derived" });
+assert.deepEqual(preparedDerived.map(row => row.isMainSection), [false, true, false]);
+
+// hpValueEditable stays true even when a section is destroyed — a destroyed
+// section (including a new one at default 0 HP) remains fully editable.
+assert.equal(preparedAll[1].sectionDestroyed, true);
+assert.equal(preparedAll[1].hpValueEditable, true);
+assert.equal(preparedNone[1].sectionDestroyed, true);
+assert.equal(preparedNone[1].hpValueEditable, true);
+
+// Single row stays locked under explicit All/None as well.
+const singleRow = [{ style: "Bite", sectionLabel: "Head", hp: { value: 10, max: 10 } }];
+assert.deepEqual(prepareMonsterCombatStyles(singleRow, [], { policy: "all", source: "explicit" })[0].mainSectionCheckboxDisabled, true);
+assert.deepEqual(prepareMonsterCombatStyles(singleRow, [], { policy: "none", source: "explicit" })[0].mainSectionCheckboxDisabled, true);
+
+// ── setMonsterMainSectionFlag: INDEPENDENT toggle (Any policy) ────────────
+
+const flaggedAny = setMonsterMainSectionFlag(multiRows, 0, true);
+assert.deepEqual(flaggedAny.map(row => row.isMainSection), [true, true, false]);
+const untoggledSiblings = setMonsterMainSectionFlag(flaggedAny, 0, false);
+assert.deepEqual(untoggledSiblings.map(row => row.isMainSection), [false, true, false]);
+// Unchecking one never affects another.
+const toggleOther = setMonsterMainSectionFlag(untoggledSiblings, 2, true);
+assert.deepEqual(toggleOther.map(row => row.isMainSection), [false, true, true]);
+// Single-row: unchanged (checkbox disabled anyway).
+assert.deepEqual(setMonsterMainSectionFlag(singleRow, 0, true), singleRow);
+
+// ── applyMonsterMainSectionPolicyToStyles: whole-array rewrite for
+//    explicit All/None; null for Any/Special ─────────────────────────────
+
+assert.deepEqual(
+  applyMonsterMainSectionPolicyToStyles(multiRows, "all").map(row => row.isMainSection),
+  [true, true, true]
+);
+assert.deepEqual(
+  applyMonsterMainSectionPolicyToStyles(multiRows, "none").map(row => row.isMainSection),
+  [false, false, false]
+);
+assert.equal(applyMonsterMainSectionPolicyToStyles(multiRows, "any"), null);
+assert.equal(applyMonsterMainSectionPolicyToStyles(multiRows, "special"), null);
+assert.equal(applyMonsterMainSectionPolicyToStyles(multiRows, null), null);
+// hp/mp are deep-copied so the source array is never mutated by the rewrite.
+const rewritten = applyMonsterMainSectionPolicyToStyles(multiRows, "all");
+assert.notDeepEqual(rewritten[0], multiRows[0]);
+
+// ── hasValidMainCombatStyle: None policy is valid WITHOUT marked rows ─────
+
+const noneSystem = { mainSectionPolicy: "none" };
+assert.equal(hasValidMainCombatStyle([{ isMainSection: false }, { isMainSection: false }], noneSystem), true);
+assert.equal(hasValidMainCombatStyle([{ isMainSection: false }], noneSystem), true);
+// Any still requires at least one marked row.
+const anySystem = { mainSectionPolicy: "any" };
+assert.equal(hasValidMainCombatStyle([{ isMainSection: false }, { isMainSection: false }], anySystem), false);
+assert.equal(hasValidMainCombatStyle([{ isMainSection: true }, { isMainSection: false }], anySystem), true);
+// Special profile: valid without row flags (secret selection).
+assert.equal(hasValidMainCombatStyle([{ isMainSection: false }, { isMainSection: false }], { mainSectionPolicy: "special" }), true);
 
 console.log("Monster sheet source-value, Main Section selection, and Unique Skill section tests passed.");

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
   associatedSkillReferences,
+  matchMainSectionRowIds,
   parseMainSection,
   parseMonsterPage,
   parseSectionCombatStatistics,
@@ -65,9 +66,13 @@ assert.deepEqual(hydra.system.combatStyles[1].sourceValues, [
 assert.deepEqual(hydra.system.mainSection, {
   type: "all",
   sourceValue: "Neck (All)",
-  combatStyleIds: ["cs-1", "cs-2"],
+  // CR I p. 387: the (All) annotation qualifies the NAMED main section
+  // ("Neck x 7-9" matches "Neck"); Body is NOT a main section.
+  combatStyleIds: ["cs-2"],
   associatedSkills: []
 });
+// Row flags follow the same rule: only the Neck row is marked as main.
+assert.deepEqual(hydra.system.combatStyles.map(cs => cs.isMainSection), [false, true]);
 assert.equal(hydra.system.sectionSource, "8-10 (Body / Neck x 7-9)");
 assert.deepEqual(hydra.system.skillParseErrors, []);
 
@@ -77,6 +82,17 @@ assert.deepEqual(parseMainSection("Head"), {
 assert.deepEqual(parseMainSection("Head, Body").combatStyleIds, []);
 assert.deepEqual(parseMainSection("Body (All)").combatStyleIds, []);
 assert.equal(parseMainSection("None").type, "none");
+// Several main sections noted in the data: ALL named rows are marked (CR I
+// p. 387, "any one of the listed Main Sections"), including count annotations.
+const multiNamedStyles = [
+  { id: "cs-1", section: "Head" },
+  { id: "cs-2", section: "Body" },
+  { id: "cs-3", section: "Neck x 7-9" }
+];
+assert.deepEqual(parseMainSection("Head, Body", [], multiNamedStyles).combatStyleIds, ["cs-1", "cs-2"]);
+assert.deepEqual(parseMainSection("Neck (All)", [], multiNamedStyles).combatStyleIds, ["cs-3"]);
+assert.deepEqual(parseMainSection("Head, Neck (All)", [], multiNamedStyles).combatStyleIds, ["cs-1", "cs-3"]);
+assert.deepEqual(matchMainSectionRowIds(multiNamedStyles, "Wing x 2, Body"), ["cs-2"]);
 assert.equal(parseMainSection("Special").type, "special");
 assert.deepEqual(parseMainSection("Special, see below"), {
   type: "special",

@@ -103,7 +103,10 @@ export async function applyDamage({ actor, total, damageType, factor = 1, combat
     const styles = foundry.utils.deepClone(Array.isArray(actor.system.combatStyles) ? actor.system.combatStyles : []);
     const styleIndex = styles.findIndex(s => s.id === (combatStyleId || styles[0]?.id));
     if (styleIndex === -1) throw new Error(`${actor.name} has no combat-statistics row to receive damage.`);
-    styles[styleIndex].hp.value = Math.max(0, numericCombatValue(styles[styleIndex].hp?.value) - applied);
+    // Section HP may go below 0 (Core Rulebook I p. 386/387: a section is
+    // destroyed at 0 or fewer HP); the value is preserved without a lower
+    // bound, exactly like character HP, so overflow damage is never lost.
+    styles[styleIndex].hp.value = numericCombatValue(styles[styleIndex].hp?.value) - applied;
     await actor.update({ "system.combatStyles": styles });
   } else {
     const current = Number(actor.system.hp?.value ?? 0);

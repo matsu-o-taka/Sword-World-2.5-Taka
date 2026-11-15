@@ -4,6 +4,16 @@
     {{#each naturalPower as |resource|}}<div class="sw25-natural-power-tracker"><strong>{{resource.name}} — Natural Power</strong><span>Added {{resource.added}}</span><span>Spent {{resource.spent}}</span><span>Remaining {{resource.remaining}}</span></div>{{/each}}
     {{#if playerPhase}}
       <p class="sw25-side-progress"><strong>{{done}} / {{total}}</strong> players finished</p>
+      <div class="sw25-individual-turns">
+        <h3>Individual Turns</h3>
+        {{#each playerTurns as |turn|}}
+          <div class="sw25-individual-turn-row">
+            <span class="sw25-individual-turn-name">{{turn.name}}</span>
+            <span class="sw25-turn-state sw25-turn-{{turn.stateClass}}">{{turn.stateLabel}}</span>
+            {{#if turn.canControl}}<button type="button" data-action="{{turn.action}}" data-combatant-id="{{turn.id}}"><i class="fas {{turn.actionIcon}}"></i> {{turn.actionLabel}}</button>{{/if}}
+          </div>
+        {{/each}}
+      </div>
       {{#if canEndPlayer}}<button type="button" data-action="end-player-turn"><i class="fas fa-check"></i> End My Turn</button>{{else}}<p class="sw25-side-waiting">Waiting for the remaining players.</p>{{/if}}
       {{#if gmPlayerControls}}<div class="sw25-gm-turn-controls"><h3>GM Controls</h3>{{#each remainingPlayers as |player|}}<button type="button" data-action="gm-end-player-turn" data-combatant-id="{{player.id}}"><i class="fas fa-user-check"></i> End {{player.name}}'s Turn</button>{{/each}}{{#if remainingPlayers.length}}<button type="button" data-action="gm-end-all-player-turns"><i class="fas fa-users"></i> End All Player Turns</button>{{/if}}</div>{{/if}}
     {{else}}
@@ -13,6 +23,8 @@
           <div class="sw25-monster-turn-row">
             <span>{{monster.name}}</span>
             {{#if monster.done}}<span class="sw25-monster-done"><i class="fas fa-check"></i> Acted</span>{{else}}{{#if ../gmMonsterControls}}<button type="button" data-action="gm-end-monster-turn" data-combatant-id="{{monster.id}}"><i class="fas fa-user-check"></i> Mark Acted</button>{{else}}<span class="sw25-side-waiting">Pending</span>{{/if}}{{/if}}
+            <span class="sw25-turn-state sw25-turn-{{monster.stateClass}}">{{monster.stateLabel}}</span>
+            {{#if monster.canControl}}<button type="button" data-action="{{monster.action}}" data-combatant-id="{{monster.id}}"><i class="fas {{monster.actionIcon}}"></i> {{monster.actionLabel}}</button>{{/if}}
           </div>
         {{/each}}
       </div>

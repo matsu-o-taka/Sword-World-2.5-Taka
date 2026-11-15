@@ -75,6 +75,13 @@ const zeroValues = monster({ defense: 0, hp: 0 });
 await applyDamage({ actor: zeroValues, total: 0, damageType: "physical" });
 assert.equal(zeroValues.system.combatStyles[0].hp.value, 0);
 
+// Overflow damage carries a section below 0 HP: the value is preserved
+// without a lower bound (CR I p. 386/387 — a section is destroyed at 0 or
+// fewer HP; no clamp).
+const overflow = monster({ hp: 3 });
+await applyDamage({ actor: overflow, total: 9, damageType: "physical" });
+assert.equal(overflow.system.combatStyles[0].hp.value, -4);
+
 const invalidTotal = monster();
 const invalidTotalBefore = structuredClone(invalidTotal.system);
 await assert.rejects(applyDamage({ actor: invalidTotal, total: "not a number", damageType: "physical" }), /invalid damage total/);

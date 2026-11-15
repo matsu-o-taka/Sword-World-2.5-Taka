@@ -26,8 +26,11 @@ const normalizedSectionName = value => sourceValue(value).replace(/\s+/g, " ").t
 const singularForm = name => /^[A-Za-z]+s$/.test(name) ? name.replace(/s$/, "") : name;
 const parenFreeStem = name => normalizedSectionName(String(name ?? "").replace(/\([^()]*\)/g, " "));
 const sectionNamesEquivalent = (left, right) => {
-  const leftName = normalizedSectionName(left);
-  const rightName = normalizedSectionName(right);
+  // Count annotations ("Neck x 7-9", "Wing x 2") never distinguish sections:
+  // a declared section name without the count matches the annotated row.
+  const stripCount = value => String(value ?? "").replace(/\s+x\s*.+$/i, "");
+  const leftName = normalizedSectionName(stripCount(left));
+  const rightName = normalizedSectionName(stripCount(right));
   if (!leftName || !rightName) return false;
   if (leftName === rightName) return true;
   const leftStem = parenFreeStem(leftName);
@@ -87,7 +90,13 @@ export function parseMainSection(value = "", uniqueSkills = [], combatStyles = [
   else if (/^special(?:\s*,?\s*see below)?$/i.test(sourceValue)) type = "special";
   else if (/\(\s*all\s*\)\s*$/i.test(sourceValue)) {
     type = "all";
-    combatStyleIds = combatStyles.map(cs => cs.id).filter(Boolean);
+    // CR I p. 387: the (All) annotation qualifies the NAMED main section(s).
+    // Only when no name can be matched does it degrade to every row (the
+    // previous behavior), which stays rule-safe for unnamed (All) data.
+    const named = matchMainSectionRowIds(combatStyles, sourceValue);
+    combatStyleIds = named.length
+      ? named
+      : combatStyles.map(cs => cs.id).filter(Boolean);
   } else if (sourceValue) {
     type = "named";
     const names = sourceValue.split(",").map(name => name.trim()).filter(Boolean);
@@ -103,6 +112,31 @@ export function parseMainSection(value = "", uniqueSkills = [], combatStyles = [
     }))
     : [];
   return { type, sourceValue, combatStyleIds, associatedSkills };
+}
+
+/**
+ * Resolve the combat-style row ids named by a Main Section value.
+ *
+ * Accepts comma lists ("Head, Body"), a single name with an (All)/(None)
+ * annotation ("Neck (All)") and count annotations ("Neck x 7-9" matches
+ * "Neck"). Matching reuses the importer's section-name equivalence.
+ * @param {Array<object>} combatStyles - Parsed combat-style rows.
+ * @param {string} sourceValue - Raw Main Section value.
+ * @returns {string[]} Matched row ids (possibly empty).
+ */
+export function matchMainSectionRowIds(combatStyles = [], sourceValue = "") {
+  const withoutAnnotation = String(sourceValue ?? "").trim()
+    .replace(/\(\s*(?:all|none)\s*\)\s*$/i, "");
+  const names = withoutAnnotation.split(",").map(name => name.trim()).filter(Boolean);
+  const matched = [];
+  for (const name of names) {
+    for (const cs of combatStyles) {
+      const candidate = cs.section || cs.sectionLabel || cs.style || "";
+      if (matched.includes(cs.id)) continue;
+      if (sectionNamesEquivalent(candidate, name)) matched.push(cs.id);
+    }
+  }
+  return matched;
 }
 
 export function associatedSkillReferences(mainSection, uniqueSkills = []) {
@@ -223,17 +257,19 @@ export function parseMonsterPage(input = "", url = "") {
   const mainSection = parseMainSection(field("Main Section"), [], combatStyles);
 
   // Asignar isMainSection en cada entrada de combatStyles según la Main Section declarada.
-  // Sólo se marca una entrada como Main Section (la primera que coincida).
-  if (mainSection.type === "named" && mainSection.combatStyleIds.length > 0) {
-    let mainSectionAssigned = false;
+  // CR I p. 387: the monster's main sections are exactly the sections the
+  // data names — several noted names mark several rows ("any one of the
+  // listed Main Sections"), and the (All) annotation qualifies the NAMED
+  // section(s) (e.g. "Neck (All)" marks the Neck row(s), not every row).
+  const mainRowIds = mainSection.type === "all"
+    ? (function allRowIds() {
+      const named = matchMainSectionRowIds(combatStyles, mainSection.sourceValue);
+      return named.length ? named : combatStyles.map(cs => cs.id).filter(Boolean);
+    })()
+    : mainSection.combatStyleIds;
+  if (mainRowIds.length > 0) {
     for (const cs of combatStyles) {
-      const isMain = mainSection.combatStyleIds.includes(cs.id) && !mainSectionAssigned;
-      cs.isMainSection = isMain;
-      if (isMain) mainSectionAssigned = true;
-    }
-  } else if (mainSection.type === "all") {
-    for (const cs of combatStyles) {
-      cs.isMainSection = true;
+      cs.isMainSection = mainRowIds.includes(cs.id);
     }
   } else {
     for (const cs of combatStyles) {

@@ -1,9 +1,20 @@
 import assert from "node:assert/strict";
-import { SKILL_DEFINITIONS, SKILL_DEFINITION_MAP, skillKey, skillsByAbility, adventurerLevelSkills, classBasedSkills } from "../module/rules/skill-definitions.mjs";
-import { AUTO_SELECTION, classEditorSkillOptions, highestLevelClass, manualOnlyClasses, normalEligibleClasses, resolveClassAssignment, resolveSkillClass, resolvedSkillLevel } from "../module/rules/skill-resolution.mjs";
-import { abilityBonus, isWarriorClass } from "../module/rules/weapon-damage.mjs";
-import { resolveAttackingClass } from "../module/rules/weapon-roll.mjs";
-import { playerInitiativeModifier } from "../module/combat/side-initiative.mjs";
+
+// The attack-resolution graph (weapon-roll.mjs) now carries the effective
+// values pipeline, which evaluates the SW25EffectModel class declaration
+// (extends foundry.data.ActiveEffectTypeDataModel) at import time. Stub the
+// global before importing the module graph, as effects-schema.test.mjs does.
+globalThis.foundry = {
+  data: {
+    ActiveEffectTypeDataModel: class ActiveEffectTypeDataModelStub {}
+  }
+};
+
+const { SKILL_DEFINITIONS, SKILL_DEFINITION_MAP, skillKey, skillsByAbility, adventurerLevelSkills, classBasedSkills } = await import("../module/rules/skill-definitions.mjs");
+const { AUTO_SELECTION, classEditorSkillOptions, highestLevelClass, manualOnlyClasses, normalEligibleClasses, resolveClassAssignment, resolveSkillClass, resolvedSkillLevel } = await import("../module/rules/skill-resolution.mjs");
+const { abilityBonus, isWarriorClass } = await import("../module/rules/weapon-damage.mjs");
+const { resolveAttackingClass } = await import("../module/rules/weapon-roll.mjs");
+const { playerInitiativeModifier } = await import("../module/combat/side-initiative.mjs");
 
 // ---------------------------------------------------------------------------
 // Helpers

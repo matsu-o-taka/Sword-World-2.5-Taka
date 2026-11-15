@@ -195,6 +195,9 @@
         "combatStyleIds": [],
         "associatedSkills": []
       },
+      "mainSectionPolicy": "any",
+      "mainSectionSpecialRule": null,
+      "concealedMainSectionConfig": null,
       "activeCombatRolls": false,
       "combatStyles": [],
       "uniqueSkills": [],

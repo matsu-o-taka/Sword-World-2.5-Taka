@@ -29,7 +29,13 @@ export function abilityBonus(system, ability) {
   if (!baseKey) return 0;
   const base = Number(system?.abilityBases?.[baseKey] ?? 0);
   const adjustment = system?.abilityAdjustments?.[adjustmentKey] ?? {};
-  const score = base + Number(adjustment.growth ?? 0) + Number(adjustment.correction ?? 0) + Number(adjustment.temporary ?? 0);
+  // Effective score (DEC-28): the stored base stays intact and the prepared
+  // effect ledger (actor.system.sw25EffectMods, module/effects/
+  // effective-values.mjs) adds the active ability modifiers before the
+  // standard bonus derivation. Without effects the ledger is zero, so the
+  // result is identical to the pre-integration formula.
+  const modifier = Number(system?.sw25EffectMods?.abilities?.[normalize(ability)] ?? 0);
+  const score = base + Number(adjustment.growth ?? 0) + Number(adjustment.correction ?? 0) + Number(adjustment.temporary ?? 0) + modifier;
   return Math.floor(score / 6);
 }
 

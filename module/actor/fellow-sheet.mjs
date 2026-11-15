@@ -31,9 +31,11 @@ export class SW25FellowSheet extends foundry.appv1.sheets.ActorSheet {
     const context = await super.getData(options);
     context.actor = this.actor;
     context.system = this.actor.system;
-    const savedSheetStyle = String(this.actor.getFlag("sw25-taka", "sheetStyle") ?? "paper").toLowerCase();
-    context.sheetStyle = ["paper", "adventurer"].includes(savedSheetStyle) ? savedSheetStyle : "paper";
-    context.isPaperStyle = context.sheetStyle === "paper";
+    let savedSheetStyle = String(this.actor.getFlag("sw25-taka", "sheetStyle") ?? "light").toLowerCase();
+    // Normalize legacy "paper" value to "light" for backward compatibility.
+    if (savedSheetStyle === "paper") savedSheetStyle = "light";
+    context.sheetStyle = ["light", "adventurer"].includes(savedSheetStyle) ? savedSheetStyle : "light";
+    context.isLightStyle = context.sheetStyle === "light";
     context.isAdventurerStyle = context.sheetStyle === "adventurer";
     const labels = ["1-2", "3-4", "5", "6"];
     const results = [7, 8, 9, 10];
@@ -51,8 +53,10 @@ export class SW25FellowSheet extends foundry.appv1.sheets.ActorSheet {
     super.activateListeners(html);
     html.find("[data-action='set-sheet-style']").on("change", async event => {
       event.preventDefault();
-      const style = String(event.currentTarget.value || "paper").toLowerCase();
-      await this.actor.setFlag("sw25-taka", "sheetStyle", style === "adventurer" ? "adventurer" : "paper");
+      let style = String(event.currentTarget.value || "light").toLowerCase();
+      // Normalize legacy "paper" value to "light" before saving.
+      if (style === "paper") style = "light";
+      await this.actor.setFlag("sw25-taka", "sheetStyle", style === "adventurer" ? "adventurer" : "light");
       this.render(false);
     });
     html.find("[data-action='roll-fellow-action']").on("click", event => {

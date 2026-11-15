@@ -3,6 +3,7 @@ import { damageApplicationButton } from "../combat/damage-application.mjs";
 import { criticalFailureHTML, markCriticalFailure } from "./critical-failure.mjs";
 import { resolveClassAssignment } from "./skill-resolution.mjs";
 import { signedValue } from "./roll-modifiers.mjs";
+import { sw25EffectModifier } from "../effects/effective-values.mjs";
 
 export function resolveAttackingClass(actor, weapon, requestedClassId = "") {
   if (isGunWeapon(weapon)) {
@@ -42,7 +43,11 @@ export async function rollWeaponDamage({ actor, weapon, attackingClass, accumula
     diceTotal
   });
   const powerTotal = Number(accumulatedPower || 0) + damage.tableValue;
-  const situationalDamage = Number(actor.system.combat?.additionalDamage ?? 0);
+  // Effective Extra Damage (DEC-28): the stored circumstantial field is the
+  // base; the prepared effect ledger (module/effects/effective-values.mjs)
+  // adds the active effects' Extra Damage modifiers to the final total.
+  const situationalDamage = Number(actor.system.combat?.additionalDamage ?? 0)
+    + sw25EffectModifier(actor, "combat.additionalDamage");
   const total = powerTotal + damage.classLevel + damage.bonus + damage.additionalDamage + situationalDamage;
   const criticalValue = Number(weapon.system.critical ?? 13);
   const critical = criticalValue <= 12 && diceTotal >= criticalValue;

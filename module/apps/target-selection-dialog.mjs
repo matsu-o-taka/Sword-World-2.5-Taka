@@ -1,27 +1,38 @@
-// Sword World 2.5 - Target selection dialog for multi-section monsters.
+// Sword World 2.5 - Target section selection dialog (ApplicationV2).
 //
-// ApplicationV2 dialog (foundry.applications.api.ApplicationV2), following the
-// v2 pattern of Foundry VTT v14. Allows the player to declare which section
-// of a multi-section monster is being targeted before resolving the attack.
+// ApplicationV2 dialog using the official Foundry v14 Handlebars rendering
+// mixin (foundry.applications.api.HandlebarsApplicationMixin + static PARTS),
+// consulted in foundry-api-docs before implementation, per AGENTS.md.
+// A plain ApplicationV2 subclass is NOT renderable in v14: the abstract
+// methods _renderHTML AND _replaceHTML must both be implemented, which is why
+// the previous hand-rolled _renderHTML-only version threw
+// "not renderable ... does not implement the abstract methods" and never
+// opened over multi-section monsters.
 //
-//   - rows with an individually selectable radio button
-//   - section name and optional description (HP, evasion, etc.) shown per row
-//   - confirm (resolve with combatStyleId) or cancel (abort attack, no side effects)
-//
-// The result is a single combatStyleId string for the current attack only:
-// it never writes Actor data and never creates persistent effects.
+// Registered through registerTargetSelectionDialog (module/rules/
+// target-selection.mjs) so the rules layer stays independent of the UI class.
 
 import { registerTargetSelectionDialog } from "../rules/target-selection.mjs";
 
-export class TargetSelectionDialog extends foundry.applications.api.ApplicationV2 {
+const HandlebarsApplicationV2 =
+  foundry.applications.api.HandlebarsApplicationMixin(foundry.applications.api.ApplicationV2);
+
+export class TargetSelectionDialog extends HandlebarsApplicationV2 {
+  static PARTS = {
+    main: { template: "systems/sw25-taka/templates/apps/target-selection-dialog.hbs" }
+  };
+
   static get DEFAULT_OPTIONS() {
     return foundry.utils.mergeObject(super.DEFAULT_OPTIONS, {
       id: "sw25-target-selection-dialog",
       classes: ["sw25", "sw25-target-selection"],
-      template: "systems/sw25-taka/templates/apps/target-selection-dialog.hbs",
-      width: 460,
-      height: "auto",
-      resizable: false
+      // v14 ApplicationConfiguration has no top-level `width`/`height`: the
+      // size belongs to `position` (official docs, ApplicationConfiguration /
+      // ApplicationPosition); `resizable` belongs to the window config. A
+      // top-level `width: 460` was silently ignored and the dialog rendered
+      // at the core default of 300px.
+      position: { width: 460, height: "auto" },
+      window: { resizable: false }
     });
   }
 
@@ -60,27 +71,17 @@ export class TargetSelectionDialog extends foundry.applications.api.ApplicationV
     };
   }
 
-  async _renderHTML(options = {}) {
-    const context = await this._prepareContext(options);
-    return await renderTemplate("systems/sw25-taka/templates/apps/target-selection-dialog.hbs", context);
+  _onRender(context, options) {
+    super._onRender(context, options);
+    // The Handlebars mixin replaces the part DOM on every render, so listeners
+    // are re-registered against the live element each time (this covers first
+    // render and any subsequent re-render). Listeners live in _onRender —
+    // never in a first-render hook — so they cannot be duplicated.
+    this._activateListeners(this.element);
   }
 
-  _onFirstRender(html) {
-    super._onFirstRender(html);
-    // Listeners are registered in _onRender instead. ApplicationV2 runs
-    // _onRender on every render (including the first), right after
-    // _replaceHTML has inserted the rendered HTML into the DOM. Keeping
-    // registration here avoids duplicating listeners on the first render
-    // while still covering subsequent renders where the DOM is replaced.
-  }
-
-  _onRender(html) {
-    super._onRender(html);
-    this._activateListeners(html);
-  }
-
-  _activateListeners(html) {
-    html.querySelectorAll("[data-section-toggle]").forEach(radio => {
+  _activateListeners(root) {
+    root.querySelectorAll("[data-section-toggle]").forEach(radio => {
       radio.addEventListener("change", event => {
         const id = event.currentTarget.dataset.sectionId;
         const row = this._findOption(id);
@@ -91,14 +92,14 @@ export class TargetSelectionDialog extends foundry.applications.api.ApplicationV
       });
     });
 
-    html.querySelectorAll("[data-section-cancel]").forEach(button => {
+    root.querySelectorAll("[data-section-cancel]").forEach(button => {
       button.addEventListener("click", event => {
         event.preventDefault();
         this.resolveAndClose(null);
       });
     });
 
-    html.querySelectorAll("[data-section-submit]").forEach(button => {
+    root.querySelectorAll("[data-section-submit]").forEach(button => {
       button.addEventListener("click", event => {
         event.preventDefault();
         const selected = this._options.filter(opt => opt.selected);

@@ -66,7 +66,10 @@ globalThis.foundry = {
 };
 
 // Minimal ApplicationV2 stub sufficient to define TargetSelectionDialog and to
-// exercise resolveAndClose / close without rendering into a real DOM.
+// exercise resolveAndClose / close without rendering into a real DOM. The
+// Handlebars mixin is neutralized like in the other production-dialog tests:
+// the real mixin only wires static PARTS into the render lifecycle, which the
+// stub never exercises.
 class ApplicationV2Stub {
   constructor(options = {}) {
     this.options = options;
@@ -95,6 +98,8 @@ class ApplicationV2Stub {
   _onRender(html) {}
 }
 globalThis.foundry.applications.api.ApplicationV2 = ApplicationV2Stub;
+globalThis.foundry.applications.api.HandlebarsApplicationMixin =
+  Base => class extends Base {};
 
 // ---------------------------------------------------------------------------
 // Dynamic imports (stubs must be in place first)
@@ -116,11 +121,17 @@ const {
 
 console.log("=== TargetSelectionDialog listener fix (headless) ===");
 
-// 1. Static verification: _onFirstRender no longer calls _activateListeners
-const firstRenderSource = TargetSelectionDialog.prototype._onFirstRender.toString();
+// 1. Static verification of the v14 lifecycle: rendering is owned by the
+//    official Handlebars mixin (static PARTS), and listeners still live only
+//    in _onRender (never in a first-render hook).
+assert.equal(
+  TargetSelectionDialog.PARTS?.main?.template,
+  "systems/sw25-taka/templates/apps/target-selection-dialog.hbs",
+  "Rendering uses the official Handlebars mixin PARTS template"
+);
 assert.ok(
-  !firstRenderSource.includes("_activateListeners"),
-  "_onFirstRender must not call _activateListeners"
+  !Object.getOwnPropertyNames(TargetSelectionDialog.prototype).includes("_renderHTML"),
+  "No hand-rolled _renderHTML: the v14 mixin owns rendering"
 );
 
 const onRenderSource = TargetSelectionDialog.prototype._onRender.toString();
@@ -129,7 +140,7 @@ assert.ok(
   "_onRender must still call _activateListeners"
 );
 
-console.log("  _onFirstRender does not call _activateListeners");
+console.log("  rendering is delegated to the Handlebars mixin (static PARTS)");
 console.log("  _onRender still calls _activateListeners");
 
 // 2. register / getRegistered contract

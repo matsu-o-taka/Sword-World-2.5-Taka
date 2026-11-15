@@ -1,4 +1,4 @@
-/* Fellow-format actor sheet */
+﻿/* Fellow-format actor sheet */
 .sw25-fellow-sheet {
   box-sizing: border-box;
   height: 100%;
@@ -192,3 +192,96 @@
 
 .fellow-action-table input { height: 28px; text-align: center; }
 .fellow-action-table input[type="number"] { padding: 2px; }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Fellow sheet — Light theme (FFXIV-inspired component redesign).
+   Matches the component system in sw25.css: warm ivory surface, dark bronze
+   table head, warm white inputs with gold focus ring, gold gradient primary
+   button. Structural rules (grid, layout, dimensions) remain in the base
+   section above and are not repeated here.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.sw25-theme-light .sw25-fellow-sheet {
+  color: var(--sw25-light-text);
+  background: var(--sw25-light-bg);
+}
+
+/* Inputs: warm white fields with bronze borders and gold focus ring */
+.sw25-theme-light .sw25-fellow-sheet input,
+.sw25-theme-light .sw25-fellow-sheet textarea,
+.sw25-theme-light .sw25-fellow-sheet select {
+  box-sizing: border-box;
+  border: 1px solid var(--sw25-light-input-border);
+  border-radius: 4px;
+  background: var(--sw25-light-input-bg);
+  color: var(--sw25-light-text);
+  box-shadow: inset 0 1px 1px rgba(58, 48, 32, .06);
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+
+.sw25-theme-light .sw25-fellow-sheet input:focus,
+.sw25-theme-light .sw25-fellow-sheet textarea:focus,
+.sw25-theme-light .sw25-fellow-sheet select:focus {
+  outline: none;
+  border-color: var(--sw25-light-focus);
+  box-shadow: 0 0 0 2px rgba(201, 163, 92, .25);
+}
+
+.sw25-theme-light .sw25-fellow-sheet input[type="checkbox"] {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  accent-color: var(--sw25-light-accent);
+}
+
+/* Primary action pill: styled by the Tier 1 button tier in sw25.css
+   (button[data-action="roll-fellow-action"]). Do NOT restyle it here:
+   fellow-sheet.css is loaded inside layer(system) by Foundry, while sw25.css
+   is injected unlayered afterwards by sw25.mjs — layered rules can never
+   out-priority the unlayered copy regardless of specificity. */
+
+/* Rewards and hints stay quiet */
+.sw25-theme-light .fellow-choice input[type="checkbox"] {
+  accent-color: var(--sw25-light-accent);
+}
+
+.sw25-theme-light .fellow-rewards-box p {
+  color: var(--sw25-light-text-muted);
+}
+
+.sw25-theme-light .fellow-table-toolbar .fellow-table-hint {
+  color: var(--sw25-light-text-muted);
+}
+
+/* Action table: dark bronze head band, quiet bordered body, gold row hover */
+.sw25-theme-light .fellow-action-table thead th {
+  border: 1px solid #2e2719;
+  background: linear-gradient(180deg, #443a29, #332b1d);
+  color: var(--sw25-light-text-on-dark);
+  letter-spacing: .06em;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .35);
+}
+
+.sw25-theme-light .fellow-action-table td,
+.sw25-theme-light .fellow-action-table tbody th {
+  border: 1px solid var(--sw25-light-border);
+}
+
+.sw25-theme-light .fellow-action-table tbody th {
+  background: var(--sw25-light-panel-nested);
+  color: var(--sw25-light-accent-hover);
+}
+
+.sw25-theme-light .fellow-action-table tbody tr:hover td,
+.sw25-theme-light .fellow-action-table tbody tr:hover th {
+  background: rgba(201, 163, 92, .16);
+}
+
+.sw25-theme-light .fellow-action-table input,
+.sw25-theme-light .fellow-action-table textarea {
+  border: 1px solid var(--sw25-light-input-border);
+  border-radius: 4px;
+  background: var(--sw25-light-input-bg);
+  color: var(--sw25-light-text);
+}

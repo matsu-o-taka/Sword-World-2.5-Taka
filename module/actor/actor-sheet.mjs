@@ -15,6 +15,9 @@ import { damageApplicationButton } from "../combat/damage-application.mjs";
 import { characterWeaponAttackFlow, resolveAttackTarget, describeTargetFailure } from "../combat/attack-resolution.mjs";
 import { readMonsterActorCombatStyles } from "./monster-sheet-data.mjs";
 import { rollMonsterKnowledge } from "../combat/monster-knowledge.mjs";
+import { prepareSw25EffectsTab } from "../effects/effects-tab.mjs";
+import { sw25EffectLedger, sw25EffectModifier } from "../effects/effective-values.mjs";
+import { wireSw25EffectsTabHandlers } from "./effects-tab-ui.mjs";
 
 // Combat feat that grants Marksman access to Evasion calculation. Identified
 // by the feat item's canonical name (feats are matched by normalized name).
@@ -102,9 +105,11 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       active: index < soulscars
     }));
 
-    const savedSheetStyle = String(this.actor.getFlag("sw25-taka", "sheetStyle") ?? "paper").toLowerCase();
-    context.sheetStyle = ["paper", "adventurer"].includes(savedSheetStyle) ? savedSheetStyle : "paper";
-    context.isPaperStyle = context.sheetStyle === "paper";
+    let savedSheetStyle = String(this.actor.getFlag("sw25-taka", "sheetStyle") ?? "light").toLowerCase();
+    // Normalize legacy "paper" value to "light" for backward compatibility.
+    if (savedSheetStyle === "paper") savedSheetStyle = "light";
+    context.sheetStyle = ["light", "adventurer"].includes(savedSheetStyle) ? savedSheetStyle : "light";
+    context.isLightStyle = context.sheetStyle === "light";
     context.isAdventurerStyle = context.sheetStyle === "adventurer";
 
     const byType = type => [...this.actor.items]
@@ -176,11 +181,18 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     };
     const base = system.abilityBases ?? {};
     const adj = system.abilityAdjustments ?? {};
+    // Prepared effect ledger (DEC-28): assigned by the Actor preparation
+    // pipeline (module/effects/effective-values.mjs). All-zero structure when
+    // no system effect is active, so every formula below returns exactly the
+    // pre-integration values in that case.
+    const effectLedger = sw25EffectLedger(this.actor);
+    const letterAbility = { a: "dexterity", b: "agility", c: "strength", d: "vitality", e: "intelligence", f: "spirit" };
     const score = (baseName, letter) =>
       Number(base[baseName] ?? 0) +
       Number(adj[letter]?.growth ?? 0) +
       Number(adj[letter]?.correction ?? 0) +
-      Number(adj[letter]?.temporary ?? 0);
+      Number(adj[letter]?.temporary ?? 0) +
+      Number(effectLedger.abilities?.[letterAbility[letter]] ?? 0);
 
     const xpCosts = {
       A: [0, 1000, 2000, 3500, 5000, 7000, 9500, 12500, 16500, 21500, 27500, 35000, 44000, 54500, 66500, 80000, 95000, 125000],
@@ -366,28 +378,79 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
         ? context.calculated.monsterKnowledgeClassLevel + bonuses.intelligence
         : 0
     ) + context.calculated.monsterKnowledgeBonus;
-    context.calculated.initiative = playerInitiativeModifier(
+    context.calculated.initiativeBase = playerInitiativeModifier(
       context.calculated.initiativeClassLevel,
       0,
       bonuses.agility,
       context.calculated.initiativeBonus
     );
-    context.calculated.fortitude = adventurer + bonuses.vitality;
-    context.calculated.willpower = adventurer + bonuses.spirit;
+    context.calculated.initiative = context.calculated.initiativeBase
+      + Number((effectLedger.combat ?? {}).initiative ?? 0);
+    // ── Effective combat values (T3.3, DEC-28) ──────────────────────────────
+    // Each displayed value = base (existing formulas) + the prepared effect
+    // ledger entry. Without active effects every value equals its base.
+    const combatMods = effectLedger.combat ?? {};
+    const resistanceMods = effectLedger.resistances ?? {};
+    const resourceMods = effectLedger.resources ?? {};
+    context.calculated.fortitudeBase = adventurer + bonuses.vitality;
+    context.calculated.fortitude = context.calculated.fortitudeBase + Number(resistanceMods.fortitude ?? 0);
+    context.calculated.willpowerBase = adventurer + bonuses.spirit;
+    context.calculated.willpower = context.calculated.willpowerBase + Number(resistanceMods.willpower ?? 0);
     const equippedArmour = context.armour.filter(item => item.system.equipped);
     const defensiveFeatures = [...context.feats, ...context.racialAbilities, ...context.classAbilities];
     context.calculated.featureDefense = defensiveFeatures.reduce((sum, item) => sum + featureDefenseModifier(item), 0);
-    context.calculated.defense = equippedArmour.reduce((sum,item)=>sum+Number(item.system.defence ?? 0),0) + context.calculated.featureDefense;
-    context.calculated.magicalDefense = equippedArmour.reduce((sum,item)=>sum+Number(item.system.magicalDefence ?? 0),0);
+    context.calculated.defenseBase = equippedArmour.reduce((sum,item)=>sum+Number(item.system.defence ?? 0),0) + context.calculated.featureDefense;
+    // Defense combines the passive featureDefenseModifier contributions (I7)
+    // with the dynamic effect ledger: combined, never substituted and never
+    // applied twice (no name matching beyond the existing feature rule).
+    context.calculated.defense = context.calculated.defenseBase + Number(combatMods.defense ?? 0);
+    context.calculated.magicalDefenseBase = equippedArmour.reduce((sum,item)=>sum+Number(item.system.magicalDefence ?? 0),0);
+    context.calculated.magicalDefense = context.calculated.magicalDefenseBase + Number(combatMods.magicalDefense ?? 0);
     context.calculated.armourEvasion = equippedArmour.reduce((sum,item)=>sum+Number(item.system.evasion ?? 0),0);
     context.calculated.defenseClassLevel = selectedClassLevel(selectedDefenseClassId);
     context.calculated.offenseClassLevel = offenseResolved.level;
     context.calculated.situationalEvasion = Number(system.combat?.situationalEvasion ?? 0);
-    context.calculated.evasion = context.calculated.defenseClassLevel + bonuses.agility + context.calculated.situationalEvasion + context.calculated.armourEvasion;
+    context.calculated.evasionBase = context.calculated.defenseClassLevel + bonuses.agility + context.calculated.situationalEvasion + context.calculated.armourEvasion;
+    context.calculated.evasion = context.calculated.evasionBase + Number(combatMods.evasion ?? 0);
     context.calculated.accuracyMod = Number(system.combat?.accuracyMod ?? 0);
-    context.calculated.accuracy = context.calculated.offenseClassLevel + bonuses.dexterity + context.calculated.accuracyMod;
-    context.calculated.extraDamage = context.calculated.offenseClassLevel + bonuses.strength + Number(system.combat?.additionalDamage ?? 0);
-    context.calculated.magicPower = magicResolved.level + bonuses.intelligence;
+    context.calculated.accuracyBase = context.calculated.offenseClassLevel + bonuses.dexterity + context.calculated.accuracyMod;
+    context.calculated.accuracy = context.calculated.accuracyBase + Number(combatMods.accuracy ?? 0);
+    context.calculated.extraDamageBase = context.calculated.offenseClassLevel + bonuses.strength + Number(system.combat?.additionalDamage ?? 0);
+    context.calculated.extraDamage = context.calculated.extraDamageBase + Number(combatMods.additionalDamage ?? 0);
+    context.calculated.magicPowerBase = magicResolved.level + bonuses.intelligence;
+    context.calculated.magicPower = context.calculated.magicPowerBase + Number(combatMods.magicPower ?? 0);
+    // HP/MP maxima: the bound inputs keep the BASE value (DEC-28: modifiers
+    // never overwrite the stored base); the effective value is exposed
+    // separately for identification only.
+    context.calculated.hpMaxEffective = formulaHP + Number(resourceMods.hpMax ?? 0);
+    context.calculated.mpMaxEffective = context.calculated.mpMax + Number(resourceMods.mpMax ?? 0);
+
+    // Effect-modifier badges (DEC-29 presentation): only non-zero modifiers
+    // get a badge; the redundant signed label is prepared here.
+    const effectBadge = mod => {
+      const value = Number(mod ?? 0);
+      if (!Number.isFinite(value) || value === 0) return null;
+      return { label: value > 0 ? `+${value}` : `${value}`, cls: value > 0 ? "up" : "down" };
+    };
+    context.effectBadges = {
+      fortitude: effectBadge(context.calculated.fortitude - context.calculated.fortitudeBase),
+      willpower: effectBadge(context.calculated.willpower - context.calculated.willpowerBase),
+      defense: effectBadge(context.calculated.defense - context.calculated.defenseBase),
+      magicalDefense: effectBadge(context.calculated.magicalDefense - context.calculated.magicalDefenseBase),
+      evasion: effectBadge(context.calculated.evasion - context.calculated.evasionBase),
+      accuracy: effectBadge(context.calculated.accuracy - context.calculated.accuracyBase),
+      extraDamage: effectBadge(context.calculated.extraDamage - context.calculated.extraDamageBase),
+      magicPower: effectBadge(context.calculated.magicPower - context.calculated.magicPowerBase),
+      initiative: effectBadge(context.calculated.initiative - context.calculated.initiativeBase),
+      hpMax: effectBadge(context.calculated.hpMaxEffective - context.calculated.hpMax),
+      mpMax: effectBadge(context.calculated.mpMaxEffective - context.calculated.mpMax),
+      abilityDexterity: effectBadge(effectLedger.abilities?.dexterity ?? 0),
+      abilityAgility: effectBadge(effectLedger.abilities?.agility ?? 0),
+      abilityStrength: effectBadge(effectLedger.abilities?.strength ?? 0),
+      abilityVitality: effectBadge(effectLedger.abilities?.vitality ?? 0),
+      abilityIntelligence: effectBadge(effectLedger.abilities?.intelligence ?? 0),
+      abilitySpirit: effectBadge(effectLedger.abilities?.spirit ?? 0)
+    };
     for (const tab of context.classTabs) {
       const classItem = context.classes.find(item => `class-${item.id}` === tab.id);
       const nameKey = String(classItem?.name || "").trim().toLowerCase();
@@ -419,18 +482,19 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       ["rightHand","Right Hand"],["leftHand","Left Hand"],["waist","Waist"],["feet","Feet"],["other","Other"]
     ].map(([key,label])=>({key,label,value:system.accessories?.[key] ?? ""}));
 
+    const abilityBadge = key => effectBadge(effectLedger.abilities?.[letterAbility[key]] ?? 0);
     context.officialAbilities = [
       { group: "Skill", baseKey: "skill", base: Number(base.skill ?? 0), abilities: [
-        { key: "a", name: "Dexterity", score: abilities.dexterity, bonus: bonuses.dexterity, growth: Number(adj.a?.growth ?? 0), correction: Number(adj.a?.correction ?? 0), temporary: Number(adj.a?.temporary ?? 0) },
-        { key: "b", name: "Agility", score: abilities.agility, bonus: bonuses.agility, growth: Number(adj.b?.growth ?? 0), correction: Number(adj.b?.correction ?? 0), temporary: Number(adj.b?.temporary ?? 0) }
+        { key: "a", name: "Dexterity", score: abilities.dexterity, scoreBase: abilities.dexterity - Number(effectLedger.abilities?.dexterity ?? 0), mod: Number(effectLedger.abilities?.dexterity ?? 0), effectBadge: abilityBadge("a"), bonus: bonuses.dexterity, growth: Number(adj.a?.growth ?? 0), correction: Number(adj.a?.correction ?? 0), temporary: Number(adj.a?.temporary ?? 0) },
+        { key: "b", name: "Agility", score: abilities.agility, scoreBase: abilities.agility - Number(effectLedger.abilities?.agility ?? 0), mod: Number(effectLedger.abilities?.agility ?? 0), effectBadge: abilityBadge("b"), bonus: bonuses.agility, growth: Number(adj.b?.growth ?? 0), correction: Number(adj.b?.correction ?? 0), temporary: Number(adj.b?.temporary ?? 0) }
       ]},
       { group: "Body", baseKey: "body", base: Number(base.body ?? 0), abilities: [
-        { key: "c", name: "Strength", score: abilities.strength, bonus: bonuses.strength, growth: Number(adj.c?.growth ?? 0), correction: Number(adj.c?.correction ?? 0), temporary: Number(adj.c?.temporary ?? 0) },
-        { key: "d", name: "Vitality", score: abilities.vitality, bonus: bonuses.vitality, growth: Number(adj.d?.growth ?? 0), correction: Number(adj.d?.correction ?? 0), temporary: Number(adj.d?.temporary ?? 0) }
+        { key: "c", name: "Strength", score: abilities.strength, scoreBase: abilities.strength - Number(effectLedger.abilities?.strength ?? 0), mod: Number(effectLedger.abilities?.strength ?? 0), effectBadge: abilityBadge("c"), bonus: bonuses.strength, growth: Number(adj.c?.growth ?? 0), correction: Number(adj.c?.correction ?? 0), temporary: Number(adj.c?.temporary ?? 0) },
+        { key: "d", name: "Vitality", score: abilities.vitality, scoreBase: abilities.vitality - Number(effectLedger.abilities?.vitality ?? 0), mod: Number(effectLedger.abilities?.vitality ?? 0), effectBadge: abilityBadge("d"), bonus: bonuses.vitality, growth: Number(adj.d?.growth ?? 0), correction: Number(adj.d?.correction ?? 0), temporary: Number(adj.d?.temporary ?? 0) }
       ]},
       { group: "Mind", baseKey: "mind", base: Number(base.mind ?? 0), abilities: [
-        { key: "e", name: "Intelligence", score: abilities.intelligence, bonus: bonuses.intelligence, growth: Number(adj.e?.growth ?? 0), correction: Number(adj.e?.correction ?? 0), temporary: Number(adj.e?.temporary ?? 0) },
-        { key: "f", name: "Spirit", score: abilities.spirit, bonus: bonuses.spirit, growth: Number(adj.f?.growth ?? 0), correction: Number(adj.f?.correction ?? 0), temporary: Number(adj.f?.temporary ?? 0) }
+        { key: "e", name: "Intelligence", score: abilities.intelligence, scoreBase: abilities.intelligence - Number(effectLedger.abilities?.intelligence ?? 0), mod: Number(effectLedger.abilities?.intelligence ?? 0), effectBadge: abilityBadge("e"), bonus: bonuses.intelligence, growth: Number(adj.e?.growth ?? 0), correction: Number(adj.e?.correction ?? 0), temporary: Number(adj.e?.temporary ?? 0) },
+        { key: "f", name: "Spirit", score: abilities.spirit, scoreBase: abilities.spirit - Number(effectLedger.abilities?.spirit ?? 0), mod: Number(effectLedger.abilities?.spirit ?? 0), effectBadge: abilityBadge("f"), bonus: bonuses.spirit, growth: Number(adj.f?.growth ?? 0), correction: Number(adj.f?.correction ?? 0), temporary: Number(adj.f?.temporary ?? 0) }
       ]}
     ];
 
@@ -515,6 +579,13 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     ]));
 
     this._sheetCalculated = context.calculated;
+
+    // Effects tab (T1.5): read-only display data of the actor's persistent
+    // `sw25Effect` documents, plus the GM-only repair control flag. All values
+    // are prepared by module/effects/effects-tab.mjs (T1.3/T1.4 contracts);
+    // nothing here writes and no repair runs implicitly on render.
+    context.effectsTab = prepareSw25EffectsTab(this.actor, game.user.isGM === true);
+
     return context;
   }
 
@@ -523,6 +594,11 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     html.find('[data-action="delete-weapon"]').on("click", this._onDeleteWeapon.bind(this));
     html.find('[data-action="roll-attack"]').on("click", this._onRollAttack.bind(this));
 
+    // Effects tab (T1.5): individual inspection is read-only and available to
+    // every user who can see the sheet; repair is GM-only and delegates every
+    // document write to the T1.3 repair contract (no render-path writes).
+    // Shared with the monster sheet's identical Effects section.
+    wireSw25EffectsTabHandlers(this, html);
 
     const setActiveTab = tabName => {
       html.find(".tab-button").removeClass("active");
@@ -541,8 +617,10 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
 
     html.find("[data-action='set-sheet-style']").on("change", async event => {
       event.preventDefault();
-      const style = String(event.currentTarget.value || "paper").toLowerCase();
-      await this.actor.setFlag("sw25-taka", "sheetStyle", style === "adventurer" ? "adventurer" : "paper");
+      let style = String(event.currentTarget.value || "light").toLowerCase();
+      // Normalize legacy "paper" value to "light" before saving.
+      if (style === "paper") style = "light";
+      await this.actor.setFlag("sw25-taka", "sheetStyle", style === "adventurer" ? "adventurer" : "light");
       this.render(false);
     });
 
@@ -934,7 +1012,10 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       event.preventDefault();
       const classItem = this.actor.items.get(event.currentTarget.dataset.classId);
       if (!classItem) return ui.notifications.warn("The casting class could not be found.");
-      const modifier = this._classLevel(classItem) + abilityBonus(this.actor.system, "intelligence");
+      // Effective Magic Power (DEC-28): effective Intelligence bonus (already
+      // ledger-aware) plus the prepared combat.magicPower ledger entry.
+      const modifier = this._classLevel(classItem) + abilityBonus(this.actor.system, "intelligence")
+        + sw25EffectModifier(this.actor, "combat.magicPower");
       const roll = await new Roll(`2d6 + ${modifier}`).evaluate();
       const criticalFailure = await markCriticalFailure(this.actor, roll);
       await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: this.actor }), flavor: `${classItem.name} Magic Power${criticalFailure ? criticalFailureHTML() : ""}` });
@@ -1336,12 +1417,17 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     // Construir partes de Accuracy desde los valores del personaje
     const baseAccuracy = this._sheetCalculated?.accuracy ?? 0;
     const weaponAccuracy = Number(weapon.system?.accuracy ?? 0);
+    // Active system effects (DEC-28): the prepared ledger's Accuracy entry
+    // joins the roll as its own visible part, so the total agrees with the
+    // effective Accuracy displayed on the sheet.
+    const effectAccuracy = sw25EffectModifier(this.actor, "combat.accuracy");
 
     const accuracyParts = [
       { label: "Class level", value: Number(attackingClass?.system?.level ?? 0), enabled: true, temporary: false },
       { label: "Dexterity bonus", value: abilityBonus(this.actor.system, "dexterity"), enabled: true, temporary: false },
       { label: "Accuracy Mod", value: Number(this.actor.system.combat?.accuracyMod ?? 0), enabled: true, temporary: false },
-      { label: "Weapon Accuracy", value: weaponAccuracy, enabled: true, temporary: false }
+      { label: "Weapon Accuracy", value: weaponAccuracy, enabled: true, temporary: false },
+      { label: "Effects", value: effectAccuracy, enabled: effectAccuracy !== 0, temporary: false }
     ];
 
     // Shift+click opens the modifier dialog; normal click uses modsEnabled toggle

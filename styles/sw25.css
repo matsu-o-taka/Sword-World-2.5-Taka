@@ -1,4 +1,4 @@
-/* Sword World 2.5 */
+﻿/* Sword World 2.5 */
 
 .sw25.sheet.actor {
   min-width: 820px;
@@ -949,6 +949,7 @@
 .sw25-official-sheet .consumable-lines input { width:44px; height:20px; text-align:center; }
 .sw25-official-sheet .accessory-table > div,.sw25-official-sheet .accessory-table label { display:grid; grid-template-columns:90px 1fr; border-bottom:1px solid #777; min-height:22px; align-items:center; }
 .sw25-official-sheet .accessory-table span,.sw25-official-sheet .accessory-table strong { padding:2px 5px; border-right:1px solid #777; }
+.sw25-official-sheet .accessory-table span:last-child,.sw25-official-sheet .accessory-table strong:last-child { border-right: 0; }
 .sw25-official-sheet .accessory-table input { border:0; background:transparent; height:20px; width:100%; box-sizing:border-box; min-width:0; }
 .sw25-official-sheet .defense-selector,.sw25-official-sheet .offense-selector { display:flex; gap:10px; justify-content:space-between; align-items:center; padding:4px; border-bottom:1px solid #444; }
 .sw25-official-sheet .defense-selector select,.sw25-official-sheet .offense-selector select { min-width:170px; height:24px; }
@@ -2077,6 +2078,36 @@ form.sw25-official-sheet .offense-selector > label input {
 .sw25-evasion-result .sw25-evasion-success { color:#168238; font-size:18px; text-align:center; }
 .sw25-evasion-result .sw25-evasion-failure { color:#b3261e; font-size:18px; text-align:center; }
 .sw25-monster-sheet .paired input { width:42px; text-align:center; }
+/* Main Section policy indicator + configuration (Combat Statistics heading). */
+.sw25-monster-sheet .monster-section-policy { display:inline-flex; align-items:center; gap:4px; margin-left:6px; padding:1px 6px; border:1px solid #40382d; background:rgba(255,255,255,.35); font-size:10px; letter-spacing:.03em; text-transform:uppercase; }
+.sw25-monster-sheet .monster-section-policy-button { width:22px; min-width:22px; height:19px; margin:0; padding:0; font-size:10px; }
+.sw25-monster-sheet .section-destroyed-tag { margin-left:4px; padding:0 4px; border:1px solid #7c1d1d; color:#7c1d1d; background:rgba(165,29,29,.12); font-size:9px; font-weight:bold; text-transform:uppercase; white-space:nowrap; }
+/* The Destroyed indicator is INFORMATIONAL only: it lives in the section
+   header cell (never over the HP input), occupies its own flex space so it
+   cannot overlap or intercept clicks on any input, and a destroyed section
+   keeps fully editable HP. */
+.sw25-monster-sheet .monster-section-cell { display:flex; align-items:center; justify-content:flex-start; gap:2px; min-width:0; }
+.sw25-monster-sheet .monster-section-cell > input { flex:1 1 auto; min-width:0; }
+.sw25-monster-sheet .monster-section-cell > .section-destroyed-tag { flex:0 0 auto; margin-left:2px; }
+/* Main Sections policy dialog: the special-rule chooser and the concealed
+   candidate config are shown only for the policy/rule they belong to. */
+.monster-dialog-hidden { display:none !important; }
+.monster-special-rules { margin:8px 0 0; }
+.monster-special-rules fieldset { margin:0; padding:6px 8px; border:1px solid #9d9385; }
+/* Main Section policy dialog (Dialog V1 content). */
+.monster-policy-options { display:flex; flex-direction:column; gap:8px; margin:6px 0 2px; }
+.monster-policy-option { display:grid; grid-template-columns:24px 1fr; grid-template-rows:auto auto; align-items:start; gap:4px 8px; padding:6px 8px; border:1px solid #9d9385; background:rgba(0,0,0,.04); cursor:pointer; }
+.monster-policy-option:hover { background:rgba(0,0,0,.08); }
+.monster-policy-option input { grid-column:1; grid-row:1 / span 2; margin:0; align-self:start; width:auto; height:auto; }
+.monster-policy-name { grid-column:2; grid-row:1; font-weight:bold; }
+.monster-policy-description { grid-column:2; grid-row:2; font-size:12px; color:#3b352c; }
+.monster-policy-intro { margin:0 0 4px; }
+.monster-policy-note { margin:8px 0 0; font-size:11px; font-style:italic; color:#5a5248; }
+/* Concealed (hidden) Main Section choice: visible inside the shared policy
+   dialog, but only meaningful while the Special policy is selected. */
+.monster-concealed-choice { display:flex; margin:8px 0 0; padding:6px 8px; border:1px dashed #9d9385; background:rgba(0,0,0,.03); gap:8px; align-items:center; }
+.monster-concealed-choice select { min-width:180px; }
+.monster-concealed-choice-disabled { opacity:.45; }
 .sw25-monster-sheet .monster-combat-row > button,.sw25-monster-sheet .monster-main-combat-row > button,.sw25-monster-sheet .monster-ability > button,.sw25-monster-sheet .monster-loot > div > button { width:25px; height:22px; margin:0; padding:0; }
 .sw25-monster-sheet .monster-skill-section-heading { margin:0; padding:4px 8px; border-bottom:1px solid #9d9385; background:rgba(200,189,171,.55); font-size:12px; text-transform:uppercase; overflow-wrap:anywhere; }
 .sw25-monster-sheet .monster-ability { position:relative; display:grid; grid-template-columns:minmax(0,1fr) 28px 28px; gap:3px; align-items:center; padding:5px; border-bottom:1px solid #9d9385; }
@@ -2122,6 +2153,14 @@ form.sw25-official-sheet .offense-selector > label input {
 .sw25-monster-turn-row { display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:14px; }
 .sw25-monster-turn-row button { width:auto; margin:0; padding:2px 8px; }
 .sw25-monster-turn-row .sw25-monster-done { color:#2f668a; font-weight:bold; }
+.sw25-individual-turns { display:grid; gap:4px; margin:8px 0; padding-top:6px; border-top:1px solid #8b8172; text-align:left; }
+.sw25-individual-turns h3 { margin:0 0 5px; }
+.sw25-individual-turn-row { display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:14px; }
+.sw25-individual-turn-row button { width:auto; margin:0; padding:2px 8px; }
+.sw25-monster-turn-row .sw25-turn-state { font-size:12px; color:#5d5348; }
+.sw25-turn-state.sw25-turn-started { color:#2f668a; font-weight:bold; }
+.sw25-turn-state.sw25-turn-ended { color:#2f668a; }
+.sw25-turn-state.sw25-turn-idle { color:#8b8172; }
 .sw25-damage-actions { display:flex; gap:4px; margin-top:6px; }
 .sw25-damage-actions button { flex:1 1 0; display:inline-flex; align-items:center; justify-content:center; gap:4px; }
 .sw25-official-sheet .temporary-box { width:54px; border:1px solid #555; border-top:0; background:#eee5d6; font-size:7px; text-transform:uppercase; }
@@ -3064,6 +3103,30 @@ form.sw25-official-sheet .weapon-table .combat-weapon-row .weapon-mods-toggle in
   box-shadow: inset 3px 0 0 #a33;
 }
 .effects-panel .effects-row.needs-review:hover { background: rgba(170, 51, 51, .12); }
+.effects-panel .effects-row.native-status {
+  background: rgba(30, 26, 22, .08);
+  box-shadow: inset 3px 0 0 #5a1f1f;
+}
+.effects-panel .effects-row.native-status:hover { background: rgba(90, 31, 31, .12); }
+.effects-panel .native-status-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: bold;
+  color: #5a1f1f;
+}
+.effects-panel .native-status-badge {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: #f2ece1;
+  background: #5a1f1f;
+  border-radius: 3px;
+  padding: 1px 6px;
+}
 .effects-panel .effect-name-cell { display: flex; align-items: center; gap: 8px; }
 .effects-panel .effect-icon {
   flex: 0 0 auto;
@@ -3082,6 +3145,29 @@ form.sw25-official-sheet .weapon-table .combat-weapon-row .weapon-mods-toggle in
   color: #40342a;
 }
 .effects-panel .effect-review-flag { flex: 0 0 auto; color: #a33; }
+/* Monster-sheet placement of the shared Repair Data control: the absolute
+   `class-feature-heading-actions` span (designed for the character sheet's
+   `paper-panel h2`) must anchor to the effects h2 itself here — NO ancestor
+   of a monster panel is positioned, so without this the button visually
+   lands in the Foundry window header, over the window controls (verified
+   live: button rect inside `.window-header`). Anchoring it to the h2 keeps
+   it at the far right of the Effects section header, on the title's line;
+   the character sheet is untouched (its own h2 anchors it correctly). */
+.sw25-monster-sheet .monster-panel.effects-panel h2 { position: relative; }
+/* Monster-sheet adaptation: the Concealed Main Section row carries a badge
+   naming the currently selected section (GM-only presentation; the label is
+   attached in the sheet's getData and never reaches a player render). */
+.effects-panel .monster-concealed-selection {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: .04em;
+  color: #4b4237;
+  border: 1px dashed #8a7d68;
+  border-radius: 3px;
+  padding: 1px 6px;
+  background: rgba(255, 252, 239, .8);
+}
 .effects-panel .effect-sv { font-variant-numeric: tabular-nums; text-align: center; }
 .effects-panel .effect-duration,
 .effects-panel .effect-source { color: #55493c; }
@@ -3223,3 +3309,1196 @@ form.sw25-official-sheet .weapon-table .combat-weapon-row .weapon-mods-toggle in
   color: #292622;
 }
 .sw25-target-selection .sw25-target-selection-footer button:hover { background: #e9e0cd; }
+
+/* -- Effective values presentation (T3.3, DEC-29) --------------------------
+   A value touched by active system effects shows the effective value in its
+   usual box plus a redundant signed badge (never colour-only). Provisional
+   colours: blue for bonuses, orange for penalties; definitive tones pending
+   an accessibility/contrast review. */
+.sw25-mod-badge {
+  display: inline-block;
+  margin-left: 3px;
+  padding: 0 3px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 13px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+.sw25-mod-badge.sw25-mod-up { color: #ffffff; background: #1e63b3; }
+.sw25-mod-badge.sw25-mod-down { color: #ffffff; background: #c46a10; }
+strong.sw25-mod-up { color: #1e63b3; }
+strong.sw25-mod-down { color: #c46a10; }
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   Light theme — redesigned component system (FFXIV Light-inspired).
+
+   Design principles (full specification in reports/):
+   - Value inversion: dark bronze bars (sheet header band, panel h2, table
+     heads, inactive tabs) float over warm ivory surfaces.
+   - Lists are soft pills with warm gold hover; table heads are compact dark
+     bars; labels and metadata are quiet small-caps.
+   - Buttons have tiers: quiet base, primary gold gradient, secondary outline,
+     circular add, quiet destructive.
+   - SW25 geometric identity components (base/adjust diamonds, growth and
+     temporary boxes, score octagon, bonus orb, resource shield, HP heart,
+     MP crystal, soulscar circles) are RECOLOURED ONLY: their transforms,
+     clip-paths and dimensions are never altered in this section.
+   - Component rules are scoped to .sw25-theme-light.sw25-official-sheet, so
+     the monster sheet (no theme class) and item sheets (no official-sheet
+     class on the form) are unaffected.
+   ═════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Design tokens ─────────────────────────────────────────────────────────── */
+
+.sw25-theme-light {
+  /* Surfaces */
+  --sw25-light-bg: #f1ebdd;
+  --sw25-light-surface: #eae3d2;
+  --sw25-light-panel: #f9f5ea;
+  --sw25-light-panel-nested: #f0e9d9;
+  --sw25-light-header-bg: #3b3226;
+  --sw25-light-header-bg-2: #2e2719;
+  --sw25-light-input-bg: #fffdf6;
+
+  /* Text */
+  --sw25-light-text: #3a3226;
+  --sw25-light-text-muted: #6f6455;
+  --sw25-light-text-subtle: #8b7f6c;
+  --sw25-light-text-on-dark: #f0e7d1;
+  --sw25-light-gold-on-dark: #d9b36a;
+
+  /* Borders */
+  --sw25-light-border: #d5cbb2;
+  --sw25-light-border-muted: #e5dcc6;
+  --sw25-light-input-border: #c1b191;
+
+  /* Accents */
+  --sw25-light-accent: #a87d3d;
+  --sw25-light-accent-hover: #8b6630;
+  --sw25-light-accent-muted: #d9c6a3;
+  --sw25-light-gold: #c9a35c;
+
+  /* Focus and shadows */
+  --sw25-light-focus: #c9a35c;
+  --sw25-light-shadow-inset: rgba(255, 253, 246, 0.8);
+
+  /* Semantic */
+  --sw25-light-danger: #a63d32;
+  --sw25-light-danger-hover: #832c24;
+}
+
+/* ── Sheet header band — shared layout (all themes; skins are theme-scoped) ── */
+
+.sw25-sheet-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 6px 12px 7px;
+}
+
+.sw25-sheet-header .sheet-header-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-right: auto;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.sw25-sheet-header .sheet-header-title {
+  font-size: 15px;
+  font-weight: bold;
+  letter-spacing: .05em;
+}
+
+.sw25-sheet-header .sheet-header-sub {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .22em;
+  opacity: .78;
+}
+
+.sw25-sheet-header .sheet-appearance-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 0;
+  font-size: 10px;
+}
+
+.sw25-sheet-header .rest-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* ── Form base (compound selector matches the form element itself) ─────────── */
+
+.sw25-theme-light.sw25-official-sheet {
+  background: var(--sw25-light-bg);
+  color: var(--sw25-light-text);
+}
+
+/* ── Sheet header band — Light skin ────────────────────────────────────────── */
+
+.sw25-theme-light.sw25-official-sheet .sw25-sheet-header {
+  background: linear-gradient(180deg, #443a28, #322a1c);
+  border-bottom: 2px solid var(--sw25-light-gold);
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, .35), 0 1px 3px rgba(43, 35, 22, .25);
+}
+
+.sw25-theme-light.sw25-official-sheet .sheet-header-title {
+  color: var(--sw25-light-text-on-dark);
+  font-variant: small-caps;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .4);
+}
+
+.sw25-theme-light.sw25-official-sheet .sheet-header-sub {
+  color: var(--sw25-light-gold-on-dark);
+  opacity: 1;
+}
+
+.sw25-theme-light.sw25-official-sheet .sheet-appearance-control label {
+  color: var(--sw25-light-gold-on-dark);
+  font-size: 9px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: .14em;
+}
+
+.sw25-theme-light.sw25-official-sheet .sheet-appearance-control select {
+  appearance: auto;
+  padding: 1px 6px;
+  border: 1px solid rgba(217, 179, 106, .45);
+  border-radius: 5px;
+  background: rgba(255, 253, 246, .1);
+  background-image: none;
+  color: var(--sw25-light-text-on-dark);
+  font-size: 11px;
+  font-weight: normal;
+}
+
+.sw25-theme-light.sw25-official-sheet .sheet-appearance-control select option {
+  background: var(--sw25-light-panel);
+  color: var(--sw25-light-text);
+}
+
+/* ── Navigation tabs — dark inactive bars, active merges into the content ──── */
+
+.sw25-theme-light.sw25-official-sheet .sheet-tabs {
+  gap: 3px;
+  padding: 8px 10px 0;
+  border-bottom: 2px solid var(--sw25-light-header-bg);
+  background: transparent;
+}
+
+.sw25-theme-light.sw25-official-sheet button.tab-button {
+  padding: 5px 12px 4px;
+  border: 1px solid #262015;
+  border-bottom: none;
+  border-radius: 7px 7px 0 0;
+  background: linear-gradient(180deg, #4a4030, #3a3222);
+  color: var(--sw25-light-text-on-dark);
+  font-size: 11px;
+  font-variant: small-caps;
+  letter-spacing: .05em;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .4);
+  transition: background .12s ease, color .12s ease;
+}
+
+.sw25-theme-light.sw25-official-sheet button.tab-button:hover {
+  background: linear-gradient(180deg, #5a4e3a, #463c2a);
+  color: #fff8e8;
+}
+
+.sw25-theme-light.sw25-official-sheet button.tab-button.active {
+  margin-bottom: -2px;
+  border: 1px solid var(--sw25-light-border);
+  border-bottom: 2px solid var(--sw25-light-bg);
+  background: var(--sw25-light-bg);
+  color: var(--sw25-light-text);
+  font-weight: bold;
+  text-shadow: none;
+}
+
+.sw25-theme-light.sw25-official-sheet button.tab-button.active:hover {
+  background: var(--sw25-light-bg);
+  color: var(--sw25-light-text);
+}
+
+/* ── Panels: thin ivory cards; h2 becomes the dark bronze section bar ──────── */
+
+.sw25-theme-light.sw25-official-sheet .paper-panel {
+  border: 1px solid var(--sw25-light-border);
+  border-radius: 7px;
+  background: var(--sw25-light-panel);
+  box-shadow: 0 1px 3px rgba(58, 48, 32, .1), inset 0 1px 0 #fffdf6;
+}
+
+.sw25-theme-light.sw25-official-sheet .paper-panel::before,
+.sw25-theme-light.sw25-official-sheet .paper-panel::after {
+  content: none;
+}
+
+.sw25-theme-light.sw25-official-sheet .paper-panel > h2 {
+  position: relative;
+  min-height: 25px;
+  margin: 0;
+  padding: 4px 34px 3px 27px;
+  border-bottom: 1px solid #241e13;
+  background: linear-gradient(180deg, #4a4030, #352d1f);
+  color: var(--sw25-light-text-on-dark);
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: .07em;
+  text-align: left;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .35);
+}
+
+.sw25-theme-light.sw25-official-sheet .paper-panel > h2::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -5px;
+  transform: rotate(45deg);
+  background: var(--sw25-light-gold);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .25);
+}
+
+.sw25-theme-light.sw25-official-sheet .paper-panel h3 {
+  padding: 3px 6px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--sw25-light-border-muted);
+  background: transparent;
+  color: var(--sw25-light-accent-hover);
+  font-size: 11px;
+  letter-spacing: .09em;
+}
+
+.sw25-theme-light.sw25-official-sheet .paper-panel input,
+.sw25-theme-light.sw25-official-sheet .paper-panel textarea {
+  border-color: var(--sw25-light-input-border);
+}
+
+/* ── Inputs, textareas, selects: warm white fields, gold focus ring ────────── */
+
+.sw25-theme-light.sw25-official-sheet input,
+.sw25-theme-light.sw25-official-sheet textarea,
+.sw25-theme-light.sw25-official-sheet select {
+  box-sizing: border-box;
+  border: 1px solid var(--sw25-light-input-border);
+  border-radius: 4px;
+  background: var(--sw25-light-input-bg);
+  color: var(--sw25-light-text);
+  box-shadow: inset 0 1px 1px rgba(58, 48, 32, .06);
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+
+.sw25-theme-light.sw25-official-sheet input:focus,
+.sw25-theme-light.sw25-official-sheet textarea:focus,
+.sw25-theme-light.sw25-official-sheet select:focus {
+  outline: none;
+  border-color: var(--sw25-light-focus);
+  box-shadow: 0 0 0 2px rgba(201, 163, 92, .25);
+}
+
+/* ── Selection controls: refined native selects (experiment) ─────────────────
+   Rounded corners, warm white field, gold chevron drawn over the closed
+   control. Native behaviour untouched: appearance:none restyles only the
+   closed state, the popup list stays the browser's own. Compact contexts
+   (header style switcher, skill rows) opt out further down. */
+.sw25-theme-light.sw25-official-sheet select {
+  appearance: none;
+  height: 26px;
+  padding: 0 26px 0 9px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 26px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23a87d3d' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+
+.sw25-theme-light.sw25-official-sheet select[data-action="select-monster-knowledge-class"],
+.sw25-theme-light.sw25-official-sheet select[data-action="select-offense-class"],
+.sw25-theme-light.sw25-official-sheet select[data-action="select-defense-class"],
+.sw25-theme-light.sw25-official-sheet select[data-action="select-initiative-class"],
+.sw25-theme-light.sw25-official-sheet select[data-action="select-magic-class"] {
+  flex: 0 0 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sw25-theme-light.sw25-official-sheet input[data-action="toggle-monster-knowledge-auto"] {
+  margin-right: 2px !important;
+}
+
+.sw25-theme-light.sw25-official-sheet select[data-action="select-monster-knowledge-class"] {
+  font-size: 11px !important;
+  margin-left: -2px !important;
+}
+
+.sw25-theme-light.sw25-official-sheet span[style*="gap: 6px"] {
+  gap: 2px !important;
+}
+
+.sw25-theme-light.sw25-official-sheet select[data-action="select-monster-knowledge-class"] + span,
+.sw25-theme-light.sw25-official-sheet select[data-action="select-initiative-class"] + span {
+  display: none !important;
+}
+
+.sw25-theme-light.sw25-official-sheet select:hover {
+  border-color: var(--sw25-light-accent-muted);
+}
+
+.sw25-theme-light.sw25-official-sheet input[type="checkbox"],
+.sw25-theme-light.sw25-official-sheet input[type="radio"] {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  accent-color: var(--sw25-light-accent);
+}
+
+/* ── Exceptions AFTER the generic input rules ────────────────────────────────
+   Geometric identity components keep borderless centred inputs; resource
+   inputs keep their underline. Never re-box these. */
+
+.sw25-theme-light.sw25-official-sheet .base-diamond,
+.sw25-theme-light.sw25-official-sheet .adjust-diamond {
+  border-color: #6a5a41;
+  background: linear-gradient(135deg, #f8f2e2, #eee3cb);
+  box-shadow: 0 1px 2px rgba(43, 35, 22, .18);
+}
+
+.sw25-theme-light.sw25-official-sheet .base-diamond input,
+.sw25-theme-light.sw25-official-sheet .adjust-diamond input,
+.sw25-theme-light.sw25-official-sheet .growth-box input,
+.sw25-theme-light.sw25-official-sheet .temporary-box input {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.sw25-theme-light.sw25-official-sheet .growth-box,
+.sw25-theme-light.sw25-official-sheet .temporary-box {
+  border-color: #6a5a41;
+  background: var(--sw25-light-panel-nested);
+}
+
+.sw25-theme-light.sw25-official-sheet .temporary-box input {
+  background: transparent;
+}
+
+/* ── Diamond content refinements (Light only; diamond geometry untouched) ────
+   The rotated container keeps position, size, shape and clip. Each child is
+   promoted to a full-face layer and counter-rotated as a whole, so label and
+   value centre on the diamond's visual centre instead of stacking along the
+   rotated (diagonal) flex axis. */
+.sw25-theme-light.sw25-official-sheet .base-diamond > span,
+.sw25-theme-light.sw25-official-sheet .base-diamond > input,
+.sw25-theme-light.sw25-official-sheet .adjust-diamond > input {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  margin: 0;
+}
+
+.sw25-theme-light.sw25-official-sheet .base-diamond > span {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 8px;
+  color: var(--sw25-light-text-muted);
+  font-size: 10px;
+  letter-spacing: .08em;
+}
+
+.sw25-theme-light.sw25-official-sheet .base-diamond > input {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* Adjust: the 34px diamond cannot fit a readable "Adjust" caption — drop it
+   (the input title and the octagon context identify the field). The sign and
+   the value share one flex row so they never overlap. */
+.sw25-theme-light.sw25-official-sheet .adjust-diamond > span {
+  display: none;
+}
+
+.sw25-theme-light.sw25-official-sheet .adjust-diamond .adjust-value {
+  display: flex;
+  align-items: center;
+}
+
+.sw25-theme-light.sw25-official-sheet .adjust-sign {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--sw25-light-text);
+  margin-right: -6px;
+}
+
+.sw25-theme-light.sw25-official-sheet .adjust-value > input {
+  width: 12px;
+  height: auto;
+  margin-left: -6px;
+  margin: 0;
+  padding: 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.sw25-theme-light.sw25-official-sheet .adjust-value > input::-webkit-outer-spin-button,
+.sw25-theme-light.sw25-official-sheet .adjust-value > input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.sw25-theme-light.sw25-official-sheet .base-diamond > input {
+  font-size: 20px;
+}
+
+.sw25-theme-light.sw25-official-sheet .score-octagon,
+.sw25-theme-light.sw25-official-sheet .bonus-orb {
+  border-color: #6a5a41;
+  background: linear-gradient(135deg, #f8f2e2, #eee3cb);
+  box-shadow: 0 1px 2px rgba(43, 35, 22, .18);
+}
+
+.sw25-theme-light.sw25-official-sheet .score-octagon strong,
+.sw25-theme-light.sw25-official-sheet .bonus-orb strong {
+  color: var(--sw25-light-accent-hover);
+}
+
+.sw25-theme-light.sw25-official-sheet .resource-shield {
+  border-color: #6a5a41;
+  background: linear-gradient(135deg, #f8f2e2, #eee3cb);
+}
+
+.sw25-theme-light.sw25-official-sheet .resource-shield input {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.sw25-theme-light.sw25-official-sheet .resource-current,
+.sw25-theme-light.sw25-official-sheet .resource-max {
+  border: 0;
+  border-bottom: 2px solid #43371f;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #241d12;
+}
+
+.sw25-theme-light.sw25-official-sheet .resource-current:focus,
+.sw25-theme-light.sw25-official-sheet .resource-max:focus {
+  outline: 1px dotted #574b40;
+  outline-offset: 1px;
+  box-shadow: none;
+}
+
+.sw25-theme-light.sw25-official-sheet .automatic-feats input[type="checkbox"] {
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  min-width: 13px;
+  margin: 0;
+  border: 1px solid #6a5a41;
+  border-radius: 2px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.sw25-theme-light.sw25-official-sheet .automatic-feats input[type="checkbox"]:checked {
+  background:
+    linear-gradient(45deg, transparent 42%, #6a5a41 43%, #6a5a41 57%, transparent 58%),
+    linear-gradient(-45deg, transparent 42%, #6a5a41 43%, #6a5a41 57%, transparent 58%);
+}
+
+.sw25-theme-light.sw25-official-sheet .name-plaque {
+  border: 1px solid var(--sw25-light-border);
+  border-radius: 0 0 7px 7px;
+  background: linear-gradient(180deg, #fbf7ec, #f0e9d6);
+  box-shadow: 0 2px 4px rgba(43, 35, 22, .2);
+}
+
+.sw25-theme-light.sw25-official-sheet .name-plaque input {
+  border: 0;
+  border-bottom: 1px solid var(--sw25-light-input-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--sw25-light-text);
+}
+
+.sw25-theme-light.sw25-official-sheet .name-plaque input:focus {
+  border-bottom-color: var(--sw25-light-focus);
+  box-shadow: 0 1px 0 rgba(201, 163, 92, .6);
+}
+
+.sw25-theme-light.sw25-official-sheet .portrait-frame {
+  border: 1px solid var(--sw25-light-border);
+  border-radius: 8px;
+  background: #efe9da;
+  box-shadow: inset 0 0 0 3px #fffdf6, 0 2px 5px rgba(43, 35, 22, .15);
+}
+
+.sw25-theme-light.sw25-official-sheet .skill-line select {
+  appearance: auto;
+  height: 19px;
+  padding: 0 2px;
+  border: 0;
+  border-left: 1px solid var(--sw25-light-border);
+  border-right: 1px solid var(--sw25-light-border);
+  border-radius: 0;
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+  font-size: 9px;
+  font-weight: normal;
+}
+
+.sw25-theme-light.sw25-official-sheet .skill-line button {
+  height: 17px;
+  margin: 0;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--sw25-light-accent-hover);
+}
+
+.sw25-theme-light.sw25-official-sheet .skill-line button:hover {
+  background: rgba(201, 163, 92, .2);
+  border: 0;
+  color: var(--sw25-light-accent-hover);
+}
+
+/* ── List rows: soft pills with warm gold hover ──────────────────────────────
+   Heads and rows of the same table share identical horizontal padding, so
+   grid column alignment is preserved. */
+
+.sw25-theme-light.sw25-official-sheet .skill-head,
+.sw25-theme-light.sw25-official-sheet .skill-line {
+  padding-right: 6px;
+  padding-left: 6px;
+  gap: 4px !important;
+}
+
+.sw25-theme-light.sw25-official-sheet .skill-head > *,
+.sw25-theme-light.sw25-official-sheet .skill-line > * {
+  padding: 1px 2px !important;
+  box-sizing: border-box !important;
+}
+
+.sw25-theme-light.sw25-official-sheet .skill-line,
+.sw25-theme-light.sw25-official-sheet .language-line,
+.sw25-theme-light.sw25-official-sheet .inventory-lines > div,
+.sw25-theme-light.sw25-official-sheet .additional-row,
+.sw25-theme-light.sw25-official-sheet .accessory-table > div,
+.sw25-theme-light.sw25-official-sheet .combat-weapon-row,
+.sw25-theme-light.sw25-official-sheet .work-check-row,
+.sw25-theme-light.sw25-official-sheet .background-line,
+.sw25-theme-light.sw25-official-sheet .material-card-row,
+.sw25-theme-light.sw25-official-sheet .class-feature-row,
+.sw25-theme-light.sw25-official-sheet .effects-row {
+  margin: 1px 0;
+  border-bottom-color: transparent;
+  border-radius: 8px;
+  background: rgba(58, 48, 32, .045);
+  transition: background .1s ease;
+}
+
+.sw25-theme-light.sw25-official-sheet .inventory-lines > div,
+.sw25-theme-light.sw25-official-sheet .additional-row,
+.sw25-theme-light.sw25-official-sheet .combat-weapon-row,
+.sw25-theme-light.sw25-official-sheet .work-check-row,
+.sw25-theme-light.sw25-official-sheet .background-line,
+.sw25-theme-light.sw25-official-sheet .material-card-row,
+.sw25-theme-light.sw25-official-sheet .class-feature-row,
+.sw25-theme-light.sw25-official-sheet .effects-row {
+  padding-right: 6px;
+  padding-left: 6px;
+}
+
+.sw25-theme-light.sw25-official-sheet .skill-line:hover,
+.sw25-theme-light.sw25-official-sheet .language-line:hover,
+.sw25-theme-light.sw25-official-sheet .inventory-lines > div:hover,
+.sw25-theme-light.sw25-official-sheet .additional-row:hover,
+.sw25-theme-light.sw25-official-sheet .accessory-table > div:hover,
+.sw25-theme-light.sw25-official-sheet .combat-weapon-row:hover,
+.sw25-theme-light.sw25-official-sheet .work-check-row:hover,
+.sw25-theme-light.sw25-official-sheet .background-line:hover,
+.sw25-theme-light.sw25-official-sheet .material-card-row:hover,
+.sw25-theme-light.sw25-official-sheet .class-feature-row:hover,
+.sw25-theme-light.sw25-official-sheet .effects-row:hover {
+  background: rgba(201, 163, 92, .22);
+}
+
+.sw25-theme-light.sw25-official-sheet .class-table-head,
+.sw25-theme-light.sw25-official-sheet .class-row {
+  padding-right: 5px;
+  padding-left: 5px;
+  display: grid !important;
+  grid-template-columns: 1.6fr 0.4fr 0.8fr 0.38fr 24px !important;
+  gap: 2px !important;
+  align-items: center !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.sw25-theme-light.sw25-official-sheet .class-table-head > span:first-child,
+.sw25-theme-light.sw25-official-sheet .class-row > button.paper-link {
+  width: 100% !important;
+  min-width: 0 !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-sizing: border-box !important;
+}
+
+.sw25-theme-light.sw25-official-sheet .class-table-head > span:nth-child(2),
+.sw25-theme-light.sw25-official-sheet .class-table-head > span:nth-child(3),
+.sw25-theme-light.sw25-official-sheet .class-row > span:nth-child(2),
+.sw25-theme-light.sw25-official-sheet .class-row > span:nth-child(3) {
+  width: 100% !important;
+  min-width: 0 !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
+}
+
+.sw25-theme-light.sw25-official-sheet .class-row > input {
+  width: 100% !important;
+  min-width: 0 !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
+}
+
+.sw25-theme-light.sw25-official-sheet .class-row > button.row-delete,
+.sw25-theme-light.sw25-official-sheet .class-row > button.class-delete {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+}
+
+.sw25-theme-light.sw25-official-sheet .class-row {
+  margin: 1px 0;
+  border-bottom-color: transparent;
+  border-radius: 8px;
+  background: rgba(58, 48, 32, .045);
+}
+
+.sw25-theme-light.sw25-official-sheet .class-row:hover {
+  background: rgba(201, 163, 92, .22);
+}
+
+.sw25-theme-light.sw25-official-sheet .weapon-head,
+.sw25-theme-light.sw25-official-sheet .weapon-table > div {
+  padding-right: 4px;
+  padding-left: 4px;
+}
+
+.sw25-theme-light.sw25-official-sheet .weapon-table > div {
+  margin: 1px 0;
+  border-bottom-color: transparent;
+  border-radius: 8px;
+  background: rgba(58, 48, 32, .045);
+  transition: background .1s ease;
+}
+
+.sw25-theme-light.sw25-official-sheet .weapon-table > div:hover {
+  background: rgba(201, 163, 92, .22);
+}
+
+.sw25-theme-light.sw25-official-sheet .defense-table > .armour-entry {
+  border-bottom-color: transparent;
+  border-radius: 8px;
+  background: rgba(58, 48, 32, .045);
+  transition: background .1s ease;
+}
+
+.sw25-theme-light.sw25-official-sheet .defense-table > .armour-entry:nth-child(odd) {
+  background: rgba(58, 48, 32, .045);
+}
+
+.sw25-theme-light.sw25-official-sheet .defense-table > .armour-entry:hover {
+  background: rgba(201, 163, 92, .22);
+}
+
+.sw25-theme-light.sw25-official-sheet .feat-entry {
+  border-bottom-color: var(--sw25-light-border-muted);
+}
+
+.sw25-theme-light.sw25-official-sheet .feat-entry:hover {
+  background: rgba(201, 163, 92, .14);
+}
+
+.sw25-theme-light.sw25-official-sheet .feat-details {
+  border-radius: 0 0 6px 6px;
+  background: var(--sw25-light-panel-nested);
+}
+
+/* ── Table heads: compact dark bronze bars (same family as panel h2) ───────── */
+
+.sw25-theme-light.sw25-official-sheet .skill-head,
+.sw25-theme-light.sw25-official-sheet .language-head,
+.sw25-theme-light.sw25-official-sheet .class-table-head,
+.sw25-theme-light.sw25-official-sheet .weapon-table > .weapon-head,
+.sw25-theme-light.sw25-official-sheet .effects-head,
+.sw25-theme-light.sw25-official-sheet .work-skill-header,
+.sw25-theme-light.sw25-official-sheet .material-card-head,
+.sw25-theme-light.sw25-official-sheet .class-feature-head,
+.sw25-theme-light.sw25-official-sheet .feat-row.feat-head {
+  border-bottom: 1px solid #241e13;
+  background: linear-gradient(180deg, #443a29, #332b1d);
+  color: var(--sw25-light-text-on-dark);
+  letter-spacing: .05em;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .35);
+  border-radius: 5px;
+}
+
+.sw25-theme-light.sw25-official-sheet .defense-table .def-head {
+  border-bottom: 1px solid #241e13;
+  background: linear-gradient(180deg, #443a29, #332b1d);
+  color: var(--sw25-light-text-on-dark);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .35);
+}
+
+.sw25-theme-light.sw25-official-sheet .defense-classes,
+.sw25-theme-light.sw25-official-sheet .offense-summary {
+  border-bottom-color: var(--sw25-light-border-muted);
+}
+
+.sw25-theme-light.sw25-official-sheet .defense-selector,
+.sw25-theme-light.sw25-official-sheet .offense-selector {
+  border-bottom-color: var(--sw25-light-border-muted);
+}
+
+/* ── Special check cards (Vitality etc.) ───────────────────────────────────── */
+
+.sw25-theme-light.sw25-official-sheet .special-grid button {
+  border: 1px solid var(--sw25-light-border);
+  border-radius: 7px;
+  background: var(--sw25-light-panel-nested);
+  box-shadow: inset 0 1px 0 #fffdf6;
+}
+
+.sw25-theme-light.sw25-official-sheet .special-grid button:hover {
+  border-color: var(--sw25-light-accent);
+  background: #f3e9d2;
+}
+
+.sw25-theme-light.sw25-official-sheet .special-grid button strong {
+  color: var(--sw25-light-accent-hover);
+}
+
+/* ── Buttons — tier system ─────────────────────────────────────────────────── */
+
+/* Tier 0: quiet base (no layout changes, only paint) */
+.sw25-theme-light.sw25-official-sheet button {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  cursor: pointer;
+  transition: background .12s ease, border-color .12s ease, color .12s ease;
+}
+
+.sw25-theme-light.sw25-official-sheet button:hover {
+  border-color: var(--sw25-light-accent-muted);
+  background: rgba(201, 163, 92, .18);
+}
+
+.sw25-theme-light.sw25-official-sheet button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(201, 163, 92, .4);
+}
+
+.sw25-theme-light.sw25-official-sheet button:disabled {
+  opacity: .45;
+  cursor: default;
+}
+
+/* Tier 1: primary roll / cast actions — gold gradient pill.
+   Includes the Fellow action-table roll button; sw25.css is loaded unlayered
+   (injected last by sw25.mjs), so fellow-specific primary styling must live
+   here — fellow-sheet.css is loaded in layer(system) and cannot win against
+   the Tier 0 quiet base above. */
+.sw25-theme-light.sw25-official-sheet button[data-action="roll-attack"],
+.sw25-theme-light.sw25-official-sheet button[data-action="cast-spell"],
+.sw25-theme-light.sw25-official-sheet button[data-action="roll-fellow-action"],
+.sw25-theme-light.sw25-official-sheet .magic-power-roll,
+.sw25-theme-light.sw25-official-sheet .death-check-button {
+  border: 1px solid #6d5526;
+  background: linear-gradient(180deg, #b38c46, #8a6a2e);
+  color: #fff8e6;
+  font-weight: bold;
+  text-shadow: 0 1px 0 rgba(60, 40, 10, .4);
+  box-shadow: inset 0 1px 0 rgba(255, 244, 214, .45), 0 1px 2px rgba(43, 35, 22, .3);
+}
+
+.sw25-theme-light.sw25-official-sheet button[data-action="roll-attack"]:hover,
+.sw25-theme-light.sw25-official-sheet button[data-action="cast-spell"]:hover,
+.sw25-theme-light.sw25-official-sheet button[data-action="roll-fellow-action"]:hover,
+.sw25-theme-light.sw25-official-sheet .magic-power-roll:hover,
+.sw25-theme-light.sw25-official-sheet .death-check-button:hover {
+  border-color: #7d6229;
+  background: linear-gradient(180deg, #c49b52, #9a7836);
+  color: #fffcf0;
+}
+
+.sw25-theme-light.sw25-official-sheet button[data-action="roll-attack"]:active,
+.sw25-theme-light.sw25-official-sheet button[data-action="cast-spell"]:active,
+.sw25-theme-light.sw25-official-sheet button[data-action="roll-fellow-action"]:active,
+.sw25-theme-light.sw25-official-sheet .magic-power-roll:active,
+.sw25-theme-light.sw25-official-sheet .death-check-button:active {
+  box-shadow: inset 0 2px 3px rgba(43, 35, 22, .4);
+}
+
+/* Tier 2: secondary outline — header rest buttons and importers */
+.sw25-theme-light.sw25-official-sheet .sw25-sheet-header .rest-controls button,
+.sw25-theme-light.sw25-official-sheet button[data-action^="import-"],
+.sw25-theme-light.sw25-official-sheet button[data-action="bulk-import-spells"] {
+  border: 1px solid rgba(217, 179, 106, .55);
+  background: rgba(255, 253, 246, .06);
+  color: inherit;
+}
+
+.sw25-theme-light.sw25-official-sheet .sw25-sheet-header .rest-controls button {
+  padding: 2px 10px;
+  color: var(--sw25-light-text-on-dark);
+  font-size: 10px;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+
+.sw25-theme-light.sw25-official-sheet .sw25-sheet-header .rest-controls button:hover,
+.sw25-theme-light.sw25-official-sheet button[data-action^="import-"]:hover,
+.sw25-theme-light.sw25-official-sheet button[data-action="bulk-import-spells"]:hover {
+  border-color: var(--sw25-light-gold);
+  background: rgba(217, 179, 106, .22);
+}
+
+/* Tier 3: circular add controls */
+.sw25-theme-light.sw25-official-sheet .panel-add,
+.sw25-theme-light.sw25-official-sheet .mini-plus {
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: 1px solid var(--sw25-light-accent) !important;
+  border-radius: 50% !important;
+  background: var(--sw25-light-input-bg) !important;
+  color: var(--sw25-light-accent) !important;
+  box-shadow: 0 1px 2px rgba(43, 35, 22, .2) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  float: none !important;
+  box-sizing: border-box !important;
+}
+.sw25-theme-light.sw25-official-sheet .panel-add i,
+.sw25-theme-light.sw25-official-sheet .mini-plus i {
+  font-size: 11px !important;
+  line-height: 1 !important;
+}
+
+.sw25-theme-light.sw25-official-sheet .panel-add:hover,
+.sw25-theme-light.sw25-official-sheet .mini-plus:hover {
+  border-color: var(--sw25-light-accent-hover);
+  background: var(--sw25-light-accent);
+  color: #fff8e6;
+}
+
+/* Tier 4: quiet destructive */
+.sw25-theme-light.sw25-official-sheet button[data-action^="delete-"],
+.sw25-theme-light.sw25-official-sheet button[data-action="remove-language"],
+.sw25-theme-light.sw25-official-sheet .row-delete,
+.sw25-theme-light.sw25-official-sheet .class-delete,
+.sw25-theme-light.sw25-official-sheet .inventory-delete,
+.sw25-theme-light.sw25-official-sheet .armour-delete {
+  color: var(--sw25-light-danger);
+}
+
+.sw25-theme-light.sw25-official-sheet button[data-action^="delete-"]:hover,
+.sw25-theme-light.sw25-official-sheet button[data-action="remove-language"]:hover,
+.sw25-theme-light.sw25-official-sheet .row-delete:hover,
+.sw25-theme-light.sw25-official-sheet .class-delete:hover,
+.sw25-theme-light.sw25-official-sheet .inventory-delete:hover,
+.sw25-theme-light.sw25-official-sheet .armour-delete:hover {
+  border-color: rgba(166, 61, 50, .45);
+  background: rgba(166, 61, 50, .12);
+  color: var(--sw25-light-danger-hover);
+}
+
+/* Text-roll buttons stay quiet (the skill name itself is the trigger) */
+.sw25-theme-light.sw25-official-sheet .skill-name-roll {
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--sw25-light-text);
+}
+
+.sw25-theme-light.sw25-official-sheet .skill-name-roll:hover {
+  border: 0;
+  background: rgba(201, 163, 92, .18);
+  color: var(--sw25-light-accent-hover);
+  text-decoration: underline;
+}
+
+/* Soulscar circles keep their own circular identity (exception to button base) */
+.sw25-theme-light.sw25-official-sheet .soulscar-circle {
+  border: 2px solid #6a5a41;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+}
+
+.sw25-theme-light.sw25-official-sheet .soulscar-circle:hover {
+  border-color: var(--sw25-light-accent);
+  background: rgba(201, 163, 92, .25);
+}
+
+.sw25-theme-light.sw25-official-sheet .soulscar-circle.active {
+  border-color: #4c4030;
+  background: #6a5a41;
+}
+
+.sw25-theme-light.sw25-official-sheet .soulscar-circle.active:hover {
+  background: #7a684c;
+}
+
+/* ── HP heart / MP crystal / soulscar recolour (geometry untouched) ────────── */
+
+.sw25-theme-light.sw25-official-sheet .resource-heart::before,
+.sw25-theme-light.sw25-official-sheet .mp-crystal::before {
+  background: linear-gradient(160deg, #4a3d28, #2e2517);
+}
+
+.sw25-theme-light.sw25-official-sheet .resource-heart::after,
+.sw25-theme-light.sw25-official-sheet .mp-crystal::after {
+  background: linear-gradient(165deg, #faf6ea, #efe7d2);
+}
+
+.sw25-theme-light.sw25-official-sheet .mp-crystal-inner {
+  border-color: #43371f;
+}
+
+/* ── Misc recolours ────────────────────────────────────────────────────────── */
+
+.sw25-theme-light.sw25-official-sheet .paper-link {
+  color: var(--sw25-light-accent-hover);
+}
+
+.sw25-theme-light.sw25-official-sheet .paper-link:hover {
+  text-shadow: 0 0 5px rgba(201, 163, 92, .8);
+}
+
+.sw25-theme-light.sw25-official-sheet .paper-empty {
+  color: var(--sw25-light-text-subtle);
+}
+
+.sw25-theme-light.sw25-official-sheet .xp-strip {
+  border-top-color: #6a5a41;
+}
+
+.sw25-theme-light.sw25-official-sheet .power-track {
+  border-color: #6a5a41;
+  background: var(--sw25-light-input-bg);
+}
+
+.sw25-theme-light.sw25-official-sheet .power-track > * {
+  border-right-color: var(--sw25-light-border-muted);
+}
+
+.sw25-theme-light.sw25-official-sheet .adventurer-orb {
+  border-color: #6a5a41;
+  background: linear-gradient(160deg, #faf6ea, #efe7d2);
+  color: var(--sw25-light-accent-hover);
+  box-shadow: 0 1px 2px rgba(43, 35, 22, .2);
+}
+
+.sw25-theme-light.sw25-official-sheet .skill-footnote {
+  border-top-color: var(--sw25-light-border-muted);
+  color: var(--sw25-light-text-subtle);
+}
+
+.sw25-theme-light.sw25-official-sheet .spell-level-heading,
+.sw25-theme-light.sw25-official-sheet .power-result-heading {
+  border-bottom: 1px solid var(--sw25-light-border-muted);
+  color: var(--sw25-light-accent-hover);
+}
+
+.sw25-theme-light.sw25-official-sheet .movement-track label {
+  color: var(--sw25-light-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.sw25-theme-light.sw25-official-sheet .biography-box > label {
+  align-items: center !important;
+}
+.sw25-theme-light.sw25-official-sheet .bio-triple label,
+.sw25-theme-light.sw25-official-sheet .bio-double label {
+  color: var(--sw25-light-text-muted);
+}
+
+.sw25-theme-light.sw25-official-sheet .money-line {
+  border-radius: 6px;
+}
+
+.sw25-theme-light.sw25-official-sheet .effects-row.needs-review {
+  background: rgba(166, 61, 50, .08);
+}
+
+.sw25-theme-light.sw25-official-sheet .effects-row.needs-review:hover {
+  background: rgba(166, 61, 50, .16);
+}
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   Light theme — legacy component compatibility block.
+   These selectors cover components used outside the official actor sheets
+   (e.g. item sheet windows or older markup) that may still receive the theme
+   class from the application window. Kept so existing behaviour is preserved.
+   ═════════════════════════════════════════════════════════════════════════════ */
+
+.sw25-theme-light .sw-panel,
+.sw25-theme-light .header-box {
+  border: 1px solid var(--sw25-light-border);
+  border-radius: 3px;
+  background: var(--sw25-light-surface);
+  box-shadow: inset 0 0 0 1px var(--sw25-light-shadow-inset);
+}
+
+.sw25-theme-light .panel-header {
+  border-bottom: 1px solid var(--sw25-light-border);
+}
+
+.sw25-theme-light .panel-header h2,
+.sw25-theme-light .panel-header h3 {
+  color: var(--sw25-light-text);
+}
+
+.sw25-theme-light .subheader {
+  border-bottom: 1px solid var(--sw25-light-border-muted);
+  background: var(--sw25-light-header-bg);
+}
+
+.sw25-theme-light .subheader h3 {
+  color: var(--sw25-light-text);
+}
+
+.sw25-theme-light .dark-header {
+  background: var(--sw25-light-header-bg);
+  color: #ffffff;
+  text-shadow: none;
+}
+
+.sw25-theme-light .race-collapsible-header {
+  background: var(--sw25-light-header-bg);
+  color: #ffffff;
+  text-shadow: none;
+}
+
+.sw25-theme-light .item-row {
+  border-bottom: 1px solid var(--sw25-light-border-muted);
+}
+
+.sw25-theme-light .item-name {
+  color: var(--sw25-light-text);
+}
+
+.sw25-theme-light .item-summary {
+  color: var(--sw25-light-text-muted);
+}
+
+.sw25-theme-light .list-heading {
+  color: var(--sw25-light-text-muted);
+}
+
+.sw25-theme-light .empty-list {
+  color: var(--sw25-light-text-muted);
+}
+
+.sw25-theme-light .icon-button {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.sw25-theme-light .delete-button {
+  opacity: .55;
+}
+
+.sw25-theme-light .delete-button:hover {
+  opacity: 1;
+  color: var(--sw25-light-danger-hover);
+  box-shadow: none;
+}
+
+/* Item sheets keep their existing Light input treatment. */
+.sw25-theme-light .sw25-item-sheet input,
+.sw25-theme-light .sw25-item-sheet textarea,
+.sw25-theme-light .sw25-item-sheet select {
+  border: 1px solid var(--sw25-light-input-border);
+  border-radius: 2px;
+  background: var(--sw25-light-input-bg);
+  color: var(--sw25-light-text);
+}
+
+.sw25-theme-light .sw25-item-sheet input:focus,
+.sw25-theme-light .sw25-item-sheet textarea:focus,
+.sw25-theme-light .sw25-item-sheet select:focus {
+  border-color: var(--sw25-light-focus);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(200, 168, 104, .25);
+}
+
+.sw25-theme-light .sw25-item-sheet button {
+  color: inherit;
+}
+
+.sw25-theme-light .item-cast-spell,
+.sw25-theme-light .check-buttons button,
+.sw25-theme-light .side-check-list button,
+.sw25-theme-light .cast-button {
+  border: 1px solid var(--sw25-light-accent);
+  border-radius: 2px;
+  background: var(--sw25-light-accent);
+  color: #ffffff;
+  font-weight: bold;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   End of Light theme — redesigned component system.
+   ═════════════════════════════════════════════════════════════════════════════ */

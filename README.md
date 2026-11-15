@@ -6,7 +6,7 @@ This is a fork of [Sword-World-2.5-Foundry](https://github.com/DaedaIus/Sword-Wo
 
 A note from me: I am not a programmer. I am building and maintaining this fork as a hobby, with the help of AI, purely as a fan of Sword World 2.5. I test everything as I go hoping it works, but expect rough edges.
 
-![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sw25--taka%200.18.2%2B-blue)
+![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sw25--taka%200.19.0%2B-blue)
 
 ## Features at a glance
 
@@ -20,6 +20,13 @@ A note from me: I am not a programmer. I am building and maintaining this fork a
 - **Skill checks** — reorganized catalogue with per-check class lists and automatic highest-level selection.
 - **Spell drag & drop** — spells dropped on a character go straight to the viewed class page or open a wizard-type picker.
 - **Standard combat maps** — Combat A, Combat B and Coliseum scenes auto-created in a Simplified Combat Battlefields folder.
+
+## v0.19.0 - GM-only Effects presentation, Concealed Main Section plaintext storage, monster sheet Effects section
+
+- **gmOnly presentation model for system effects** — new boolean `system.gmOnly` field on `SW25EffectModel` (default `false`). `prepareSw25EffectRows`/`prepareSw25EffectsTab` hide `gmOnly` effects from players; the GM sees and can inspect them (Concealed Main Section included). Documents still replicate — this hides presentation only, not replicated data.
+- **Concealed Main Section: plaintext storage** — the chosen section id is stored unencrypted (`{ sectionId }`) in the effect flags, created with `system.gmOnly: true` through EffectService (sole write path, GM authority). The encryption module (`concealed-section-secret.mjs`) was removed; a verified backup is preserved under `external-scripts/`. Legacy encrypted records report an explicit `record-invalid` state until the rule is re-saved.
+- **Monster sheet Effects section** — new stacked Effects panel between Combat Statistics and Unique Skills, reusing the character sheet's markup, helpers and styling (`effects-panel`, `prepareSw25EffectsTab`, shared inspect/repair wiring). The concealed selection shows a readable badge for the GM (`Currently: <section>`); players never see it.
+- **Repair Data button placement** — anchored inside the monster Effects section header (far right, same line as title) instead of the Foundry application header; behavior unchanged, character sheet untouched.
 
 ## v0.18.2 - Side Initiative tracker integration, monster fixed initiative and turn tracking
 

@@ -3,11 +3,37 @@ import { processRegenerationTurn } from "../rules/spell-effects.mjs";
 import { resolveClassAssignment } from "../rules/skill-resolution.mjs";
 import { abilityBonus } from "../rules/weapon-damage.mjs";
 import { criticalFailureHTML, markCriticalFailure } from "../rules/critical-failure.mjs";
+import { processSw25DurationEvent } from "../effects/duration-engine.mjs";
 
 const FLAG_SCOPE = "sw25-taka";
 const FLAG_KEY = "sideInitiative";
 const SOCKET = "system.sw25-taka";
 let sideTurnWindow = null;
+
+// ── T5.3 (open question 5.3, adopted): internal per-combat FIFO ─────────────
+// `handleAction` is async and can be entered from several paths (system
+// socket, GM-relay chat flag, GM window buttons). Without serialization two
+// dispatches can interleave at their awaits (setFlag, combat.update, engine
+// writes) and race the flag's read-modify-write and the duration engine's
+// read-compute-write of `remainingDuration`. A per-combat promise chain runs
+// each dispatch to completion before the next starts: arrival order is
+// preserved (coherent for turn edges), latency is negligible, and a failed
+// dispatch never blocks the chain. This is NOT a player request queue (the
+// relay queues stay banned): it serializes the GM-side execution of already
+// authorized actions.
+const dispatchQueues = new Map();
+
+function runSerializedDispatch(combatId, job) {
+  const key = String(combatId ?? "?");
+  const tail = dispatchQueues.get(key) ?? Promise.resolve();
+  const result = tail.then(job, job); // run regardless of the previous outcome
+  const nextTail = result.then(() => {}, () => {});
+  dispatchQueues.set(key, nextTail);
+  nextTail.then(() => {
+    if (dispatchQueues.get(key) === nextTail) dispatchQueues.delete(key);
+  });
+  return result;
+}
 
 export const firstSide = (playerValues = [], monsterValue = 0) =>
   playerValues.length && Math.max(...playerValues.map(Number)) >= Number(monsterValue) ? "players" : "monsters";
@@ -49,6 +75,12 @@ export const sideTransition = (startingSide, completedSide) => ({
 
 const activeCombat = () => game.combat;
 const stateFor = combat => combat?.getFlag(FLAG_SCOPE, FLAG_KEY) || null;
+// T5.1 (DEC-51): per-combatant INDIVIDUAL turn state, persisted inside the
+// SAME side-state flag — `turnStates` (combatant id -> "started"|"ended")
+// and `turnOrder` (combatant ids in the order their individual turns began,
+// the real chosen actuation order). The reader tolerates states persisted
+// before T5.1 (fields absent); it never mutates them.
+const turnStatesOf = state => (state?.turnStates && typeof state.turnStates === "object" ? state.turnStates : {});
 const characterCombatants = combat => [...(combat?.combatants || [])].filter(combatant => combatant.actor?.type === "character" && !combatant.defeated);
 const monsterCombatants = combat => [...(combat?.combatants || [])].filter(combatant => combatant.actor?.type === "monster" && !combatant.defeated);
 const hasInitiative = combatant => combatant.initiative !== null && combatant.initiative !== undefined && Number.isFinite(Number(combatant.initiative));
@@ -77,7 +109,8 @@ async function announce(content) {
 }
 
 async function saveState(combat, state) {
-  await combat.setFlag(FLAG_SCOPE, FLAG_KEY, state);
+  const deep = JSON.parse(JSON.stringify(state));
+  await combat.setFlag(FLAG_SCOPE, FLAG_KEY, deep);
   queueSideControls(combat);
   if (game.user.isGM) game.socket.emit(SOCKET, { action:"sync-side-state", combatId:combat.id });
 }
@@ -121,6 +154,7 @@ class SW25SideTurnWindow extends SideTurnApplication {
     const state = stateFor(combat);
     const done = new Set(state?.playersDone || []);
     const monstersDone = new Set(state?.monstersDone || []);
+    const turnStates = turnStatesOf(state);
     const players = characterCombatants(combat);
     const remaining = players.filter(combatant => !done.has(combatant.id));
     const monsters = monsterCombatants(combat);
@@ -134,6 +168,26 @@ class SW25SideTurnWindow extends SideTurnApplication {
         remaining:naturalPowerRemainder(resource)
       };
     }).filter(Boolean);
+    // T5.1 (DEC-51): per-combatant individual turn control. The button for
+    // each combatant ALTERNATES between "Begin Turn" and "Finish Turn"
+    // according to its current actuation state; a finished individual turn
+    // shows its state without a control until the phase resets it.
+    const turnView = (combatant, current, controllable) => {
+      const turnState = turnStates[combatant.id] ?? null;
+      const started = turnState === "started";
+      const ended = turnState === "ended";
+      return {
+        id:combatant.id,
+        name:combatant.name,
+        turnState,
+        stateClass:turnState ?? "idle",
+        stateLabel:started ? "Turn started" : ended ? "Turn ended" : "Not started",
+        action:started ? "finish-turn" : "begin-turn",
+        actionLabel:started ? "Finish Turn" : "Begin Turn",
+        actionIcon:started ? "fa-stop" : "fa-play",
+        canControl:Boolean(controllable) && !ended
+      };
+    };
     return {
       active:Boolean(state?.active),
       phase:state?.phase || "players",
@@ -145,9 +199,21 @@ class SW25SideTurnWindow extends SideTurnApplication {
       canEndPlayer:state?.phase === "players" && !game.user.isGM && remaining.some(combatant => combatant.actor?.isOwner),
       gmPlayerControls:state?.phase === "players" && game.user.isGM,
       remainingPlayers:remaining.map(combatant => ({ id:combatant.id, name:combatant.name })),
+      playerTurns:remaining.map(combatant => turnView(
+        combatant,
+        turnStates[combatant.id] ?? null,
+        state?.phase === "players" && (game.user.isGM || combatant.actor?.isOwner)
+      )),
       canEndMonsters:state?.phase === "monsters" && game.user.isGM,
       gmMonsterControls:state?.phase === "monsters" && game.user.isGM,
-      monsters:monsters.map(combatant => ({ id:combatant.id, name:combatant.name, done:monstersDone.has(combatant.id) })),
+      monsters:monsters.map(combatant => ({
+        ...turnView(
+          combatant,
+          turnStates[combatant.id] ?? null,
+          state?.phase === "monsters" && game.user.isGM && !monstersDone.has(combatant.id)
+        ),
+        done:monstersDone.has(combatant.id)
+      })),
       doneMonsters:monsters.filter(combatant => monstersDone.has(combatant.id)).length,
       totalMonsters:monsters.length,
       naturalPower
@@ -175,6 +241,14 @@ class SW25SideTurnWindow extends SideTurnApplication {
     html.find("[data-action='gm-end-monster-turn']").on("click", event => {
       event.preventDefault();
       return markMonstersDone(game.combats.get(this.combatId), [event.currentTarget.dataset.combatantId]);
+    });
+    // T5.1 (DEC-51): individual turn controls. One combatant per click; the
+    // button action itself alternates (begin-turn / finish-turn) with the
+    // combatant's current state.
+    html.find("[data-action='begin-turn'], [data-action='finish-turn']").on("click", event => {
+      event.preventDefault();
+      const button = event.currentTarget;
+      return requestIndividualTurn(game.combats.get(this.combatId), button.dataset.action, [button.dataset.combatantId]);
     });
   }
 
@@ -220,6 +294,8 @@ export async function activateSideTurnsFromTracker(combat = activeCombat()) {
     firstPhase:startingSide,
     playersDone:[],
     monstersDone:[],
+    turnStates:{},
+    turnOrder:[],
     playerInitiatives,
     monsterInitiative,
     round:Math.max(1, Number(combat.round || 1))
@@ -360,7 +436,71 @@ export async function beginMonsterInitiative(actor, combat = activeCombat()) {
   return true;
 }
 
-async function handleAction(payload, userId) {
+/**
+ * Individual turn state of one combatant (T5.1, DEC-51): "started" once its
+ * individual actuation has begun, "ended" once it has finished, and null while
+ * the combatant has not begun its turn in the current phase. Read-only view
+ * used by the tracker UI today and by the later duration-anchor work (T5.0
+ * investigates the exact integration; nothing is invented here).
+ * @param {Combat} combat Combat encounter.
+ * @param {string} combatantId Combatant id.
+ * @returns {"started"|"ended"|null}
+ */
+export function individualTurnState(combat, combatantId) {
+  const state = stateFor(combat);
+  if (!state?.active) return null;
+  return turnStatesOf(state)[combatantId] ?? null;
+}
+
+/**
+ * GM-side dispatcher of the Side Initiative actions: socket payloads
+ * (`handleAction(payload, senderId)` through the shared system socket) and
+ * GM-relay chat flags both land here on the GM client. Exported so the
+ * headless test suites can exercise the exact production path; production
+ * callers never import it directly.
+ *
+ * T5.3 (open question 5.3, adopted): executions are serialized per combat
+ * through the internal FIFO above; the body runs in `handleActionInner`.
+ * @param {object} payload Action payload ({ action, combatId, ... }).
+ * @param {string} userId Requesting user id.
+ * @returns {Promise<void>}
+ */
+export function handleAction(payload, userId) {
+  return runSerializedDispatch(payload?.combatId, () => handleActionInner(payload, userId));
+}
+
+/**
+ * T5.3 (D9/D7): the duration engine runs AFTER the transition has been
+ * registered and persisted. A processing failure never reverts or repeats the
+ * transition and never interrupts the dispatch itself: the engine isolates
+ * per effect and reports failures visibly to the GM; this dispatch-level
+ * guard is only the last barrier against an unexpected engine crash.
+ * @param {Combat} combat Combat encounter.
+ * @param {object} event Duration event for the engine.
+ * @returns {Promise<void>}
+ */
+async function processDurationSafely(combat, event) {
+  try {
+    return await processSw25DurationEvent(combat, event);
+  } catch (error) {
+    console.warn("Sword World 2.5 | Duration engine dispatch failed.", event, error);
+  }
+}
+
+/**
+ * T5.3 (D9): fire the turn-end edge for each combatant whose actuation
+ * actually ended with this transition, sequentially (serialized semantics).
+ * @param {Combat} combat Combat encounter.
+ * @param {string[]} combatantIds Combatant ids that transitioned into ended.
+ * @returns {Promise<void>}
+ */
+async function processTurnEndEvents(combat, combatantIds) {
+  for (const combatantId of combatantIds) {
+    await processDurationSafely(combat, { kind: "turn-end", combatantId });
+  }
+}
+
+async function handleActionInner(payload, userId) {
   if (!game.user.isGM) return;
   const combat = game.combats.get(payload.combatId);
   const state = stateFor(combat);
@@ -384,21 +524,63 @@ async function handleAction(payload, userId) {
       console.warn("Sword World 2.5 | End Turn request did not match an owned player combatant.", { userId, requested:[...requested] });
       return;
     }
+    const turnStates = { ...(state.turnStates || {}) };
+    // T5.3 (D9): turn-end events are derived from the ACTUAL transition. A
+    // combatant whose individual turn was already ended (finish-turn earlier
+    // in the phase) must not produce a second event (no double discount).
+    const turnEndIds = validCombatants
+      .filter(combatant => turnStates[combatant.id] !== "ended")
+      .map(combatant => combatant.id);
     for (const combatant of validCombatants) {
       await processRegenerationTurn(combatant.actor);
       await expireNaturalPower(combatant.actor);
+      // T5.1 (coherence, additive): ending the side turn also ENDS the
+      // combatant's individual turn. The side-switch behavior below is
+      // untouched.
+      turnStates[combatant.id] = "ended";
     }
     const playersDone = [...new Set([...alreadyDone, ...valid])];
     const allIds = characterCombatants(combat).map(combatant => combatant.id);
     const complete = allIds.length > 0 && allIds.every(id => playersDone.includes(id));
-    if (!complete) await saveState(combat, { ...state, playersDone, phase:"players" });
-    else if (state.firstPhase === "players") {
-      await saveState(combat, { ...state, playersDone, monstersDone:[], phase:"monsters" });
+    if (!complete) {
+      const nextState = { ...state };
+      nextState.playersDone = playersDone;
+      nextState.phase = "players";
+      nextState.turnStates = turnStates;
+      await saveState(combat, nextState);
+      // T5.3 (D9): transition saved first; the engine processes the ended
+      // turn edges afterwards.
+      await processTurnEndEvents(combat, turnEndIds);
+    } else if (state.firstPhase === "players") {
+      // Side switch: the finished side's individual turn states are cleared
+      // for the next phase (fresh actuation round), like playersDone above.
+      // Use delete instead of {} because Foundry's setFlag drops empty objects.
+      const nextState = { ...state };
+      nextState.playersDone = playersDone;
+      nextState.monstersDone = [];
+      nextState.phase = "monsters";
+      nextState.turnStates = null;
+      nextState.turnOrder = null;
+      await saveState(combat, nextState);
+      // T5.3 (D9): ending the side ends these combatants' actuation too.
+      await processTurnEndEvents(combat, turnEndIds);
       await announce("<h3>Monster Turn</h3><p>All players have ended their turns.</p>");
     } else {
       const nextRound = Math.max(1, Number(combat.round || state.round || 1) + 1);
       await combat.update({ round:nextRound, turn:null });
-      await saveState(combat, { ...state, playersDone:[], monstersDone:[], phase:"monsters", round:nextRound });
+      const nextState = { ...state };
+      nextState.playersDone = [];
+      nextState.monstersDone = [];
+      nextState.phase = "monsters";
+      nextState.round = nextRound;
+      nextState.turnStates = null;
+      nextState.turnOrder = null;
+      await saveState(combat, nextState);
+      // T5.3 (D9): the round change is confirmed by combat.update above and
+      // the side state is persisted; the engine processes the ended turn
+      // edges first and then the round end ONCE (roundEnd regime).
+      await processTurnEndEvents(combat, turnEndIds);
+      await processDurationSafely(combat, { kind:"round-end", round: nextRound });
       await announce(`<h3>Round ${nextRound}</h3><p><strong>Monsters act first.</strong></p>`);
     }
     return;
@@ -412,11 +594,75 @@ async function handleAction(payload, userId) {
       console.warn("Sword World 2.5 | End Monster Turn request did not match an unfinished monster combatant.", { userId, requested:[...requested] });
       return;
     }
+    // T5.1 (coherence, additive): marking a monster acted also ENDS its
+    // individual turn; the side-switch behavior below is untouched.
+    const turnStates = { ...(state.turnStates || {}) };
+    // T5.3 (D9): turn-end events derive from the actual transition (see
+    // end-player); already-ended monsters produce no second event.
+    const turnEndIds = validCombatants
+      .filter(combatant => turnStates[combatant.id] !== "ended")
+      .map(combatant => combatant.id);
+    for (const combatant of validCombatants) turnStates[combatant.id] = "ended";
     const monstersDone = [...new Set([...alreadyDone, ...valid])];
     const allIds = monsterCombatants(combat).map(combatant => combatant.id);
     const complete = allIds.length > 0 && allIds.every(id => monstersDone.includes(id));
-    if (!complete) await saveState(combat, { ...state, monstersDone, phase:"monsters" });
-    else await completeMonsterPhase(combat, state, monstersDone);
+    if (!complete) {
+      const nextState = { ...state };
+      nextState.monstersDone = monstersDone;
+      nextState.phase = "monsters";
+      nextState.turnStates = turnStates;
+      await saveState(combat, nextState);
+      // T5.3 (D9): transition saved first; engine edges afterwards.
+      await processTurnEndEvents(combat, turnEndIds);
+    } else await completeMonsterPhase(combat, state, monstersDone, turnEndIds);
+  }
+
+  // ── T5.1: individual turn control (DEC-51) ─────────────────────────────
+  // "begin-turn" registers that a combatant STARTED its individual actuation
+  // and "finish-turn" that it ENDED. Strict per-combatant alternation:
+  // begin is only coherent from "not started" and finish only from
+  // "started"; anything else is rejected with no state change (no invented
+  // transitions). A combatant only acts while ITS side's phase is active,
+  // and without gmOverride (player whisper path) only player combatants
+  // qualify. Fully independent of the side switch (end-player/end-monster):
+  // no phase transition, no round change, no playersDone/monstersDone write.
+  if (payload.action === "begin-turn" || payload.action === "finish-turn") {
+    const begin = payload.action === "begin-turn";
+    const gmRequest = Boolean(payload.gmOverride && game.user.isGM);
+    if (!gmRequest && !game.users.get(userId)) {
+      console.warn("Sword World 2.5 | Rejected individual turn request without a valid user.", payload);
+      return;
+    }
+    const phase = state.phase;
+    const pool = phase === "players"
+      ? characterCombatants(combat)
+      : (phase === "monsters" && gmRequest) ? monsterCombatants(combat) : [];
+    const requested = new Set(payload.combatantIds || []);
+    const turnStates = { ...(state.turnStates || {}) };
+    const turnOrder = [...(state.turnOrder || [])];
+    const targets = pool.filter(combatant => {
+      if (!requested.has(combatant.id)) return false;
+      const current = turnStates[combatant.id] ?? null;
+      return begin ? current === null : current === "started";
+    });
+    if (!targets.length) {
+      console.warn("Sword World 2.5 | Individual turn request matched no combatant in a coherent state.", { userId, action:payload.action, phase, requested:[...requested] });
+      return;
+    }
+    for (const combatant of targets) {
+      turnStates[combatant.id] = begin ? "started" : "ended";
+      // The real actuation order chosen inside the side (DEC-51): recorded
+      // at BEGIN, never imposed.
+      if (begin && !turnOrder.includes(combatant.id)) turnOrder.push(combatant.id);
+    }
+    await saveState(combat, { ...state, turnStates, turnOrder });
+    // T5.3 (D9): the transition is registered and persisted; the engine
+    // processes the corresponding anchor edge for each combatant that
+    // ACTUALLY transitioned (targets were filtered by coherent prior state).
+    const edgeKind = begin ? "turn-begin" : "turn-end";
+    for (const combatant of targets) {
+      await processDurationSafely(combat, { kind: edgeKind, combatantId: combatant.id });
+    }
   }
 }
 
@@ -451,16 +697,89 @@ export async function requestGMPlayerEnd(combat, combatantIds = null) {
   await handleAction({ action:"end-player", combatId:combat.id, combatantIds:ids, gmOverride:true }, game.user.id);
 }
 
-/** Shared transition when the monster phase finishes (all marked or early end). */
-async function completeMonsterPhase(combat, state, monstersDone) {
+/**
+ * Client entry point for the individual turn controls (T5.1, DEC-51):
+ * "begin-turn" registers that a combatant began its individual actuation and
+ * "finish-turn" that it ended. The button shown for each combatant alternates
+ * between the two according to its current state, and the actuation order
+ * inside the side stays free (only recorded, never imposed).
+ *
+ * Authority mirrors the End Turn flow: the GM executes any combatant of the
+ * active side directly; a player client may only request its OWN unfinished
+ * player combatants during the players phase, through the same GM-relay
+ * whisper used by End Turn. Completely independent of the side switch
+ * (end-player/end-monster).
+ *
+ * @param {Combat} combat Combat encounter.
+ * @param {"begin-turn"|"finish-turn"} action Individual turn action.
+ * @param {string[]} [combatantIds] Combatant ids (one per control).
+ * @returns {Promise<void>}
+ */
+export async function requestIndividualTurn(combat, action, combatantIds = []) {
+  if (action !== "begin-turn" && action !== "finish-turn") return ui.notifications.warn("Unknown individual turn control.");
+  const state = stateFor(combat);
+  if (!state?.active) return ui.notifications.warn("Side initiative has not started for this encounter.");
+  const ids = [...new Set((combatantIds || []).filter(Boolean))];
+  if (game.user.isGM) {
+    if (!ids.length) return ui.notifications.warn("Select a combatant for the individual turn control.");
+    await handleAction({ action, combatId:combat.id, combatantIds:ids, gmOverride:true }, game.user.id);
+    return;
+  }
+  if (state.phase !== "players") return ui.notifications.warn("Individual turns are controlled during your side's phase.");
+  const done = new Set(state.playersDone || []);
+  const requested = new Set(ids);
+  const own = characterCombatants(combat)
+    .filter(combatant => requested.has(combatant.id) && !done.has(combatant.id) && combatant.actor?.isOwner)
+    .map(combatant => combatant.id);
+  if (!own.length) return ui.notifications.warn("You have no unfinished player combatants in this encounter.");
+  const activeGM = game.users.activeGM;
+  if (!activeGM) return ui.notifications.error("An active GM is required to advance side initiative.");
+  const gmIds = ChatMessage.getWhisperRecipients("GM").map(user => user.id);
+  await ChatMessage.create({
+    whisper:gmIds,
+    content:`<div class="sw25-chat-card"><h3>${action === "begin-turn" ? "Begin Turn" : "Finish Turn"}</h3><p><strong>${foundry.utils.escapeHTML(game.user.name)}</strong> requested an individual turn control.</p></div>`,
+    flags:{ [FLAG_SCOPE]:{ sideTurnRequest:{ action, combatId:combat.id, combatantIds:own, userId:game.user.id } } }
+  });
+  ui.notifications.info("Individual turn request sent to the GM.");
+}
+
+/** Shared transition when the monster phase finishes (all marked or early end).
+ * `turnEndIds` (T5.3, D9) carries the combatants whose actuation ended with
+ * this transition (computed by the caller from the actual state transition);
+ * the GM early-end button passes none (already-marked monsters produced
+ * their events when they were marked). */
+async function completeMonsterPhase(combat, state, monstersDone, turnEndIds = []) {
   const transition = sideTransition(state.firstPhase, "monsters");
   if (!transition.newRound) {
-    await saveState(combat, { ...state, phase:transition.phase, playersDone:[], monstersDone });
+    // Side switch: individual turn states clear for the next phase, like
+    // playersDone/monstersDone above (T5.1: fresh actuation per phase).
+    // Use null instead of {} / [] because Foundry's flag deep-merge keeps
+    // empty object keys alive while null replaces the whole value.
+    const nextState = { ...state };
+    nextState.phase = transition.phase;
+    nextState.playersDone = [];
+    nextState.monstersDone = monstersDone;
+    nextState.turnStates = null;
+    nextState.turnOrder = null;
+    await saveState(combat, nextState);
+    // T5.3 (D9): engine edges after the saved transition.
+    await processTurnEndEvents(combat, turnEndIds);
     await announce("<h3>Player Turn</h3><p>The monsters have ended their turn.</p>");
   } else {
     const nextRound = Math.max(1, Number(combat.round || state.round || 1) + 1);
     await combat.update({ round:nextRound, turn:null });
-    await saveState(combat, { ...state, phase:transition.phase, playersDone:[], monstersDone:[], round:nextRound });
+    const nextState = { ...state };
+    nextState.phase = transition.phase;
+    nextState.playersDone = [];
+    nextState.monstersDone = [];
+    nextState.round = nextRound;
+    nextState.turnStates = null;
+    nextState.turnOrder = null;
+    await saveState(combat, nextState);
+    // T5.3 (D9): round confirmed by combat.update + saved state; turn edges
+    // first, then the round end ONCE.
+    await processTurnEndEvents(combat, turnEndIds);
+    await processDurationSafely(combat, { kind:"round-end", round: nextRound });
     await announce(`<h3>Round ${nextRound}</h3><p><strong>Players act first.</strong></p>`);
   }
 }
@@ -559,7 +878,9 @@ export async function initializeSideInitiative() {
   Hooks.on("createChatMessage", message => {
     if (!game.user.isGM) return;
     const request = message.getFlag(FLAG_SCOPE, "sideTurnRequest");
-    if (request?.action === "end-player") handleAction(request, request.userId);
+    // T5.1: the individual turn controls share the same GM-relay whisper as
+    // End Turn; ownership and phase validation happen inside handleAction.
+    if (request?.action === "end-player" || request?.action === "begin-turn" || request?.action === "finish-turn") handleAction(request, request.userId);
   });
   Hooks.on("renderCombatTracker", renderSideControls);
   // Foundry V14 renders the Combat Tracker through ApplicationV2 and may only

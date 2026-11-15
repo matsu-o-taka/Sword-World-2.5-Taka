@@ -24,8 +24,19 @@ globalThis.foundry = {
   },
   applications: {
     api: {
-      ApplicationV2: ApplicationV2Stub
+      ApplicationV2: ApplicationV2Stub,
+      // The production import graph includes module/apps/effect-inspector.mjs
+      // since T1.5; it derives its class through the official v14 Handlebars
+      // mixin at import time. The real mixin only wraps the base class in a
+      // new constructor, so a pass-through stub is a faithful environment.
+      HandlebarsApplicationMixin: BaseApplication => class HandlebarsApplication extends BaseApplication {}
     }
+  },
+  // The production import graph includes module/effects/effect-model.mjs since
+  // T1.2; it extends this base class at import time. A bare subclassable stub
+  // is enough here: this test never instantiates the model or runs "init".
+  data: {
+    ActiveEffectTypeDataModel: class ActiveEffectTypeDataModelStub {}
   }
 };
 

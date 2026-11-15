@@ -636,6 +636,9 @@ export class SW25Importer {
     const fetched = await this.fetchPage(normalized);
     const parsed = parseMonsterPage(fetched.text, normalized);
     validateMonsterProfile(parsed);
+    // Fallback: when the wiki does not provide a Species field, default to the
+    // creature's own name, mirroring the behavior of importing onto an existing actor.
+    if (!parsed.system.species) parsed.system.species = parsed.name;
     const actor = await Actor.create({
       name: parsed.name,
       type: "monster",

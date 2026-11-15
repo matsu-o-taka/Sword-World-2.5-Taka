@@ -1,10 +1,14 @@
 <form class="{{cssClass}} sw25-character-sheet sw25-official-sheet sw25-theme-{{sheetStyle}}" autocomplete="off">
+  <header class="sw25-sheet-header">
+    <div class="sheet-header-brand"><span class="sheet-header-title">Sword World 2.5</span><span class="sheet-header-sub">Adventurer Sheet</span></div>
+    <span class="sheet-appearance-control"><label for="sw25-sheet-style-{{actor.id}}">Style</label><select id="sw25-sheet-style-{{actor.id}}" data-action="set-sheet-style"><option value="light" {{#if isLightStyle}}selected{{/if}}>Light</option><option value="adventurer" {{#if isAdventurerStyle}}selected{{/if}}>Adventurer</option></select></span>
+    <span class="rest-controls"><button type="button" data-action="rest" data-hours="3" title="Recover 10% maximum HP and half maximum MP"><i class="fas fa-bed"></i> 3 Hour Rest</button><button type="button" data-action="rest" data-hours="6" title="Recover 20% maximum HP and all MP"><i class="fas fa-bed"></i> 6 Hour Rest</button></span>
+  </header>
   <nav class="sheet-tabs official-tabs" data-group="primary-tabs">
     <button type="button" class="tab-button active" data-tab="overview">Adventurer Data</button>
     <button type="button" class="tab-button" data-tab="combat">Combat Data</button>
+    <button type="button" class="tab-button" data-tab="effects">Effects</button>
     {{#each classTabs as |classTab|}}<button type="button" class="tab-button" data-tab="{{classTab.id}}">{{classTab.label}}</button>{{/each}}
-    <span class="sheet-appearance-control"><label for="sw25-sheet-style-{{actor.id}}">Style</label><select id="sw25-sheet-style-{{actor.id}}" data-action="set-sheet-style"><option value="paper" {{#if isPaperStyle}}selected{{/if}}>Paper</option><option value="adventurer" {{#if isAdventurerStyle}}selected{{/if}}>Adventurer</option></select></span>
-    <span class="rest-controls"><button type="button" data-action="rest" data-hours="3" title="Recover 10% maximum HP and half maximum MP"><i class="fas fa-bed"></i> 3 Hour Rest</button><button type="button" data-action="rest" data-hours="6" title="Recover 20% maximum HP and all MP"><i class="fas fa-bed"></i> 6 Hour Rest</button></span>
   </nav>
 
   <section class="tab-content official-tab-content">
@@ -60,15 +64,15 @@
           <h2>Skills</h2>
           <div class="skill-head"><span>Skill Name</span><span>Time</span><span>Class</span><span>Level</span><span>Mod</span></div>
           <div class="official-skill-groups">
-            <h3>Dexterity <small>Ability Score Bonus {{calculated.bonuses.dexterity}}</small></h3>
+            <h3>Dexterity <small>Ability Score Bonus {{calculated.bonuses.dexterity}}{{#with effectBadges.abilityDexterity as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}">{{badge.label}}</span>{{/with}}</small></h3>
             {{#each skillsByAbility.dexterity as |skill|}}<div class="skill-line"><button type="button" class="skill-name-roll" data-action="roll-skill" data-mod="{{skill.mod}}">{{skill.name}}</button><span>{{skill.time}}</span><select data-action="select-skill-class" data-skill-key="{{skill.key}}">{{#each skill.options as |option|}}<option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>{{/each}}</select><span>{{skill.level}}</span><button type="button" data-action="roll-skill" data-mod="{{skill.mod}}">{{skill.mod}}</button></div>{{/each}}
-            <h3>Agility <small>Ability Score Bonus {{calculated.bonuses.agility}}</small></h3>
+            <h3>Agility <small>Ability Score Bonus {{calculated.bonuses.agility}}{{#with effectBadges.abilityAgility as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}">{{badge.label}}</span>{{/with}}</small></h3>
             {{#each skillsByAbility.agility as |skill|}}<div class="skill-line"><button type="button" class="skill-name-roll" data-action="roll-skill" data-mod="{{skill.mod}}">{{skill.name}}</button><span>{{skill.time}}</span><select data-action="select-skill-class" data-skill-key="{{skill.key}}">{{#each skill.options as |option|}}<option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>{{/each}}</select><span>{{skill.level}}</span><button type="button" data-action="roll-skill" data-mod="{{skill.mod}}">{{skill.mod}}</button></div>{{/each}}
-            <h3>Strength <small>Ability Score Bonus {{calculated.bonuses.strength}}</small></h3>
+            <h3>Strength <small>Ability Score Bonus {{calculated.bonuses.strength}}{{#with effectBadges.abilityStrength as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}">{{badge.label}}</span>{{/with}}</small></h3>
             {{#each skillsByAbility.strength as |skill|}}<div class="skill-line"><button type="button" class="skill-name-roll" data-action="roll-skill" data-mod="{{skill.mod}}">{{skill.name}}</button><span>{{skill.time}}</span><select data-action="select-skill-class" data-skill-key="{{skill.key}}">{{#each skill.options as |option|}}<option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>{{/each}}</select><span>{{skill.level}}</span><button type="button" data-action="roll-skill" data-mod="{{skill.mod}}">{{skill.mod}}</button></div>{{/each}}
-            <h3>Intelligence <small>Ability Score Bonus {{calculated.bonuses.intelligence}}</small></h3>
+            <h3>Intelligence <small>Ability Score Bonus {{calculated.bonuses.intelligence}}{{#with effectBadges.abilityIntelligence as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}">{{badge.label}}</span>{{/with}}</small></h3>
             {{#each skillsByAbility.intelligence as |skill|}}<div class="skill-line"><button type="button" class="skill-name-roll" data-action="roll-skill" data-mod="{{skill.mod}}">{{skill.name}}</button><span>{{skill.time}}</span><select data-action="select-skill-class" data-skill-key="{{skill.key}}">{{#each skill.options as |option|}}<option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>{{/each}}</select><span>{{skill.level}}</span><button type="button" data-action="roll-skill" data-mod="{{skill.mod}}">{{skill.mod}}</button></div>{{/each}}
-            <h3>Spirit <small>Ability Score Bonus {{calculated.bonuses.spirit}}</small></h3>
+            <h3>Spirit <small>Ability Score Bonus {{calculated.bonuses.spirit}}{{#with effectBadges.abilitySpirit as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}">{{badge.label}}</span>{{/with}}</small></h3>
             {{#each skillsByAbility.spirit as |skill|}}<div class="skill-line"><button type="button" class="skill-name-roll" data-action="roll-skill" data-mod="{{skill.mod}}">{{skill.name}}</button><span>{{skill.time}}</span><select data-action="select-skill-class" data-skill-key="{{skill.key}}">{{#each skill.options as |option|}}<option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>{{/each}}</select><span>{{skill.level}}</span><button type="button" data-action="roll-skill" data-mod="{{skill.mod}}">{{skill.mod}}</button></div>{{/each}}
           </div>
           <small class="skill-footnote">* Rangers may only apply these modifiers in Natural Environments.</small>
@@ -132,11 +136,11 @@
               <div class="ability-pair-official">
                 {{#each group.abilities as |ability|}}
                 <div class="ability-tower">
-                  <label class="adjust-diamond"><span>Adjust</span><input type="number" name="system.abilityAdjustments.{{ability.key}}.correction" value="{{ability.correction}}"></label>
+                  <label class="adjust-diamond"><span>Adjust</span><span class="adjust-value">{{#if (gt ability.correction 0)}}<span class="adjust-sign">+</span>{{/if}}<input type="number" name="system.abilityAdjustments.{{ability.key}}.correction" value="{{ability.correction}}"></span></label>
                   <label class="growth-box"><span>Growth</span><input type="number" name="system.abilityAdjustments.{{ability.key}}.growth" value="{{ability.growth}}"></label>
                   <label class="temporary-box"><span>Temp</span><input type="number" name="system.abilityAdjustments.{{ability.key}}.temporary" value="{{ability.temporary}}"></label>
-                  <div class="score-octagon"><span>{{ability.name}}</span><strong>{{ability.score}}</strong></div>
-                  <div class="bonus-orb"><span>Bonus</span><strong>{{ability.bonus}}</strong></div>
+                  <div class="score-octagon"><span>{{ability.name}}</span><strong>{{ability.score}}{{#with ability.effectBadge as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{ability.scoreBase}}">{{badge.label}}</span>{{/with}}</strong></div>
+                  <div class="bonus-orb"><span>Bonus</span><strong>{{ability.bonus}}{{#with ability.effectBadge as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base score {{ability.scoreBase}}">{{badge.label}}</span>{{/with}}</strong></div>
                 </div>
                 {{/each}}
               </div>
@@ -166,7 +170,7 @@
 <label style="display:flex;flex-direction:column;align-items:flex-start;gap:4px;"><span style="white-space:nowrap;">Monster Knowledge Class</span><span style="display:flex;align-items:center;gap:6px;flex-wrap:nowrap;"><input type="checkbox" data-action="toggle-monster-knowledge-auto" {{checked monsterKnowledgeAuto}} title="Automatic: the best currently valid class is used and recalculated on every evaluation (immediately when any class changes). Picking a class in the dropdown unticks the tick and keeps that class until you tick again." style="width:auto;height:auto;"><select data-action="select-monster-knowledge-class" title="With the tick on: automatic — the best currently valid class recalculates on every evaluation. Picking a class here unticks the tick and pins it.">{{#each monsterKnowledgeOptions as |option|}}<option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>{{/each}}</select><span style="white-space:nowrap;">Class Lv <strong>{{calculated.monsterKnowledgeClassLevel}}</strong></span></span></label>
 <div class="special-check-control"><button type="button" data-action="roll-check" data-check="monsterKnowledge"><span>Monster Knowledge</span><strong>{{calculated.monsterKnowledge}}</strong></button><label><span>Bonus</span><input type="number" name="system.combat.monsterKnowledgeBonus" value="{{calculated.monsterKnowledgeBonus}}"></label></div>
         <label><span>Initiative Class</span><select data-action="select-initiative-class">{{#each initiativeClassChoices as |choice|}}<option value="{{choice.value}}" {{#if choice.selected}}selected{{/if}}>{{choice.label}}</option>{{/each}}</select><span>Class Lv <strong>{{calculated.initiativeClassLevel}}</strong></span></label>
-<div class="special-check-control"><button type="button" data-action="roll-check" data-check="initiative"><span>Initiative</span><strong>{{calculated.initiative}}</strong></button><label><span>Bonus</span><input type="number" name="system.combat.initiativeBonus" value="{{calculated.initiativeBonus}}"></label></div>
+<div class="special-check-control"><button type="button" data-action="roll-check" data-check="initiative"><span>Initiative</span><strong>{{calculated.initiative}}{{#with effectBadges.initiative as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.initiativeBase}}">{{badge.label}}</span>{{/with}}</strong></button><label><span>Bonus</span><input type="number" name="system.combat.initiativeBonus" value="{{calculated.initiativeBonus}}"></label></div>
 </div></section>
         <section class="paper-panel movement-box"><h2>Movement</h2><div class="movement-track"><label>Limited Move<input type="number" value="3" disabled></label><label>Normal Move <small>(Agility Score)</small><input type="number" value="{{calculated.normalMove}}" disabled></label><label>Full Move<input type="number" value="{{calculated.fullMove}}" disabled></label></div><input type="text" name="system.combat.movementEnhancements" value="{{system.combat.movementEnhancements}}" placeholder="Movement enhancements"></section>
         <section class="paper-panel hp-box">
@@ -180,13 +184,13 @@
                 <span class="resource-divider">/</span>
                 <input class="resource-max" type="number" name="system.hp.max" value="{{calculated.hpMax}}" aria-label="Maximum HP" readonly>
               </div>
-              <div class="resource-max-caption">MAX HP</div>
+              <div class="resource-max-caption">MAX HP{{#with effectBadges.hpMax as |badge|}} <span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.hpMax}}">{{badge.label}}</span>{{/with}}</div>
             </div>
           </div>
           <small>Adventurer Level × 3 + Vitality</small>
         </section>
         <section class="paper-panel accessories-box"><h2>Accessories <button type="button" class="panel-add" data-action="import-accessory" title="Import accessory"><i class="fas fa-file-import"></i></button></h2><div class="accessory-table"><div><strong>Section</strong><strong>Accessory</strong></div>{{#each accessoryRows as |row|}}<label><span>{{row.label}}</span><input type="text" name="system.accessories.{{row.key}}" value="{{row.value}}"></label>{{/each}}</div></section>
-        <section class="paper-panel defense-box"><h2>Defensive Combat Stats <button type="button" class="panel-add" data-action="add-armour"><i class="fas fa-plus"></i></button></h2><div class="defense-selector evasion-builder"><label>Defense Class<select data-action="select-defense-class"><option value="">—</option>{{#each defenseClassChoices as |choice|}}<option value="{{choice.value}}" {{#if choice.selected}}selected{{/if}}>{{choice.label}}</option>{{/each}}</select></label><span>Class Lv <strong>{{calculated.defenseClassLevel}}</strong></span><span>Agility Bonus <strong>{{calculated.bonuses.agility}}</strong></span><label>Situational Evasion Modifier <input type="number" name="system.combat.situationalEvasion" value="{{calculated.situationalEvasion}}"></label></div><div class="defense-table"><div class="def-head"><span>Armour / Shield</span><span title="Equipped">Eq</span><span title="Minimum Strength">STR</span><span title="Evasion">Eva</span><span title="Defense">Def</span><span title="Magical Defense">M.Def</span><span aria-label="Delete" title="Delete"><i class="fas fa-trash"></i></span></div>{{#each armour as |item|}}<div class="armour-entry" data-item-id="{{item.id}}"><div class="armour-name-cell"><button type="button" class="paper-link" data-action="toggle-armour">{{item.name}}</button>{{#if item.system.notes}}<small>{{item.system.notes}}</small>{{/if}}</div><label class="armour-equipped" title="Only equipped armour applies its modifiers"><input type="checkbox" data-action="toggle-armour-equipped" {{checked item.system.equipped}}><span class="sr-only">Equipped</span></label><span>{{item.system.minStrength}}</span><span>{{item.system.evasion}}</span><span>{{item.system.defence}}</span><span>{{item.system.magicalDefence}}</span><button type="button" class="armour-delete" data-action="delete-armour" title="Delete armour"><i class="fas fa-trash"></i></button></div>{{else}}<p class="paper-empty">No armour</p>{{/each}}</div><div class="defense-totals"><span>Defense <strong>{{calculated.defense}}</strong></span><span>Magical Defense <strong>{{calculated.magicalDefense}}</strong></span></div><div class="resistance-strip"><button type="button" data-action="roll-check" data-check="fortitude">Fortitude <strong>{{calculated.fortitude}}</strong></button><button type="button" data-action="roll-check" data-check="willpower">Willpower <strong>{{calculated.willpower}}</strong></button><button type="button" data-action="roll-check" data-check="evasion">Evasion <strong>{{calculated.evasion}}</strong></button></div></section>
+        <section class="paper-panel defense-box"><h2>Defensive Combat Stats <button type="button" class="panel-add" data-action="add-armour"><i class="fas fa-plus"></i></button></h2><div class="defense-selector evasion-builder"><label>Defense Class<select data-action="select-defense-class"><option value="">—</option>{{#each defenseClassChoices as |choice|}}<option value="{{choice.value}}" {{#if choice.selected}}selected{{/if}}>{{choice.label}}</option>{{/each}}</select></label><span>Class Lv <strong>{{calculated.defenseClassLevel}}</strong></span><span>Agility Bonus <strong>{{calculated.bonuses.agility}}</strong></span><label>Situational Evasion Modifier <input type="number" name="system.combat.situationalEvasion" value="{{calculated.situationalEvasion}}"></label></div><div class="defense-table"><div class="def-head"><span>Armour / Shield</span><span title="Equipped">Eq</span><span title="Minimum Strength">STR</span><span title="Evasion">Eva</span><span title="Defense">Def</span><span title="Magical Defense">M.Def</span><span aria-label="Delete" title="Delete"><i class="fas fa-trash"></i></span></div>{{#each armour as |item|}}<div class="armour-entry" data-item-id="{{item.id}}"><div class="armour-name-cell"><button type="button" class="paper-link" data-action="toggle-armour">{{item.name}}</button>{{#if item.system.notes}}<small>{{item.system.notes}}</small>{{/if}}</div><label class="armour-equipped" title="Only equipped armour applies its modifiers"><input type="checkbox" data-action="toggle-armour-equipped" {{checked item.system.equipped}}><span class="sr-only">Equipped</span></label><span>{{item.system.minStrength}}</span><span>{{item.system.evasion}}</span><span>{{item.system.defence}}</span><span>{{item.system.magicalDefence}}</span><button type="button" class="armour-delete" data-action="delete-armour" title="Delete armour"><i class="fas fa-trash"></i></button></div>{{else}}<p class="paper-empty">No armour</p>{{/each}}</div><div class="defense-totals"><span>Defense <strong>{{calculated.defense}}{{#with effectBadges.defense as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.defenseBase}}">{{badge.label}}</span>{{/with}}</strong></span><span>Magical Defense <strong>{{calculated.magicalDefense}}{{#with effectBadges.magicalDefense as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.magicalDefenseBase}}">{{badge.label}}</span>{{/with}}</strong></span></div><div class="resistance-strip"><button type="button" data-action="roll-check" data-check="fortitude">Fortitude <strong>{{calculated.fortitude}}{{#with effectBadges.fortitude as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.fortitudeBase}}">{{badge.label}}</span>{{/with}}</strong></button><button type="button" data-action="roll-check" data-check="willpower">Willpower <strong>{{calculated.willpower}}{{#with effectBadges.willpower as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.willpowerBase}}">{{badge.label}}</span>{{/with}}</strong></button><button type="button" data-action="roll-check" data-check="evasion">Evasion <strong>{{calculated.evasion}}{{#with effectBadges.evasion as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.evasionBase}}">{{badge.label}}</span>{{/with}}</strong></button></div></section>
         <section class="paper-panel magic-box"><h2>Spells &amp; Magic</h2>
           <div class="mp-crystal">
             <div class="mp-crystal-inner">
@@ -197,10 +201,10 @@
                 <span class="resource-divider">/</span>
                 <input class="resource-max" type="number" value="{{calculated.mpMax}}" disabled aria-label="Maximum MP">
               </div>
-              <div class="resource-max-caption">MAX MP</div>
+              <div class="resource-max-caption">MAX MP{{#with effectBadges.mpMax as |badge|}} <span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.mpMax}}">{{badge.label}}</span>{{/with}}</div>
             </div>
           </div>
-          <div class="page-two-magic-power"><select data-action="select-magic-class" aria-label="Wizard class"><option value="">— Wizard Class —</option>{{#each magicClassChoices as |choice|}}<option value="{{choice.value}}" {{#if choice.selected}}selected{{/if}}>{{choice.label}}</option>{{/each}}</select><button type="button" class="magic-power-roll" data-action="roll-check" data-check="magicPower">Magic Power <strong>{{calculated.magicPower}}</strong></button></div><div class="magic-list">{{#each favouriteSpellLevels as |levelGroup|}}<h3 class="spell-level-heading">{{levelGroup.label}}</h3>{{#each levelGroup.items as |item|}}<div data-item-id="{{item.id}}"><button type="button" class="paper-link" data-action="edit-item">{{item.name}}</button><span>Lv {{item.system.level}}</span><span>MP {{item.system.mpCost}}</span><button type="button" data-action="cast-spell">Cast</button></div>{{/each}}{{else}}<p class="paper-empty">No favourite spells</p>{{/each}}</div></section>
+          <div class="page-two-magic-power"><select data-action="select-magic-class" aria-label="Wizard class"><option value="">— Wizard Class —</option>{{#each magicClassChoices as |choice|}}<option value="{{choice.value}}" {{#if choice.selected}}selected{{/if}}>{{choice.label}}</option>{{/each}}</select><button type="button" class="magic-power-roll" data-action="roll-check" data-check="magicPower">Magic Power <strong>{{calculated.magicPower}}{{#with effectBadges.magicPower as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.magicPowerBase}}">{{badge.label}}</span>{{/with}}</strong></button></div><div class="magic-list">{{#each favouriteSpellLevels as |levelGroup|}}<h3 class="spell-level-heading">{{levelGroup.label}}</h3>{{#each levelGroup.items as |item|}}<div data-item-id="{{item.id}}"><button type="button" class="paper-link" data-action="edit-item">{{item.name}}</button><span>Lv {{item.system.level}}</span><span>MP {{item.system.mpCost}}</span><button type="button" data-action="cast-spell">Cast</button></div>{{/each}}{{else}}<p class="paper-empty">No favourite spells</p>{{/each}}</div></section>
         <section class="paper-panel feats-box">
           <h2>Combat Feats <button type="button" class="panel-add" data-action="add-feat"><i class="fas fa-plus"></i></button></h2>
           <div class="feat-list">
@@ -230,7 +234,7 @@
             {{/each}}
           </div>
         </section>
-        <section class="paper-panel offense-box"><h2>Offensive Combat Stats <button type="button" class="panel-add" data-action="add-weapon"><i class="fas fa-plus"></i></button></h2><div class="offense-selector"><label>Attacking Class<select data-action="select-offense-class"><option value="">—</option>{{#each offenseClassChoices as |choice|}}<option value="{{choice.value}}" {{#if choice.selected}}selected{{/if}}>{{choice.label}}</option>{{/each}}</select></label><label>Accuracy Mod <input type="number" name="system.combat.accuracyMod" value="{{system.combat.accuracyMod}}"></label><label>Accuracy <strong>{{calculated.accuracy}}</strong></label><label>Extra Damage <strong>{{calculated.extraDamage}}</strong></label><label>Damage Bonus <input type="number" name="system.combat.additionalDamage" value="{{system.combat.additionalDamage}}" title="Circumstantial Damage"></label></div><div class="weapon-table">
+        <section class="paper-panel offense-box"><h2>Offensive Combat Stats <button type="button" class="panel-add" data-action="add-weapon"><i class="fas fa-plus"></i></button></h2><div class="offense-selector"><label>Attacking Class<select data-action="select-offense-class"><option value="">—</option>{{#each offenseClassChoices as |choice|}}<option value="{{choice.value}}" {{#if choice.selected}}selected{{/if}}>{{choice.label}}</option>{{/each}}</select></label><label>Accuracy Mod <input type="number" name="system.combat.accuracyMod" value="{{system.combat.accuracyMod}}"></label><label>Accuracy <strong>{{calculated.accuracy}}</strong>{{#with effectBadges.accuracy as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.accuracyBase}}">{{badge.label}}</span>{{/with}}</label><label>Extra Damage <strong>{{calculated.extraDamage}}</strong>{{#with effectBadges.extraDamage as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.extraDamageBase}}">{{badge.label}}</span>{{/with}}</label><label>Damage Bonus <input type="number" name="system.combat.additionalDamage" value="{{system.combat.additionalDamage}}" title="Circumstantial Damage"></label></div><div class="weapon-table">
           <div class="weapon-head">
             <span>Weapon</span><span>Stance</span><span>Min STR</span><span>Accuracy</span><span>Power</span><span class="power-result-heading">3</span><span class="power-result-heading">4</span><span class="power-result-heading">5</span><span class="power-result-heading">6</span><span class="power-result-heading">7</span><span class="power-result-heading">8</span><span class="power-result-heading">9</span><span class="power-result-heading">10</span><span class="power-result-heading">11</span><span class="power-result-heading">12</span><span>Crit</span><span>Add. Damage</span><span>Roll</span><span>Mods?</span><span>Delete</span>
           </div>
@@ -256,6 +260,46 @@
             <p class="paper-empty">No weapons</p>
           {{/each}}
         </div></section>
+      </div>
+    </div>
+
+    <div class="sheet-tab" data-tab-panel="effects">
+      <div class="official-page effects-page">
+        <section class="paper-panel effects-panel">
+          <h2>Effects{{#if effectsTab.canRepair}}<span class="class-feature-heading-actions"><button type="button" class="effects-repair" data-action="repair-sw25-effect-data" title="Normalize and repair the data of this sheet's persistent effects. GM only: no write is made when nothing needs fixing; newer-schema and irrecoverable data are never touched."><i class="fas fa-wrench"></i> Repair Data</button></span>{{/if}}</h2>
+          <div class="effects-head"><span>Effect</span><span>SV</span><span>Duration</span><span>Source</span><span>State</span></div>
+          <div class="effects-list">
+            {{#if effectsTab.nativeStatusRow}}
+            <div class="effects-row native-status">
+              <span class="effect-name-cell">
+                <img class="effect-icon" src="{{effectsTab.nativeStatusRow.img}}" alt="" title="{{effectsTab.nativeStatusRow.name}}">
+                <span class="native-status-name">{{effectsTab.nativeStatusRow.displayName}}</span>
+                <span class="native-status-badge" title="Native Foundry status, kept in sync with this actor's HP by the system (applied at 0 or fewer HP, removed when HP rises above 0). No duration, no anchor, no manageability.">Native</span>
+              </span>
+              <span class="effect-sv">—</span>
+              <span class="effect-duration">—</span>
+              <span class="effect-source">—</span>
+              <span class="effect-state">{{effectsTab.nativeStatusRow.stateLabel}}</span>
+            </div>
+            {{/if}}
+            {{#each effectsTab.rows as |row|}}
+            <div class="effects-row{{#if row.needsReview}} needs-review{{/if}}">
+              <span class="effect-name-cell">
+                {{#if row.img}}<img class="effect-icon" src="{{row.img}}" alt="" title="{{row.name}}">{{else}}<i class="effect-icon fas fa-magic" title="{{row.name}}"></i>{{/if}}
+                <button type="button" class="paper-link effect-name" data-action="inspect-sw25-effect" data-effect-id="{{row.id}}" title="Inspect this effect">{{row.displayName}}</button>
+                {{#if row.needsReview}}<i class="fas fa-triangle-exclamation effect-review-flag" title="Data needs review"></i>{{/if}}
+              </span>
+              <span class="effect-sv">{{row.successValueLabel}}</span>
+              <span class="effect-duration" title="{{row.durationTitle}}">{{row.durationLabel}}</span>
+              <span class="effect-source" title="{{row.originUUID}}">{{#if row.originLabel}}{{row.originLabel}}{{else}}—{{/if}}</span>
+              <span class="effect-state">{{row.stateLabel}}</span>
+            </div>
+            {{else}}
+            <p class="paper-empty">No persistent effects.</p>
+            {{/each}}
+          </div>
+          {{#if effectsTab.reviewNote}}<p class="effects-review-note"><i class="fas fa-triangle-exclamation"></i> {{effectsTab.reviewNote}}</p>{{/if}}
+        </section>
       </div>
     </div>
 
