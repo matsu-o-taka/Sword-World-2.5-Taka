@@ -22,11 +22,41 @@ import { initializeStandardScenes } from "./module/scenes/standard-scenes.mjs";
 import { initializeMonsterKnowledgeRegistry, getOrCreateMkRegistryFolder, getOrCreateSessionFolder, getOrCreateCampaignFolder } from "./module/knowledge/monster-knowledge-registry.mjs";
 import { initializeMonsterKnowledgeRelay } from "./module/knowledge/mk-relay.mjs";
 import { MKRegistryManagerApp } from "./module/ui/mk-registry-manager.mjs";
+import { SW25EffectModel } from "./module/effects/effect-model.mjs";
+import { initializeEffectService, registerSw25StackingResolver } from "./module/effects/effect-service.mjs";
+import { initializeEffectRelay } from "./module/effects/effect-relay.mjs";
+import { resolveSw25Stacking } from "./module/effects/stacking-resolver.mjs";
+import { installSw25EffectiveValues, sw25EffectModifier } from "./module/effects/effective-values.mjs";
+import { initializeDefeatedStatusSync } from "./module/actor/defeated-status.mjs";
 
 
 Hooks.once("init", () => {
   game.sw25 = { importer: SW25Importer, mkRegistry: MKRegistryManagerApp };
   console.log("Sword World 2.5 | Initializing");
+
+  // Register the system's ActiveEffect subtype data model (T1.2). The subtype
+  // "sw25Effect" is declared in system.json documentTypes; this registration
+  // must happen at init, before any effect of the subtype can be created.
+  Object.assign(CONFIG.ActiveEffect.dataModels, {
+    sw25Effect: SW25EffectModel
+  });
+
+  // Effective values pipeline (T3.2): the single processing point for the
+  // system's persistent effects inside the Actor preparation flow (DEC-28).
+  installSw25EffectiveValues();
+
+  // HP → DEFEATED status sync: one GM-side `updateActor` listener keeps the
+  // native Foundry DEFEATED status aligned with HP (≤ 0 applied, > 0
+  // removed) across every HP write path. Native status only — it never
+  // creates `sw25Effect` documents and never enters the duration engine,
+  // which keeps consuming `Combatant#isDefeated` untouched.
+  initializeDefeatedStatusSync();
+
+  // Central stacking resolver (Bloque 4/T4.4): the production registration of
+  // the versioned policy resolver (DEC-44). With it, EffectService.apply
+  // consults the approved stacking policies before any write; suites that
+  // never register a resolver keep the documented "accumulate" default.
+  registerSw25StackingResolver(resolveSw25Stacking);
 
   // Keep the system stylesheet after Foundry's core theme styles. Foundry V14
   // otherwise allows core form/button rules to win depending on load order.
@@ -120,6 +150,13 @@ Hooks.once("ready", initializeStandardScenes);
 Hooks.once("ready", initializeConcealedMainSection);
 Hooks.once("ready", initializeMonsterKnowledgeRegistry);
 Hooks.once("ready", initializeMonsterKnowledgeRelay);
+// EffectService (T2.1): write guards for the system's sw25Effect subtype.
+// Effect relay (T2.2): player -> GM transport for persistent effect writes.
+// Both are wired separately from the Monster Knowledge relay (functional
+// separation required by DEC-36); they register on the same shared socket
+// channel but dispatch by their own `effect-*` actions.
+Hooks.once("ready", initializeEffectService);
+Hooks.once("ready", initializeEffectRelay);
 // F2-T2 consumer integration: open monster sheets repaint their Weak Point
 // indicator when the Monster Knowledge Registry setting changes on this client.
 Hooks.once("ready", initializeMonsterSheetKnowledgeSync);
@@ -139,6 +176,28 @@ Hooks.on("renderItemDirectory", (_application, html) => {
   button.addEventListener("click", event => {
     event.preventDefault();
     SW25Importer.open(null);
+  });
+  actions.append(button);
+});
+
+// GM-only "Import Monster" entry point on the Actors directory. Opens the
+// existing monster import selection interface and creates a new Actor from the
+// imported data, which then appears in the Actors directory automatically.
+Hooks.on("renderActorDirectory", (_application, html) => {
+  if (!game.user.isGM) return;
+  const root = html instanceof HTMLElement ? html : html?.[0];
+  if (!root || root.querySelector("[data-sw25-directory-import-monster]")) return;
+  const actions = root.querySelector(".header-actions") || root.querySelector(".directory-header");
+  if (!actions) return;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "sw25-directory-import-monster";
+  button.dataset.sw25DirectoryImportMonster = "true";
+  button.innerHTML = '<i class="fas fa-file-import"></i> Import Monster';
+  button.title = "Import a monster from the Sword World 2.5 Reference Wiki as a new Actor";
+  button.addEventListener("click", event => {
+    event.preventDefault();
+    SW25Importer.openMonsterImport();
   });
   actions.append(button);
 });
@@ -182,7 +241,12 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
       const diceTotal = Number(roll.total ?? 0);
       const lookup = String(Math.min(12, Math.max(3, diceTotal)));
       const tableValue = Number(spell.system.powerTable?.[lookup] ?? 0);
-      const magicPower = Number(castingClass.system.level ?? 0) + abilityBonus(actor.system, "intelligence");
+      // Effective Magic Power (DEC-28): base formula + the prepared effect
+      // ledger's combat.magicPower entry (ability mods already flow through
+      // abilityBonus). No independent effect reconstruction here.
+      const magicPower = Number(castingClass.system.level ?? 0)
+        + abilityBonus(actor.system, "intelligence")
+        + sw25EffectModifier(actor, "combat.magicPower");
       const total = tableValue + magicPower;
       const critical = Number(spell.system.critical ?? 0);
       await ChatMessage.create({

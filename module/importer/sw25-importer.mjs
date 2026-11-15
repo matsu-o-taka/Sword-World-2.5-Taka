@@ -615,6 +615,80 @@ export class SW25Importer {
     throw new Error("This page type is not supported yet.");
   }
 
+  /**
+   * Import a monster page from the SW25 Reference Wiki as a brand-new Actor.
+   *
+   * Reuses the existing importer's data transformation (parseMonsterPage +
+   * validateMonsterProfile) but, instead of updating an existing monster
+   * actor, creates a new `monster` Actor whose parsed system data becomes the
+   * new actor's `system`. The created actor is returned and appears in the
+   * Actors directory automatically.
+   *
+   * @param {string} url - A sw25.wikidot.com monster page URL.
+   * @returns {Promise<Actor>} The newly created monster Actor.
+   */
+  static async createMonsterFromUrl(url) {
+    const normalized = this.normalizeUrl(url);
+    const slug = decodeURIComponent(new URL(normalized).pathname.replace(/^\//, ""));
+    if (!slug.startsWith("monster:")) {
+      throw new Error("Only monster pages can be imported this way.");
+    }
+    const fetched = await this.fetchPage(normalized);
+    const parsed = parseMonsterPage(fetched.text, normalized);
+    validateMonsterProfile(parsed);
+    const actor = await Actor.create({
+      name: parsed.name,
+      type: "monster",
+      system: parsed.system
+    });
+    return actor;
+  }
+
+  /**
+   * Open the monster import dialog and, on confirmation, create a new Actor
+   * from the imported monster data. GM-only entry point from the Actors
+   * directory.
+   *
+   * @returns {Promise<Actor|null>} The created monster Actor, or null if cancelled/failed.
+   */
+  static async openMonsterImport() {
+    const content = `
+      <form class="sw25-import-form">
+        <p>Paste a Sword World 2.5 Reference Wiki monster page URL (e.g. <code>http://sw25.wikidot.com/monster:goblin</code>). A new monster Actor will be created from the imported data.</p>
+        <div class="form-group">
+          <label>Monster Page URL</label>
+          <input type="url" name="url" placeholder="http://sw25.wikidot.com/monster:goblin" autofocus>
+        </div>
+        <p class="notes">Imported data is stored locally. The source website is not needed afterward.</p>
+      </form>`;
+    return new Promise(resolve => {
+      new Dialog({
+        title: "Import Monster",
+        content,
+        buttons: {
+          import: {
+            icon: '<i class="fas fa-file-import"></i>',
+            label: "Import",
+            callback: async html => {
+              const url = String(html.find('[name="url"]').val() ?? '').trim();
+              try {
+                const actor = await this.createMonsterFromUrl(url);
+                ui.notifications.info(`Monster imported: ${actor.name}.`);
+                resolve(actor);
+              } catch (error) {
+                console.error("Sword World 2.5 | Monster import failed", error);
+                ui.notifications.error(error.message || "The monster could not be imported.");
+                resolve(null);
+              }
+            }
+          },
+          cancel: { label: "Cancel", callback: () => resolve(null) }
+        },
+        default: "import"
+      }).render(true);
+    });
+  }
+
   static async selectEquipment(tables = []) {
     const categoryOptions = tables.map((table, index) => `<option value="${index}">${foundry.utils.escapeHTML(table.name)} (${table.items.length})</option>`).join("");
     const categoryIndex = await new Promise(resolve => new Dialog({
