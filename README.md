@@ -21,10 +21,16 @@ A note from me: I am not a programmer. I am building and maintaining this fork a
 - **Spell drag & drop** — spells dropped on a character go straight to the viewed class page or open a wizard-type picker.
 - **Standard combat maps** — Combat A, Combat B and Coliseum scenes auto-created in a Simplified Combat Battlefields folder.
 
-## v0.19.1 - Monster import moved to Actors directory, species fallback
+## v0.19.1 - Monster import moved to Actors directory, character sheet visuals and portrait gauges
 
 - **Monster import entry point relocated** — the Import button was removed from the monster sheet and a new GM-only **"Import Monster"** action was added to the Actors directory. It opens the existing wiki import interface and creates a **brand-new monster Actor** from the imported data (no need to select a destination actor); the new monster appears in the Actors directory automatically.
 - **Species fallback** — when the wiki does not provide a Species field, `species` defaults to the creature's own name, mirroring the previous import-into-actor behavior.
+- **Character sheet visual overhaul** — reorganized sheet panels and styling across character, NPC and Fellow sheets (`templates/actor/character-sheet.hbs`, `templates/actor/npc-sheet.hbs`, `templates/actor/fellow-sheet.hbs`, `styles/sw25.css`).
+- **Portrait gauges** — new `module/actor/portrait-gauges.mjs` (779 lines) rendering HP/MP gauges around the actor portrait, with dedicated tests (`scripts/portrait-gauges.test.mjs`).
+- **Resource maxima** — new `module/actor/resource-maxima.mjs` (257 lines) computing derived resource maximums from actor data, with dedicated tests (`scripts/resource-maxima.test.mjs`).
+- **Effect values & tab** — improvements to `module/effects/effective-values.mjs` and `module/effects/effects-tab.mjs` for effect value resolution and tab presentation.
+- **Resources & recovery** — updates to `module/rules/resources.mjs` and `module/rules/recovery-items.mjs` for resource tracking and recovery-item logic.
+- **Combat maps** — Combat A and Combat B maps replaced with higher-resolution `.webp` versions; old `.png` adventurer sheet background removed in favor of `.webp`.
 
 ## v0.19.0 - GM-only Effects presentation, Concealed Main Section plaintext storage, monster sheet Effects section
 
