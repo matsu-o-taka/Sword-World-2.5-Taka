@@ -6,7 +6,7 @@ This is a fork of [Sword-World-2.5-Foundry](https://github.com/DaedaIus/Sword-Wo
 
 A note from me: I am not a programmer. I am building and maintaining this fork as a hobby, with the help of AI, purely as a fan of Sword World 2.5. I test everything as I go hoping it works, but expect rough edges.
 
-![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sw25--taka%200.19.0%2B-blue)
+![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sw25--taka%200.19.1%2B-blue)
 
 ## Features at a glance
 
@@ -20,6 +20,11 @@ A note from me: I am not a programmer. I am building and maintaining this fork a
 - **Skill checks** — reorganized catalogue with per-check class lists and automatic highest-level selection.
 - **Spell drag & drop** — spells dropped on a character go straight to the viewed class page or open a wizard-type picker.
 - **Standard combat maps** — Combat A, Combat B and Coliseum scenes auto-created in a Simplified Combat Battlefields folder.
+
+## v0.19.1 - Monster import moved to Actors directory, species fallback
+
+- **Monster import entry point relocated** — the Import button was removed from the monster sheet and a new GM-only **"Import Monster"** action was added to the Actors directory. It opens the existing wiki import interface and creates a **brand-new monster Actor** from the imported data (no need to select a destination actor); the new monster appears in the Actors directory automatically.
+- **Species fallback** — when the wiki does not provide a Species field, `species` defaults to the creature's own name, mirroring the previous import-into-actor behavior.
 
 ## v0.19.0 - GM-only Effects presentation, Concealed Main Section plaintext storage, monster sheet Effects section
 

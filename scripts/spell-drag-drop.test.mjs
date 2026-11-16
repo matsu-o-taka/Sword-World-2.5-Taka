@@ -9,7 +9,7 @@ globalThis.Item.fromDropData = async (data) => {
 const Item = globalThis.Item;
 
 globalThis.Dialog = globalThis.Dialog || class {
-  static async render(options) {
+  async render(options) {
     return new Promise(resolve => resolve(null));
   };
 };
@@ -68,6 +68,8 @@ function makeMockActor(items = [], flags = {}) {
 
   const actor = {
     id: `actor-${Math.random().toString(36).slice(2)}`,
+    uuid: null,
+    documentName: "Actor",
     name: "Test Actor",
     type: "character",
     items: actorItems,
@@ -76,12 +78,21 @@ function makeMockActor(items = [], flags = {}) {
       return actorItems.createEmbeddedDocuments(type, docs);
     },
   };
+  actor.uuid = `Actor.${actor.id}`;
+  // Pre-placed items mirror real embedded Items: parent = the owning actor
+  // (uuid + documentName), owner rights, and a working delete().
+  for (const item of itemsArray) {
+    item.parent = actor;
+    item.isOwner = true;
+    item.delete = async () => actorItems.remove(item.id);
+  }
   actor.setFlag = async function(scope, key, value) {
     if (!this.flags[scope]) this.flags[scope] = {};
     this.flags[scope][key] = value;
   };
   return actor;
 }
+
 
 function makeMockClassItem(id, name, level = 1) {
   return {
@@ -98,7 +109,10 @@ function makeMockSpellItem(id, name, classId = "", className = "", school = "") 
     name,
     type: "spell",
     system: { classId, className, school, level: 1, mpCost: 0 },
-    async toObject() {
+    // Foundry's Item#toObject is synchronous; an async mock would return a
+    // Promise and `{ ...doc }` inside createEmbeddedDocuments would copy
+    // nothing, breaking the drag & drop copy assertions.
+    toObject() {
       return { ...this, system: { ...this.system } };
     },
   };
@@ -110,9 +124,26 @@ function makeMockWeaponItem(id, name, system = {}) {
     name,
     type: "weapon",
     system,
-    async toObject() {
+    toObject() {
       return { ...this, system: { ...this.system } };
     },
+  };
+}
+
+/**
+ * Dialog mock matching how the sheet drives the real Dialog: the promise is
+ * resolved by the BUTTON callbacks (or `close`) inside the constructor data,
+ * never by render's own return value. `choice` is the button label the mock
+ * user presses; null presses nothing and only closes (resolves null).
+ */
+function makeDialogMock(choice) {
+  return class {
+    constructor(data) { this.data = data; }
+    async render() {
+      if (choice) this.data?.buttons?.[choice]?.callback?.();
+      else this.data?.close?.();
+      return this;
+    }
   };
 }
 
@@ -154,12 +185,6 @@ class MockSheet {
         return existing;
       }
 
-      console.log("DEBUG _onDropItem: calling createEmbeddedDocuments...");
-      console.log("DEBUG _onDropItem: this.actor.items =", this.actor.items, "typeof createEmbeddedDocuments =", typeof this.actor.items.createEmbeddedDocuments);
-      console.log("DEBUG _onDropItem: calling createEmbeddedDocuments...");
-      console.log("DEBUG _onDropItem: this.actor.items === actorItems:", this.actor.items === actorItems);
-      console.log("DEBUG _onDropItem: calling createEmbeddedDocuments...");
-      console.log("DEBUG _onDropItem: this.actor.items =", this.actor.items);
       const [created] = await this.actor.items.createEmbeddedDocuments("Item", [itemData]);
       ui.notifications.info(`${source.name} was copied to ${this.actor.name}.`);
       return created;
@@ -394,13 +419,7 @@ console.log("=== Test: Cross-actor spell drag & drop ===");
   mockDropSource = sourceWeapon;
 
   const originalDialog = globalThis.Dialog;
-  globalThis.Dialog = class {
-    static async render(options) {
-      return new Promise(resolve => {
-        resolve("move");
-      });
-    };
-  }
+  globalThis.Dialog = makeDialogMock("move");
 
   const result = await sheet._onDropItem({}, {});
 
@@ -425,13 +444,7 @@ console.log("=== Test: Cross-actor spell drag & drop ===");
   mockDropSource = sourceWeapon;
 
   const originalDialog = globalThis.Dialog;
-  globalThis.Dialog = class {
-    static async render(options) {
-      return new Promise(resolve => {
-        resolve("copy");
-      });
-    };
-  }
+  globalThis.Dialog = makeDialogMock("copy");
 
   const result = await sheet._onDropItem({}, {});
 
@@ -456,13 +469,7 @@ console.log("=== Test: Cross-actor spell drag & drop ===");
   mockDropSource = sourceWeapon;
 
   const originalDialog = globalThis.Dialog;
-  globalThis.Dialog = class {
-    static async render(options) {
-      return new Promise(resolve => {
-        resolve(null);
-      });
-    };
-  }
+  globalThis.Dialog = makeDialogMock(null);
 
   const result = await sheet._onDropItem({}, {});
 

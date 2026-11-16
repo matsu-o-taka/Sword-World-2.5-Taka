@@ -6,7 +6,7 @@ import { isExhaustiveSucking, regenerationSpellData, requestRegenerationSpell, r
 import { rollDeathCheck } from "../rules/death-check.mjs";
 import { criticalFailureHTML, markCriticalFailure } from "../rules/critical-failure.mjs";
 import { recoveryPowerTableHTML } from "../rules/recovery-items.mjs";
-import { characterHPMaximum } from "../rules/resources.mjs";
+import { characterHPMaximum, characterMPMaximum } from "../rules/resources.mjs";
 import { featureDefenseModifier } from "../rules/feature-defense.mjs";
 import { SKILL_DEFINITION_MAP, SKILL_DEFINITIONS } from "../rules/skill-definitions.mjs";
 import { AUTO_SELECTION, resolveClassAssignment, resolveSkillClass } from "../rules/skill-resolution.mjs";
@@ -16,7 +16,7 @@ import { characterWeaponAttackFlow, resolveAttackTarget, describeTargetFailure }
 import { readMonsterActorCombatStyles } from "./monster-sheet-data.mjs";
 import { rollMonsterKnowledge } from "../combat/monster-knowledge.mjs";
 import { prepareSw25EffectsTab } from "../effects/effects-tab.mjs";
-import { sw25EffectLedger, sw25EffectModifier } from "../effects/effective-values.mjs";
+import { sw25EffectLedger, sw25EffectModifier, sw25EffectiveResourceMaximum } from "../effects/effective-values.mjs";
 import { wireSw25EffectsTabHandlers } from "./effects-tab-ui.mjs";
 
 // Combat feat that grants Marksman access to Evasion calculation. Identified
@@ -108,9 +108,13 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     let savedSheetStyle = String(this.actor.getFlag("sw25-taka", "sheetStyle") ?? "light").toLowerCase();
     // Normalize legacy "paper" value to "light" for backward compatibility.
     if (savedSheetStyle === "paper") savedSheetStyle = "light";
-    context.sheetStyle = ["light", "adventurer"].includes(savedSheetStyle) ? savedSheetStyle : "light";
-    context.isLightStyle = context.sheetStyle === "light";
-    context.isAdventurerStyle = context.sheetStyle === "adventurer";
+    context.sheetStyle = ["light", "light-red"].includes(savedSheetStyle) ? savedSheetStyle : "light";
+    // "light-red" is a Light variant: the form carries the light theme class as
+    // well (see character-sheet.hbs), so Light-gated UI (portrait gauge toggle
+    // tooltip, gauges) applies to it too.
+    context.isLightStyle = true;
+    context.isPlainLightStyle = context.sheetStyle === "light";
+    context.isLightRedStyle = context.sheetStyle === "light-red";
 
     const byType = type => [...this.actor.items]
       .filter(item => item.type === type)
@@ -325,14 +329,13 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     const selectedMagicClassId = magicResolved.classId;
     const selectedClassLevel = id => Number(this.actor.items.get(id)?.system.level ?? 0);
     const adventurer = context.calculated.adventurerLevel;
+    /* The maxima are persisted by module/actor/resource-maxima.mjs through
+       lifecycle hooks — the sheet derives them here for presentation only
+       (no render side effects ever write actor data). */
     const formulaHP = characterHPMaximum(system, context.classes);
     context.calculated.hpMax = formulaHP;
-    if (this.actor.isOwner && Number(system.hp?.max ?? 0) !== formulaHP) {
-      await this.actor.update({ "system.hp.max":formulaHP }, { render:false });
-    }
-    context.calculated.mpMax = context.classes
-      .filter(item => /wizard/i.test(String(item.system.classType ?? "")))
-      .reduce((sum, item) => sum + Number(item.system.level ?? 0) * 3, 0) + abilities.spirit;
+    const formulaMP = characterMPMaximum(system, context.classes);
+    context.calculated.mpMax = formulaMP;
     context.calculated.sageLevel = context.classLevels.sage;
     context.calculated.riderLevel = context.classLevels.rider;
     // Monster Knowledge resolves through the same production resolver as the
@@ -421,9 +424,10 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     context.calculated.magicPower = context.calculated.magicPowerBase + Number(combatMods.magicPower ?? 0);
     // HP/MP maxima: the bound inputs keep the BASE value (DEC-28: modifiers
     // never overwrite the stored base); the effective value is exposed
-    // separately for identification only.
+    // separately for identification only. Both formulas come from
+    // rules/resources.mjs; the modifiers from the shared effect ledger.
     context.calculated.hpMaxEffective = formulaHP + Number(resourceMods.hpMax ?? 0);
-    context.calculated.mpMaxEffective = context.calculated.mpMax + Number(resourceMods.mpMax ?? 0);
+    context.calculated.mpMaxEffective = formulaMP + Number(resourceMods.mpMax ?? 0);
 
     // Effect-modifier badges (DEC-29 presentation): only non-zero modifiers
     // get a badge; the redundant signed label is prepared here.
@@ -620,7 +624,8 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       let style = String(event.currentTarget.value || "light").toLowerCase();
       // Normalize legacy "paper" value to "light" before saving.
       if (style === "paper") style = "light";
-      await this.actor.setFlag("sw25-taka", "sheetStyle", style === "adventurer" ? "adventurer" : "light");
+      if (!["light", "light-red"].includes(style)) style = "light";
+      await this.actor.setFlag("sw25-taka", "sheetStyle", style);
       this.render(false);
     });
 
@@ -628,8 +633,10 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       event.preventDefault();
       const hours = Number(event.currentTarget.dataset.hours);
       if (![3, 6].includes(hours)) return;
-      const hpMax = Math.max(0, Number(this._sheetCalculated?.hpMax ?? this.actor.system.hp?.max ?? 0));
-      const mpMax = Math.max(0, Number(this._sheetCalculated?.mpMax ?? this.actor.system.mp?.max ?? 0));
+      /* Effective maxima (persisted base + effect modifiers): recovery pools
+         and clamps follow the capacity that is actually available right now. */
+      const hpMax = sw25EffectiveResourceMaximum(this.actor, "hp");
+      const mpMax = sw25EffectiveResourceMaximum(this.actor, "mp");
       const currentHP = Number(this.actor.system.hp?.value ?? 0);
       const currentMP = Number(this.actor.system.mp?.value ?? 0);
       const hpRecovered = Math.ceil(hpMax * (hours === 3 ? 0.1 : 0.2));

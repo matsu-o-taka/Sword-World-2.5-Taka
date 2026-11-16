@@ -34,9 +34,8 @@ export class SW25FellowSheet extends foundry.appv1.sheets.ActorSheet {
     let savedSheetStyle = String(this.actor.getFlag("sw25-taka", "sheetStyle") ?? "light").toLowerCase();
     // Normalize legacy "paper" value to "light" for backward compatibility.
     if (savedSheetStyle === "paper") savedSheetStyle = "light";
-    context.sheetStyle = ["light", "adventurer"].includes(savedSheetStyle) ? savedSheetStyle : "light";
-    context.isLightStyle = context.sheetStyle === "light";
-    context.isAdventurerStyle = context.sheetStyle === "adventurer";
+    context.sheetStyle = "light";
+    context.isLightStyle = true;
     const labels = ["1-2", "3-4", "5", "6"];
     const results = [7, 8, 9, 10];
     const actions = Array.isArray(this.actor.system.fellow?.actions) ? this.actor.system.fellow.actions : [];
@@ -56,7 +55,7 @@ export class SW25FellowSheet extends foundry.appv1.sheets.ActorSheet {
       let style = String(event.currentTarget.value || "light").toLowerCase();
       // Normalize legacy "paper" value to "light" before saving.
       if (style === "paper") style = "light";
-      await this.actor.setFlag("sw25-taka", "sheetStyle", style === "adventurer" ? "adventurer" : "light");
+      await this.actor.setFlag("sw25-taka", "sheetStyle", "light");
       this.render(false);
     });
     html.find("[data-action='roll-fellow-action']").on("click", event => {

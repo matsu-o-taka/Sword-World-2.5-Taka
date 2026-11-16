@@ -28,6 +28,8 @@ import { initializeEffectRelay } from "./module/effects/effect-relay.mjs";
 import { resolveSw25Stacking } from "./module/effects/stacking-resolver.mjs";
 import { installSw25EffectiveValues, sw25EffectModifier } from "./module/effects/effective-values.mjs";
 import { initializeDefeatedStatusSync } from "./module/actor/defeated-status.mjs";
+import { initializePortraitGauges } from "./module/actor/portrait-gauges.mjs";
+import { initializeResourceMaxima } from "./module/actor/resource-maxima.mjs";
 
 
 Hooks.once("init", () => {
@@ -51,6 +53,13 @@ Hooks.once("init", () => {
   // creates `sw25Effect` documents and never enters the duration engine,
   // which keeps consuming `Combatant#isDefeated` untouched.
   initializeDefeatedStatusSync();
+
+  // Unified HP/MP maximum persistence (DEC-28 extension): both maxima are
+  // derived by module/rules/resources.mjs, persisted on the actor by
+  // lifecycle hooks (never a render side effect) so the native token bar
+  // attributes can use both resources, and the GM-side initial migration
+  // repairs existing actors (missing/zero `system.mp.max`).
+  initializeResourceMaxima();
 
   // Central stacking resolver (Bloque 4/T4.4): the production registration of
   // the versioned policy resolver (DEC-44). With it, EffectService.apply
@@ -160,6 +169,10 @@ Hooks.once("ready", initializeEffectRelay);
 // F2-T2 consumer integration: open monster sheets repaint their Weak Point
 // indicator when the Monster Knowledge Registry setting changes on this client.
 Hooks.once("ready", initializeMonsterSheetKnowledgeSync);
+// Portrait resource gauges (Light character sheet): draws the HP/MP arcs
+// around the portrait frame and wires the discrete logo toggle that switches
+// between the rectangular frame and the circular medallion variants.
+Hooks.once("ready", initializePortraitGauges);
 
 Hooks.on("renderItemDirectory", (_application, html) => {
   if (!game.user.can("ITEM_CREATE")) return;

@@ -34,6 +34,7 @@
 
 import { SW25_EFFECT_SUBTYPE } from "./effect-model.mjs";
 import { resolveSw25EffectTargetKey } from "./targets.mjs";
+import { characterResourceMaximum } from "../rules/resources.mjs";
 
 /**
  * Property under `actor.system` where the prepared ledger is exposed.
@@ -99,6 +100,27 @@ function addToLedgerPath(ledger, path, amount) {
 export function sw25EffectLedger(actor) {
   const ledger = actor?.system?.[SW25_EFFECT_MODS_KEY];
   return ledger && typeof ledger === "object" ? ledger : buildEmptySw25EffectLedger();
+}
+
+/**
+ * Effective resource maximum for one actor: the base maximum (persisted
+ * `system.hp.max` / `system.mp.max`, formula fallback for unsynced actors)
+ * plus the active effect modifier for the resource (catalog targets
+ * `resource.hpMax` / `resource.mpMax`).
+ *
+ * This is THE common accessor for consumers that write or clamp resource
+ * values (rest, recovery items, gauge wheel): they must not reconstruct
+ * base+modifier arithmetic on their own (single authority, DEC-28).
+ *
+ * @param {object} actor - Actor document (or stub) with `system` and `items`.
+ * @param {"hp"|"mp"} resource - Resource to read.
+ * @returns {number} The effective maximum, never negative.
+ */
+export function sw25EffectiveResourceMaximum(actor, resource) {
+  if (resource !== "hp" && resource !== "mp") return 0;
+  const base = characterResourceMaximum(actor, resource);
+  const mod = sw25EffectModifier(actor, resource === "hp" ? "resource.hpMax" : "resource.mpMax");
+  return Math.max(0, base + mod);
 }
 
 /**
@@ -174,6 +196,21 @@ export function prepareSw25EffectiveValues(actor) {
   // (DEC-28: modifiers never overwrite the stored base, and a fresh object
   // can never double-count across preparations).
   actor.system[SW25_EFFECT_MODS_KEY] = ledger;
+
+  // Prepared (NOT persisted) effective resource maxima: base + ledger. Only
+  // character actors carry the unified hp/mp maxima; other actor types keep
+  // their own resource layout untouched. Consumers read
+  // `actor.system.hp.maxEffective` / `actor.system.mp.maxEffective` (or the
+  // sw25EffectiveResourceMaximum accessor) instead of re-deriving the sum.
+  if (actor.type === "character") {
+    for (const [resource, key] of [["hp", "hpMax"], ["mp", "mpMax"]]) {
+      const holder = actor.system[resource];
+      if (!holder || typeof holder !== "object") continue;
+      const base = characterResourceMaximum(actor, resource);
+      holder.maxEffective = Math.max(0, base + Number(ledger.resources?.[key] ?? 0));
+    }
+  }
+
   if (diagnostics.length > 0) {
     console.warn(`Sword World 2.5 | ${diagnostics.length} effect change(s) were not applied to "${actor.name ?? "?"}" (unknown targets, reserved special destinations or unsupported types).`);
   }

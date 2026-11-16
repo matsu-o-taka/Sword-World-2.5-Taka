@@ -7,7 +7,7 @@ import { criticalFailureHTML, markCriticalFailure, rollDiceResults } from "../ru
 import { appendMonsterCombatStyle, applyMonsterMainSectionPolicyToStyles, createMonsterUniqueSkill, getMonsterSectionChoices, hasValidMainCombatStyle, mergeMonsterCombatStyleFields, mergeMonsterUniqueSkillFields, prepareMonsterCombatStyles, prepareMonsterUniqueSkillGroups, readMonsterActorCombatStyles, setMonsterMainSectionFlag } from "./monster-sheet-data.mjs";
 import { MONSTER_SPECIAL_RULES, SPECIAL_RULE_LABELS, MAIN_SECTION_POLICIES, resolveMonsterSectionPolicy, resolveMonsterSpecialRule } from "./monster-section-state.mjs";
 import { concealedSelectionCandidates, getConcealedMainSectionConfig, getConcealedMainSectionSelection, getConcealedMainSectionPresentation, setConcealedMainSectionSelection, selectConcealedMainSection, setConcealedMainSectionConfig } from "../combat/concealed-main-section.mjs";
-import { prepareSw25EffectsTab, attachSw25ConcealedSelectionLabel } from "../effects/effects-tab.mjs";
+import { prepareSw25EffectsTab, attachSw25ConcealedSelectionLabel, buildSw25BestiaryConcealedSectionRow } from "../effects/effects-tab.mjs";
 import { wireSw25EffectsTabHandlers } from "./effects-tab-ui.mjs";
 import { rollMonsterKnowledge, findMonsterKnowledgeRoller, speciesWeaknessKnown } from "../combat/monster-knowledge.mjs";
 
@@ -30,6 +30,7 @@ import { rollMonsterKnowledge, findMonsterKnowledgeRoller, speciesWeaknessKnown 
 // application is never repainted.
 
 const MK_REGISTRY_SETTING_KEY = "mkRegistry";
+const SYSTEM_ID = "sw25-taka";
 
 const activeMkKnowledgeSheets = new Set();
 
@@ -461,6 +462,19 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
         context.effectsTab.rows,
         getConcealedMainSectionPresentation(this.actor)
       );
+    }
+    // Bestiary copies reveal their discovered concealed Main Section through
+    // flags (persisted by createBestiaryActorCopy), not through the concealed
+    // ActiveEffect (which lives only on the original monster). Surface it for
+    // all viewers — the Bestiary copy grants OBSERVER ownership and the
+    // discovered section is player-facing knowledge.
+    const systemFlags = this.actor.flags?.[SYSTEM_ID] ?? {};
+    if (systemFlags.mkbestiary === true) {
+      const concealedMainSection = systemFlags.mkbestiaryConcealedMainSection;
+      if (concealedMainSection && concealedMainSection.section) {
+        const row = buildSw25BestiaryConcealedSectionRow(concealedMainSection.section);
+        if (row) context.effectsTab.rows.push(row);
+      }
     }
     return context;
   }

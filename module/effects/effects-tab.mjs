@@ -435,6 +435,41 @@ export function attachSw25ConcealedSelectionLabel(rows, presentation) {
 }
 
 /**
+ * Build a synthetic Effects-tab row revealing a Bestiary copy's discovered
+ * concealed Main Section.
+ *
+ * Bestiary copies do not carry the concealed ActiveEffect (it lives only on
+ * the original monster), so there is no effect row to attach a label to.
+ * Instead we fabricate a read-only row carrying the discovered section name,
+ * surfaced to ALL viewers — the Bestiary copy grants OBSERVER ownership and
+ * the discovered section is player-facing knowledge.
+ *
+ * Pure: returns a row object compatible with `effectsTab.rows`, or null when
+ * no section is disclosed.
+ * @param {string|null} section - The discovered section name, or null.
+ * @returns {object|null} A row compatible with `effectsTab.rows`, or null.
+ */
+export function buildSw25BestiaryConcealedSectionRow(section) {
+  if (!section || typeof section !== "string" || section === "") return null;
+  return {
+    id: "bestiary-concealed-main-section",
+    name: "Concealed Main Section",
+    img: "icons/svg/magic.svg",
+    displayName: "Concealed Main Section",
+    sectionSelectionLabel: `Revealed: ${section}`,
+    sectionSelectionTitle: "The discovered Main Section for this species, revealed through a successful Monster Knowledge Weakness discovery.",
+    successValueLabel: "—",
+    durationLabel: "—",
+    durationTitle: "No duration.",
+    originLabel: "—",
+    originUUID: null,
+    stateLabel: "Active",
+    needsReview: false,
+    futureVersion: false
+  };
+}
+
+/**
  * Prepare the individual inspection dialog context (pure; UI framework free).
  * @param {object} effect - Effect document or plain stub.
  * @param {Function|null} [resolve] - UUID → document/index-entry resolver.

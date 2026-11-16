@@ -1,5 +1,5 @@
 import { criticalFailureHTML, markCriticalFailure } from "./critical-failure.mjs";
-import { characterAbilityScore, characterHPMaximum } from "./resources.mjs";
+import { sw25EffectiveResourceMaximum } from "../effects/effective-values.mjs";
 
 const FLAG_SCOPE = "sw25-taka";
 const escape = value => foundry.utils.escapeHTML(String(value ?? ""));
@@ -39,15 +39,9 @@ export function recoveryPowerTableHTML(item, actor) {
 }
 
 function resourceMaximum(actor, resource) {
-  if (resource === "hp") {
-    return characterHPMaximum(actor.system, actor.items);
-  }
-  const stored = Number(actor.system.mp?.max ?? 0);
-  if (stored > 0) return stored;
-  const wizardLevels = actor.items
-    .filter(item => item.type === "class" && /wizard/i.test(String(item.system.classType ?? "")))
-    .reduce((total, item) => total + Number(item.system.level ?? 0) * 3, 0);
-  return wizardLevels + characterAbilityScore(actor.system, "mind", "f");
+  /* Effective maximum (persisted base + effect modifiers) from the common
+     accessor — same source as rest, the gauge wheel and the sheet badges. */
+  return sw25EffectiveResourceMaximum(actor, resource);
 }
 
 function receivingActor() {

@@ -1,7 +1,7 @@
-<form class="{{cssClass}} sw25-character-sheet sw25-official-sheet sw25-theme-{{sheetStyle}}" autocomplete="off">
+<form class="{{cssClass}} sw25-character-sheet sw25-official-sheet sw25-theme-{{sheetStyle}}{{#if isLightRedStyle}} sw25-theme-light{{/if}}" autocomplete="off">
   <header class="sw25-sheet-header">
     <div class="sheet-header-brand"><span class="sheet-header-title">Sword World 2.5</span><span class="sheet-header-sub">Adventurer Sheet</span></div>
-    <span class="sheet-appearance-control"><label for="sw25-sheet-style-{{actor.id}}">Style</label><select id="sw25-sheet-style-{{actor.id}}" data-action="set-sheet-style"><option value="light" {{#if isLightStyle}}selected{{/if}}>Light</option><option value="adventurer" {{#if isAdventurerStyle}}selected{{/if}}>Adventurer</option></select></span>
+    <span class="sheet-appearance-control"><label for="sw25-sheet-style-{{actor.id}}">Style</label><select id="sw25-sheet-style-{{actor.id}}" data-action="set-sheet-style"><option value="light" {{#if isPlainLightStyle}}selected{{/if}}>Light</option><option value="light-red" {{#if isLightRedStyle}}selected{{/if}}>Light Red</option></select></span>
     <span class="rest-controls"><button type="button" data-action="rest" data-hours="3" title="Recover 10% maximum HP and half maximum MP"><i class="fas fa-bed"></i> 3 Hour Rest</button><button type="button" data-action="rest" data-hours="6" title="Recover 20% maximum HP and all MP"><i class="fas fa-bed"></i> 6 Hour Rest</button></span>
   </header>
   <nav class="sheet-tabs official-tabs" data-group="primary-tabs">
@@ -36,7 +36,7 @@
         </section>
 
         <section class="portrait-column">
-          <div class="logo-box"><img class="official-logo" src="systems/sw25-taka/assets/stars.webp" alt="Sword World"></div>
+          <div class="logo-box" data-action="cycle-portrait-gauge"{{#if isLightStyle}} title="Toggle portrait gauge style"{{/if}}><img class="official-logo" src="systems/sw25-taka/assets/stars.webp" alt="Sword World"></div>
           <div class="portrait-frame">
             <img class="profile-img" src="{{actor.img}}" data-edit="img" title="{{actor.name}}" alt="Character portrait">
           </div>
@@ -182,7 +182,7 @@
               <div class="resource-value-line">
                 <input class="resource-current" type="number" name="system.hp.value" value="{{system.hp.value}}" aria-label="Current HP">
                 <span class="resource-divider">/</span>
-                <input class="resource-max" type="number" name="system.hp.max" value="{{calculated.hpMax}}" aria-label="Maximum HP" readonly>
+                <input class="resource-max" type="number" value="{{calculated.hpMax}}" aria-label="Maximum HP" readonly>
               </div>
               <div class="resource-max-caption">MAX HP{{#with effectBadges.hpMax as |badge|}} <span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.hpMax}}">{{badge.label}}</span>{{/with}}</div>
             </div>
