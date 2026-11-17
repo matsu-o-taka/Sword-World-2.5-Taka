@@ -1,6 +1,6 @@
 import { isGunWeapon, isWarriorClass, weaponDamageParts } from "./weapon-damage.mjs";
 import { damageApplicationButton } from "../combat/damage-application.mjs";
-import { criticalFailureHTML, markCriticalFailure } from "./critical-failure.mjs";
+import { automaticFailureButton, criticalFailureHTML, isPowerTableCritical, isCriticalFailure, naturalDiceTotal } from "./critical-failure.mjs";
 import { resolveClassAssignment } from "./skill-resolution.mjs";
 import { signedValue } from "./roll-modifiers.mjs";
 import { sw25EffectModifier } from "../effects/effective-values.mjs";
@@ -27,12 +27,18 @@ export function resolveAttackingClass(actor, weapon, requestedClassId = "") {
 
 export async function rollWeaponDamage({ actor, weapon, attackingClass, accumulatedPower = 0, combatStyleId = null, targetActorUuid = null }) {
   const roll = await new Roll("2d6").evaluate();
-  const diceTotal = Number(roll.total) || 0;
-  const criticalFailure = await markCriticalFailure(actor, roll);
+  // Power Table damage reads the NATURAL dice (a plain 2d6 roll has no
+  // modifiers); the fumble and the critical threshold are both detected
+  // from these natural results, never from a modified total.
+  const diceTotal = naturalDiceTotal(roll);
+  // Detection only: the double 1 never writes the counter. The card offers
+  // the registration button so the player decides (characters only; monster
+  // Power Table damage rolls — if ever routed here — get no button).
+  const criticalFailure = isCriticalFailure(roll);
   if (criticalFailure) {
     await roll.toMessage({
       speaker:ChatMessage.getSpeaker({ actor }),
-      flavor:`<div class="sw25-weapon-roll"><h3>${foundry.utils.escapeHTML(weapon.name)}</h3>${criticalFailureHTML()}<p>No damage is dealt.</p></div>`
+      flavor:`<div class="sw25-weapon-roll"><h3>${foundry.utils.escapeHTML(weapon.name)}</h3>${criticalFailureHTML()}${automaticFailureButton(actor)}<p>No damage is dealt.</p></div>`
     });
     return { criticalFailure:true, total:0 };
   }
@@ -49,8 +55,11 @@ export async function rollWeaponDamage({ actor, weapon, attackingClass, accumula
   const situationalDamage = Number(actor.system.combat?.additionalDamage ?? 0)
     + sw25EffectModifier(actor, "combat.additionalDamage");
   const total = powerTotal + damage.classLevel + damage.bonus + damage.additionalDamage + situationalDamage;
-  const criticalValue = Number(weapon.system.critical ?? 13);
-  const critical = criticalValue <= 12 && diceTotal >= criticalValue;
+  // Power Table critical threshold (damage-roll rule): the weapon's own
+  // critical value compared against the natural 2d6 roll. Shared with the
+  // spell Power Table roll (isPowerTableCritical); never applied to the
+  // attack roll or to Spellcasting. Thresholds outside 1..12 never trigger.
+  const critical = isPowerTableCritical(roll, weapon.system.critical);
   const criticalControl = critical ? `
     <div class="sw25-critical-prompt">
       <strong>CRITICAL</strong>

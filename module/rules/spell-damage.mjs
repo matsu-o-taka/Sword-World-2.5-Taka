@@ -1,5 +1,7 @@
 import { damageApplicationButton } from "../combat/damage-application.mjs";
-import { criticalFailureHTML, isCriticalFailure, markCriticalFailure } from "./critical-failure.mjs";
+import { abilityBonus } from "./weapon-damage.mjs";
+import { sw25EffectModifier } from "../effects/effective-values.mjs";
+import { automaticFailureButton, criticalFailureHTML, isCriticalFailure, isPowerTableCritical, naturalDiceTotal } from "./critical-failure.mjs";
 
 const WOLFS_BITE_BANDS = [
   { min:2, max:6, bonus:0, damageType:"physical", text:"Magic Power points as physical damage." },
@@ -142,6 +144,66 @@ export async function rememberMagicPowerRoll(actor, roll, classId = "") {
   });
 }
 
+// Effective Magic Power for spell EXTRA DAMAGE (DEC-28): casting class level
+// + Intelligence bonus + the prepared effect ledger's combat.magicPower
+// entry. Shared source so sheets, chat cards and rolls never compute
+// different values.
+export function spellDamageMagicPower(actor, castingClass) {
+  return Number(castingClass?.system?.level ?? 0)
+    + abilityBonus(actor?.system, "intelligence")
+    + sw25EffectModifier(actor, "combat.magicPower");
+}
+
+// Generic Power Table damage roll for spells. It reuses the SAME mechanism
+// as weapon damage (rules/weapon-roll.mjs): natural 2d6 -> fumble check ->
+// table lookup -> accumulated power-table damage -> the item's own critical
+// threshold -> an additional full table roll through the shared
+// `roll-critical-damage` chat action. No parallel spell implementation.
+//
+// DEC-6: the Success Value is the result of the CASTING roll, never the
+// damage total. The authentic cast SV arrives ONLY from the caller (the cast
+// flow stamps it on the chat card); it is preserved across critical rolls
+// and never re-derived here. When the caller has no casting SV (a damage
+// roll posted outside a cast), NO SV travels: null is never fabricated.
+export async function rollSpellPowerTableDamage({ actor, spell, castingClass, accumulatedPower = 0, successValue = null }) {
+  const roll = await new Roll("2d6").evaluate();
+  // Detection only: the double 1 never writes the counter; the card offers
+  // the registration button so the player decides (characters only).
+  const criticalFailure = isCriticalFailure(roll);
+  if (criticalFailure) {
+    await roll.toMessage({ speaker:ChatMessage.getSpeaker({ actor }), flavor:`<div class="sw25-chat-card"><h3>${foundry.utils.escapeHTML(spell.name)} Damage</h3>${criticalFailureHTML()}${automaticFailureButton(actor)}<p>No damage is dealt.</p></div>` });
+    return { criticalFailure:true, total:0 };
+  }
+  const diceTotal = naturalDiceTotal(roll);
+  const lookup = String(Math.min(12, Math.max(3, diceTotal)));
+  const tableValue = Number(spell.system.powerTable?.[lookup] ?? 0);
+  const magicPower = spellDamageMagicPower(actor, castingClass);
+  const powerTotal = (Number(accumulatedPower) || 0) + tableValue;
+  const total = powerTotal + magicPower;
+  // DEC-6: ONLY an authentic casting SV supplied by the caller is
+  // transported. A damage roll posted outside a cast carries no SV — no
+  // value is derived from the damage roll or fabricated.
+  const providedSuccessValue = Number(successValue);
+  const spellSuccessValue = successValue !== null && successValue !== undefined && Number.isFinite(providedSuccessValue)
+    ? providedSuccessValue
+    : null;
+  // Power Table critical (damage-roll rule): the spell's own critical value
+  // against the natural roll; never the attack or Spellcasting rule.
+  const critical = isPowerTableCritical(roll, spell.system.critical);
+  const escape = value => foundry.utils.escapeHTML(String(value ?? ""));
+  const successValueAttr = spellSuccessValue === null ? "" : ` data-success-value="${spellSuccessValue}"`;
+  const criticalControl = critical ? `
+    <div class="sw25-critical-prompt">
+      <strong>CRITICAL</strong>
+      <button type="button" data-sw25-chat-action="roll-critical-damage" data-actor-id="${escape(actor.id)}" data-item-id="${escape(spell.id)}" data-class-id="${escape(castingClass?.id ?? "")}" data-accumulated-power="${powerTotal}"${successValueAttr}><i class="fas fa-dice-d6"></i> Roll Damage Again</button>
+    </div>` : "";
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor }),
+    content: `<div class="sw25-chat-card sw25-spell-power-result"><h3>${escape(spell.name)} Damage</h3><p><strong>Power roll:</strong> ${diceTotal} → ${tableValue}</p>${Number(accumulatedPower) ? `<p><strong>Accumulated power-table damage:</strong> ${Number(accumulatedPower)}</p>` : ""}<p><strong>Magic Power:</strong> ${magicPower}</p><p class="sw25-weapon-total"><strong>Total:</strong> ${total}</p>${damageApplicationButton(total, "magical", true)}${criticalControl}</div>`
+  });
+  return { criticalFailure:false, total, spellSuccessValue, critical, diceTotal, tableValue, magicPower };
+}
+
 export async function rollSpecialSpellDamage({ actor, spell, castingClass }) {
   const bands = specialDamageBands(spell);
   if (!bands.length) return false;
@@ -157,9 +219,9 @@ export async function rollSpecialSpellDamage({ actor, spell, castingClass }) {
   if (previous.criticalFailure) return ui.notifications.warn("The previous Magic Power roll was a critical failure.");
 
   const roll = await new Roll("2d6").evaluate();
-  const criticalFailure = await markCriticalFailure(actor, roll);
+  const criticalFailure = isCriticalFailure(roll);
   if (criticalFailure) {
-    await roll.toMessage({ speaker:ChatMessage.getSpeaker({ actor }), flavor:`<div class="sw25-chat-card"><h3>${foundry.utils.escapeHTML(spell.name)} Damage</h3>${criticalFailureHTML()}<p>No damage is dealt.</p></div>` });
+    await roll.toMessage({ speaker:ChatMessage.getSpeaker({ actor }), flavor:`<div class="sw25-chat-card"><h3>${foundry.utils.escapeHTML(spell.name)} Damage</h3>${criticalFailureHTML()}${automaticFailureButton(actor)}<p>No damage is dealt.</p></div>` });
     return false;
   }
   const resolved = resolveSpecialSpellDamage(bands, roll.total, previous.total);
@@ -184,9 +246,9 @@ export async function rollDoubleStompDamage({ actor, spell, castingClass, target
   for (const token of targets) {
     const target = token.actor;
     const roll = await new Roll("2d6").evaluate();
-    const criticalFailure = await markCriticalFailure(actor, roll);
+    const criticalFailure = isCriticalFailure(roll);
     if (criticalFailure) {
-      await roll.toMessage({ speaker:ChatMessage.getSpeaker({ actor }), flavor:`<div class="sw25-chat-card"><h3>${foundry.utils.escapeHTML(spell.name)} — ${foundry.utils.escapeHTML(target?.name || "Target")}</h3>${criticalFailureHTML()}<p>No damage is dealt to this target.</p></div>` });
+      await roll.toMessage({ speaker:ChatMessage.getSpeaker({ actor }), flavor:`<div class="sw25-chat-card"><h3>${foundry.utils.escapeHTML(spell.name)} — ${foundry.utils.escapeHTML(target?.name || "Target")}</h3>${criticalFailureHTML()}${automaticFailureButton(actor)}<p>No damage is dealt to this target.</p></div>` });
       continue;
     }
     const resolved = resolveSpecialSpellDamage(bands, roll.total, previous.total);

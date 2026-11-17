@@ -2,7 +2,6 @@ import { expireNaturalPower, naturalPowerRemainder } from "../rules/spell-damage
 import { processRegenerationTurn } from "../rules/spell-effects.mjs";
 import { resolveClassAssignment } from "../rules/skill-resolution.mjs";
 import { abilityBonus } from "../rules/weapon-damage.mjs";
-import { criticalFailureHTML, markCriticalFailure } from "../rules/critical-failure.mjs";
 import { processSw25DurationEvent } from "../effects/duration-engine.mjs";
 
 const FLAG_SCOPE = "sw25-taka";
@@ -318,18 +317,19 @@ export async function recordPlayerInitiative(actor, total) {
 
 /**
  * Native tracker dice for a character combatant: same flow as the character
- * sheet button (2d6 + modifier, critical failure tracking, chat message) and
+ * sheet button (2d6 + modifier, purely numeric result, chat message) and
  * then recordPlayerInitiative. Replaces the inert "0" native formula roll.
+ * Initiative NEVER applies special natural-dice consequences: a natural
+ * double 6 or double 1 is just natural 12/2 plus the modifiers.
  */
 export async function rollCharacterTrackerInitiative(combatant) {
   const actor = combatant?.actor;
   if (actor?.type !== "character") return false;
   const modifier = characterInitiativeModifier(actor);
   const roll = await new Roll(`2d6 + ${modifier}`).evaluate();
-  const criticalFailure = await markCriticalFailure(actor, roll);
   await roll.toMessage({
     speaker: ChatMessage.getSpeaker({ actor }),
-    flavor: `Initiative Check${criticalFailure ? criticalFailureHTML() : ""}`
+    flavor: "Initiative Check"
   });
   await recordPlayerInitiative(actor, roll.total);
   return true;

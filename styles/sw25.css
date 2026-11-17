@@ -560,20 +560,23 @@
 .official-tabs .rest-controls { display:flex; align-items:center; gap:3px; margin-left:auto; }
 .official-tabs .rest-controls button { display:inline-flex; align-items:center; justify-content:center; gap:4px; width:auto; min-width:86px; height:27px; min-height:0; margin:2px 0 0; padding:2px 7px; font-size:9px; white-space:nowrap; }
 .official-tabs .rest-controls button i { margin:0; }
-.class-feature-page { display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:12px; align-content:start; }
+.class-feature-page { display:grid; grid-template-columns: 1fr; gap:12px; align-content:start; }
 .class-feature-box { min-height:260px; overflow:hidden; }
 .class-feature-box > h2 { position:relative; width:100%; box-sizing:border-box; }
 .class-feature-heading-actions { position:absolute; right:4px; top:1px; display:flex; gap:3px; }
 .sw25-official-sheet .class-feature-heading-actions .panel-add { float:none; }
-.class-feature-head,.class-feature-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,.8fr) minmax(70px,.45fr) 92px; width:100%; box-sizing:border-box; align-items:center; border-bottom:1px solid #aaa; }
+.class-feature-head,.class-feature-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,.8fr) minmax(70px,.45fr) 180px; width:100%; box-sizing:border-box; align-items:center; border-bottom:1px solid #aaa; }
 .class-feature-head { font-weight:bold; text-transform:uppercase; background:rgba(70,55,40,.08); }
 .class-feature-head>*,.class-feature-row>* { min-width:0; padding:6px; }
 .class-feature-row .row-delete { width:28px; height:26px; padding:0; }
-.class-casting-summary { grid-column:1 / -1; min-height:90px; display:flex; align-items:center; justify-content:center; gap:18px; }
-.class-casting-summary h2 { position:absolute; left:0; right:0; top:0; }
-.class-casting-summary { position:relative; padding-top:28px; }
+.class-casting-summary { display:flex; flex-direction:column; min-height:0; }
+.class-casting-summary > h2 { background-image: none; background: rgba(100,95,85,.12); border-bottom: 2px solid #4b4742; }
+.class-casting-summary .panel-body { flex: 1 1 auto; min-height: 0; padding: 7px 10px 6px; display: flex; flex-direction: column; gap: 0; }
+.class-casting-summary .casting-formula { margin-top: auto; font-size: 9px; font-style: italic; color: #6f6455; line-height: 1.35; border-top: 1px solid #e5dcc6; padding-top: 5px; }
+.class-wizard-header { display:grid; grid-template-columns:197px 197px 1fr; gap:12px; align-items:stretch; margin-bottom:12px; }
+.class-art-placeholder { min-height:120px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#8a7c6a; text-align:center; padding:6px; background:rgba(0,0,0,.03); border:1px dashed #a89578; border-radius:2px; box-sizing:border-box; }
 .class-feature-actions { display:flex; justify-content:flex-end; gap:2px; padding:2px !important; }
-.class-feature-actions button { width:28px; height:26px; padding:0; }
+.class-feature-actions button { width:28px; height:26px; padding:0; flex-shrink:0; }
 .class-feature-actions .spell-favourite.active { color:#a87500; }
 .sw25-official-sheet .magic-box { display:flex; flex-direction:column; min-height:0; }
 .sw25-official-sheet .magic-box .magic-list { flex:1 1 auto; min-height:0; overflow-y:auto; }
@@ -1486,6 +1489,7 @@
 }
 .sw25-official-sheet .panel-hp .panel-head { --tp-head-a: #7d1f16; --tp-head-b: #a63d32; }
 .sw25-official-sheet .panel-mp .panel-head { --tp-head-a: #2c4a78; --tp-head-b: #5b7fa6; }
+
 .sw25-official-sheet .resource-panel .panel-body {
   flex: 1 1 auto;
   min-height: 0;
@@ -1973,12 +1977,11 @@ form.sw25-official-sheet .armour-name-cell {
   display: flex;
   align-items: baseline;
   gap: 5px;
-  overflow: hidden;
   padding: 2px 4px;
   white-space: nowrap;
 }
 form.sw25-official-sheet .armour-name-cell .paper-link {
-  flex: 0 1 auto;
+  width: max-content;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1986,7 +1989,9 @@ form.sw25-official-sheet .armour-name-cell .paper-link {
   font-weight: 700;
 }
 form.sw25-official-sheet .armour-name-cell small {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 200px;
   overflow: hidden;
   color: #625c54;
   font-size: 9px;
@@ -2067,10 +2072,10 @@ form.sw25-official-sheet .weapon-table > .weapon-head,
 form.sw25-official-sheet .weapon-table > .combat-weapon-row {
   display: grid !important;
   grid-template-columns:
-    minmax(80px, 1fr)
-    32px 36px 38px 44px
+    minmax(110px, 1fr)
+    78px 50px 62px 46px
     repeat(10, 24px)
-    32px 38px 32px 32px 32px !important;
+    36px 72px 40px 40px 40px !important;
   align-items: stretch !important;
   width: 100%;
   min-width: 0;
@@ -2208,7 +2213,9 @@ form.sw25-official-sheet .offense-selector > label input {
 .sw25-official-sheet .magic-box .magic-spells .magic-list > div{ break-inside:avoid; display:flex; justify-content:space-between; align-items:center; gap:8px; padding:9px 8px; border-bottom:1px dotted rgba(0,0,0,.15); font-size:10.5px; line-height:1.4; min-height:0; }
 .sw25-official-sheet .magic-box .magic-spells .magic-list > div > button.paper-link{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; }
 .sw25-official-sheet .magic-box .magic-spells .magic-list > div > span{ flex:0 0 auto; text-align:center; font-variant-numeric:tabular-nums; white-space:nowrap; }
-.sw25-official-sheet .magic-box .magic-spells .magic-list > div > button[data-action="cast-spell"]{ flex:0 0 auto; width:52px; padding:2px 4px; font-size:10px; display:flex; align-items:center; justify-content:center; }
+.sw25-official-sheet .magic-box .magic-spells .magic-list > div > button[data-action="cast-spell"]{ flex:0 0 auto; width:52px; padding:2px 4px; font-size:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.sw25-official-sheet .magic-box .magic-spells .magic-list > div > button[data-action="cast-spell-prep"],
+.sw25-official-sheet .magic-box .magic-spells .magic-list > div > button[data-action="cast-spell-minor"]{ flex:0 0 auto; width:28px; height:22px; padding:0; font-size:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
 .sw25-official-sheet .mp-crystal { flex-shrink: 0; }
 .magic-power-list { display:flex; flex-direction:column; gap:4px; padding:4px 6px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
 .magic-power-entry { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:3px 6px; border:1px solid rgba(0,0,0,.1); border-radius:3px; font-size:11px; }
@@ -3526,6 +3533,7 @@ strong.sw25-mod-down { color: #c46a10; }
   /* Semantic */
   --sw25-light-danger: #a63d32;
   --sw25-light-danger-hover: #832c24;
+
 }
 
 /* ── Sheet header band — shared layout (all themes; skins are theme-scoped) ── */
@@ -3739,6 +3747,18 @@ strong.sw25-mod-down { color: #c46a10; }
   border: 1px solid #352d1f;
   z-index: 1;
   pointer-events: none;
+}
+
+/* Light panels: 4 gold corner brackets (one per corner), same as Light Red */
+.sw25-theme-light.sw25-official-sheet .paper-panel {
+  background-origin: border-box;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M1.25 16 L1.25 1.25 L16 1.25' fill='none' stroke='%23c9a35c' stroke-width='1.5'/%3E%3Cpath d='M2.4 0 L4.8 2.4 L2.4 4.8 L0 2.4 Z' fill='%23c9a35c'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M14.75 16 L14.75 1.25 L0 1.25' fill='none' stroke='%23c9a35c' stroke-width='1.5'/%3E%3Cpath d='M13.6 0 L16 2.4 L13.6 4.8 L11.2 2.4 Z' fill='%23c9a35c'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M1.25 0 L1.25 14.75 L16 14.75' fill='none' stroke='%23c9a35c' stroke-width='1.5'/%3E%3Cpath d='M2.4 16 L4.8 13.6 L2.4 11.2 L0 13.6 Z' fill='%23c9a35c'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M14.75 0 L14.75 14.75 L0 14.75' fill='none' stroke='%23c9a35c' stroke-width='1.5'/%3E%3Cpath d='M13.6 16 L16 13.6 L13.6 11.2 L11.2 13.6 Z' fill='%23c9a35c'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: top left, top right, bottom left, bottom right;
 }
 .sw25-theme-light.sw25-official-sheet .paper-panel > h2 > .panel-add {
   position: absolute;
@@ -4834,6 +4854,7 @@ strong.sw25-mod-down { color: #c46a10; }
   --sw25-light-red-gold: #c9a35c;
   /* Warm ivory text used on every red header surface */
   --sw25-light-red-ink: #f0e7d1;
+
   /* Gold top corner brackets (escuadra + diamond tip), shared by the header
      band and the h2 section bars. 16x16 layers hugging the top corners. */
   --sw25-lred-corner-tl: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M1.25 16 L1.25 1.25 L16 1.25' fill='none' stroke='%23c9a35c' stroke-width='1.5'/%3E%3Cpath d='M2.4 0 L4.8 2.4 L2.4 4.8 L0 2.4 Z' fill='%23c9a35c'/%3E%3C/svg%3E");

@@ -1,4 +1,4 @@
-import { criticalFailureHTML, markCriticalFailure } from "./critical-failure.mjs";
+import { automaticFailureButton, criticalFailureHTML, isCriticalFailure } from "./critical-failure.mjs";
 import { sw25EffectiveResourceMaximum } from "../effects/effective-values.mjs";
 
 const FLAG_SCOPE = "sw25-taka";
@@ -72,11 +72,11 @@ async function rollRecoveryItem(button) {
   const item = actor?.items.get(button.dataset.itemId);
   if (!actor || !item?.system?.hasPowerTable) return ui.notifications.warn("The recovery item could not be found.");
   const roll = await new Roll("2d6").evaluate();
-  const criticalFailure = await markCriticalFailure(actor, roll);
+  const criticalFailure = isCriticalFailure(roll);
   if (criticalFailure) {
     await roll.toMessage({
       speaker:ChatMessage.getSpeaker({ actor }),
-      flavor:`<div class="sw25-chat-card"><h3>${escape(item.name)} Recovery</h3>${criticalFailureHTML()}<p>No HP or MP is recovered.</p></div>`
+      flavor:`<div class="sw25-chat-card"><h3>${escape(item.name)} Recovery</h3>${criticalFailureHTML()}${automaticFailureButton(actor)}<p>No HP or MP is recovered.</p></div>`
     });
     return;
   }

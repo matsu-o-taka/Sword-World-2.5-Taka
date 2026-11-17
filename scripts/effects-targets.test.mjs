@@ -387,10 +387,11 @@ const zeroed = ledger => {
   const sheetSource = readFileSync(new URL("../module/actor/actor-sheet.mjs", import.meta.url), "utf8");
   const rollSource = readFileSync(new URL("../module/rules/weapon-roll.mjs", import.meta.url), "utf8");
   const damageSource = readFileSync(new URL("../module/rules/weapon-damage.mjs", import.meta.url), "utf8");
+  const spellDamageSource = readFileSync(new URL("../module/rules/spell-damage.mjs", import.meta.url), "utf8");
 
   // sw25.mjs: pipeline installed at init; spell damage uses effective Magic Power.
   assert.ok(sw25Source.includes("installSw25EffectiveValues()"), "sw25.mjs installs the effective-values pipeline");
-  assert.ok(sw25Source.includes('sw25EffectModifier(actor, "combat.magicPower")'), "spell damage consumes the Magic Power ledger");
+  assert.ok(spellDamageSource.includes('sw25EffectModifier(actor, "combat.magicPower")'), "spell damage consumes the Magic Power ledger from rules/spell-damage.mjs");
   // Sheet: Accuracy roll parts include the prepared Effects entry.
   assert.ok(sheetSource.includes('sw25EffectModifier(this.actor, "combat.accuracy")'), "sheet Accuracy parts consume the ledger");
   assert.ok(sheetSource.includes('label: "Effects"'), "Effects part is visible in the Accuracy breakdown");

@@ -153,7 +153,12 @@ const OPERATION_FIELDS = new Map([
   // the D4 anchor validation.
   ["apply", ["actorUuid", "family", "rank", "cast", "changes", "initialDuration",
     "remainingDuration", "img", "effectType", "origin", "casterUUID", "duration",
-    "familyPolicy", "damageType", "durationScale", "durationAnchor", "acceptReplace"]],
+    "familyPolicy", "damageType", "durationScale", "durationAnchor", "acceptReplace",
+    // Resistance boundary (DEC-R): the cast flow resolves every resistance;
+    // only the boolean outcome crosses to the effect engine, which never
+    // interprets resistance types, difficulties or rolls (the field is
+    // accepted for transport and ignored by the service).
+    "resisted"]],
   ["remove", ["actorUuid", "effectId"]],
   ["toggle", ["actorUuid", "effectId", "active"]],
   ["refresh", ["actorUuid", "effectId", "cast", "successValue", "remainingDuration"]]

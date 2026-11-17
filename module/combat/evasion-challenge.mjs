@@ -1,5 +1,5 @@
 import { abilityBonus } from "../rules/weapon-damage.mjs";
-import { criticalFailureHTML, markCriticalFailure } from "../rules/critical-failure.mjs";
+import { automaticFailureButton, criticalFailureHTML, isCriticalFailure, isNaturalDouble } from "../rules/critical-failure.mjs";
 
 const FLAG_SCOPE = "sw25-taka";
 const FLAG_KEY = "evasionChallenge";
@@ -77,11 +77,16 @@ export function initializeEvasionChallenges() {
       if (!actor) return;
       const modifier = characterEvasionModifier(actor);
       const roll = await new Roll(`2d6 + ${modifier}`).evaluate();
-      const criticalFailure = await markCriticalFailure(actor, roll);
-      const success = !criticalFailure && evasionSucceeded(roll.total, challenge.target);
+      // Detection only: the double 1 never writes the counter; the card
+      // offers the registration button so the player decides. A natural
+      // double 6 is an Automatic Success: the Evasion succeeds regardless
+      // of the target (Core Rulebook I p.100).
+      const criticalFailure = isCriticalFailure(roll);
+      const automaticSuccess = isNaturalDouble(roll, 6);
+      const success = !criticalFailure && (automaticSuccess || evasionSucceeded(roll.total, challenge.target));
       await roll.toMessage({
         speaker:ChatMessage.getSpeaker({ actor }),
-        flavor:`<div class="sw25-chat-card sw25-evasion-result"><h3>${foundry.utils.escapeHTML(actor.name)} — Evasion Check</h3><p><strong>Evasion total:</strong> ${Number(roll.total)}</p>${criticalFailure ? criticalFailureHTML() : ""}<p class="${success ? "sw25-evasion-success" : "sw25-evasion-failure"}"><strong>${success ? "EVADED" : "HIT"}</strong></p></div>`
+        flavor:`<div class="sw25-chat-card sw25-evasion-result"><h3>${foundry.utils.escapeHTML(actor.name)} — Evasion Check</h3><p><strong>Evasion total:</strong> ${Number(roll.total)}</p>${criticalFailure ? criticalFailureHTML() + automaticFailureButton(actor) : ""}${automaticSuccess && !criticalFailure ? '<p class="sw25-automatic-success"><strong>AUTOMATIC SUCCESS</strong></p>' : ""}<p class="${success ? "sw25-evasion-success" : "sw25-evasion-failure"}"><strong>${success ? "EVADED" : "HIT"}</strong></p></div>`
       });
     });
   });

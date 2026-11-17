@@ -267,7 +267,8 @@ console.log("=== 2. rollCharacterTrackerInitiative ===");
   assert.match(chatMessages.at(-1), /Initiative Check/, "chat flavor is Initiative Check");
 }
 
-// 2b. Critical failure parity with the sheet button
+// 2b. Double 1 stays purely numeric: no CRITICAL FAILURE, no consequences,
+//     and the initiative value is the natural 2 plus the modifier.
 {
   const actor = makeCharacter("pc-5", { classes: [], system: { combat: {} } });
   const c = makeCombatant({ actor });
@@ -276,7 +277,9 @@ console.log("=== 2. rollCharacterTrackerInitiative ===");
   rollScripts = [[1, 1]];
   const result = await rollCharacterTrackerInitiative(c);
   assert.equal(result, true, "handled");
-  assert.match(chatMessages.at(-1), /CRITICAL FAILURE/, "critical failure flagged like the sheet roll");
+  assert.doesNotMatch(chatMessages.at(-1), /CRITICAL FAILURE/, "initiative never flags critical failure");
+  assert.doesNotMatch(chatMessages.at(-1), /register-automatic-failure/, "initiative never offers Automatic Failure registration");
+  assert.equal(c.initiative, 2, "double 1 is just natural 2 (no special consequence)");
 }
 
 // 2c. Non-character combatants are refused

@@ -24,10 +24,14 @@
 //     failure). For the attacker it means an automatic miss; for a
 //     character defender it follows the same semantics used by the
 //     existing Evasion challenge (the attack lands regardless).
+//   - Natural double 6 on an ATTACK roll is an automatic critical: it beats
+//     the defender's Evasion regardless of the totals. The weapon's Power
+//     Table critical threshold is a DAMAGE-roll rule (rules/weapon-roll)
+//     and is never applied to the attack roll.
 
 import { readMonsterActorCombatStyles, getMainCombatStyleIndex } from "../actor/monster-sheet-data.mjs";
 import { parseWeaknessData, numericCombatValue } from "./damage-application.mjs";
-import { criticalFailureHTML, isCriticalFailure, markCriticalFailure, rollDiceResults } from "../rules/critical-failure.mjs";
+import { automaticFailureButton, criticalFailureHTML, isCriticalFailure, isNaturalDouble, naturalDiceTotal } from "../rules/critical-failure.mjs";
 import { assembleRollFormula, enabledModifiersTotal, normalizeModifier, openRollModifiersDialog, signedValue } from "../rules/roll-modifiers.mjs";
 import { openTargetSelectionDialog } from "../rules/target-selection.mjs";
 import { characterEvasionParts, staticAccuracy } from "./evasion-challenge.mjs";
@@ -155,7 +159,7 @@ export async function resolveMonsterDefense(monster, mode, combatStyleId = null)
   const base = entry.base;
 
   if (resolveMonsterRollMode(mode, monster) === "passive") {
-    return { mode: "passive", base, total: fixedValue(entry.style.evasion), roll: null, natural: null, criticalFailure: false };
+    return { mode: "passive", base, total: fixedValue(entry.style.evasion), roll: null, natural: null, criticalFailure: false, automaticSuccess: false };
   }
   const roll = await new Roll(assembleRollFormula("2d6", base)).evaluate();
   return {
@@ -163,12 +167,33 @@ export async function resolveMonsterDefense(monster, mode, combatStyleId = null)
     base,
     total: Number(roll.total),
     roll,
-    natural: rollDiceResults(roll).reduce((sum, value) => sum + Number(value || 0), 0),
-    criticalFailure: isCriticalFailure(roll)
+    natural: naturalDiceTotal(roll),
+    criticalFailure: isCriticalFailure(roll),
+    // Automatic success (natural double 6) on the DEFENSE roll: the passive
+    // side wins the opposed check regardless of the attacker's result
+    // (Core Rulebook I p.100).
+    automaticSuccess: isNaturalDouble(roll, 6)
   };
 }
 
 const esc = value => foundry.utils.escapeHTML(String(value ?? ""));
+
+// RAW precedence for the opposed Accuracy vs Evasion check (Core Rulebook I
+// p.100): an active (attacker) Automatic Failure loses without comparison; a
+// passive (defender) Automatic Failure loses without comparison; a passive
+// Automatic Success wins over ANY active result (including an active
+// Automatic Success — both automatic means the passive side wins); otherwise
+// the attack hits only when the Accuracy total strictly exceeds Evasion.
+export function resolveAttackHit({
+  attackCriticalFailure = false, attackNatural = 0, attackTotal = 0,
+  defenseTotal = 0, defenseCriticalFailure = false, defenseAutomaticSuccess = false
+} = {}) {
+  if (attackCriticalFailure) return false;
+  if (defenseAutomaticSuccess) return false;
+  if (defenseCriticalFailure) return true;
+  if (Number(attackNatural) === 12) return true; // attacker automatic success
+  return Number(attackTotal) > Number(defenseTotal);
+}
 
 // One side (attacker Accuracy or defender Evasion) of the resolution card.
 function rollSideHtml({ title, name, origin, natural, parts = [], total, criticalFailure }) {
@@ -189,14 +214,31 @@ function rollSideHtml({ title, name, origin, natural, parts = [], total, critica
 }
 
 // Complete resolution card shared by both directions.
+// The attack's automatic critical is the natural double 6 (12) and beats
+// Evasion regardless of the totals; the item's Power Table critical
+// threshold is a damage-roll rule and is deliberately NOT consulted here.
+// A defender Automatic Success (natural double 6 on an active defense roll)
+// wins the opposed check: the card then shows MISS even against an attacker
+// natural 12, so the CRITICAL badge only appears when the attack really hits.
 export function attackCardHtml({
   attackerTitle, attackerName, attackStatLabel, attackOrigin, attackNatural, attackParts, attackTotal, attackCriticalFailure,
   defenderName, defenseStatLabel, defenseOrigin, defenseNatural, defenseParts = [], defenseTotal, defenseCriticalFailure,
-  attackerCritFailNote, extraHtml = "", criticalValue = null
+  defenseAutomaticSuccess = false,
+  attackerCritFailNote, attackerFailureButton = "", defenseFailureButton = "",
+  extraHtml = ""
 }) {
   const isFumble = Boolean(attackCriticalFailure);
-  const isCritical = !isFumble && criticalValue !== null && Number(attackNatural) >= Number(criticalValue);
-  const hit = isCritical || (!isFumble && Number(attackTotal) > Number(defenseTotal));
+  const isAttackAutoSuccess = !isFumble && Number(attackNatural) === 12;
+  const defenseAuto = Boolean(defenseAutomaticSuccess) && !isFumble;
+  const hit = resolveAttackHit({
+    attackCriticalFailure: isFumble,
+    attackNatural: isFumble ? 0 : attackNatural,
+    attackTotal,
+    defenseTotal,
+    defenseCriticalFailure: Boolean(defenseCriticalFailure),
+    defenseAutomaticSuccess: defenseAuto
+  });
+  const isCritical = isAttackAutoSuccess && hit;
 
   let outcomeLabel, outcomeClass;
   if (isFumble) { outcomeLabel = "FUMBLE"; outcomeClass = "sw25-attack-fumble"; }
@@ -244,12 +286,15 @@ export function attackCardHtml({
               ${defenseParts.map(p => `<li>${esc(p.label)}: ${esc(signedValue(p.value))}</li>`).join('')}
               <li><strong>Origin:</strong> ${esc(defenseOrigin)}</li>
               ${defenseCriticalFailure ? '<li class="sw25-critical-failure"><strong>CRITICAL FAILURE</strong></li>' : ''}
+              ${defenseAuto ? '<li class="sw25-automatic-success"><strong>AUTOMATIC SUCCESS</strong></li>' : ''}
             </ul>
           </div>
         </div>
       </div>
 
       ${attackerCritFailNote ? `<p class="sw25-attack-critfail-note">${esc(attackerCritFailNote)}</p>` : ""}
+      ${isFumble && attackerFailureButton ? `<div class="sw25-attack-failure-register">${attackerFailureButton}</div>` : ""}
+      ${defenseCriticalFailure && defenseFailureButton ? `<div class="sw25-attack-failure-register">${defenseFailureButton}</div>` : ""}
       ${extraHtml}
     </div>`;
 }
@@ -320,11 +365,25 @@ export async function characterWeaponAttackFlow({
   const parts = breakdownParts(modifiers);
   const total = enabledModifiersTotal(parts);
   const roll = await new Roll(assembleRollFormula("2d6", total)).evaluate();
-  const natural = rollDiceResults(roll).reduce((sum, value) => sum + Number(value || 0), 0);
-  const attackerCriticalFailure = await markCriticalFailure(actor, roll);
+  const natural = naturalDiceTotal(roll);
+  // Detection only: the double 1 never writes the counter; the card offers
+  // the registration button so the player decides.
+  const attackerCriticalFailure = isCriticalFailure(roll);
+  // Automatic attack critical: natural double 6 beats Evasion regardless of
+  // the totals (see attackCardHtml). Detected from the natural dice only.
+  const attackAutomaticCritical = isNaturalDouble(roll, 6);
 
-  // Strict comparison: the attack must EXCEED the defender's Evasion.
-  const hit = !attackerCriticalFailure && (defense.criticalFailure || Number(roll.total) > defense.total);
+  // RAW precedence: a defender Automatic Success wins over everything; a
+  // defender fumble lets the attack through; an attacker automatic success
+  // always hits unless the defender also automatic-succeeds.
+  const hit = resolveAttackHit({
+    attackCriticalFailure: attackerCriticalFailure,
+    attackNatural: natural,
+    attackTotal: Number(roll.total),
+    defenseTotal: defense.total,
+    defenseCriticalFailure: defense.criticalFailure,
+    defenseAutomaticSuccess: defense.automaticSuccess
+  });
 
   const damageButtonHtml = hit && !isGunLikeWeapon(weapon) ? `
     <button type="button" class="sw25-attack-damage"
@@ -357,9 +416,10 @@ export async function characterWeaponAttackFlow({
       defenseParts: [{ label: "Base Evasion", value: defense.base }],
       defenseTotal: defense.total,
       defenseCriticalFailure: Boolean(defense.criticalFailure),
+      defenseAutomaticSuccess: Boolean(defense.automaticSuccess),
       attackerCritFailNote: attackerCriticalFailure ? "Critical failure: the attack is an automatic miss." : "",
-      extraHtml: damageButtonHtml,
-      criticalValue: Number(weapon?.system?.critical ?? 13)
+      attackerFailureButton: automaticFailureButton(actor),
+      extraHtml: damageButtonHtml
     })
   });
 
@@ -369,9 +429,11 @@ export async function characterWeaponAttackFlow({
     targetMonster,
     attackTotal: Number(roll.total),
     attackNatural: natural,
+    attackAutomaticCritical,
     defenseTotal: defense.total,
     defenseMode: defense.mode,
     defenseCriticalFailure: defense.criticalFailure,
+    defenseAutomaticSuccess: Boolean(defense.automaticSuccess),
     attackerCriticalFailure
   };
 }
@@ -412,10 +474,14 @@ export async function monsterWeaponAttackFlow({
     attackTotal = fixedValue(style?.accuracy);
   } else {
     attackRoll = await new Roll(assembleRollFormula("2d6", attackBase)).evaluate();
-    attackNatural = rollDiceResults(attackRoll).reduce((sum, value) => sum + Number(value || 0), 0);
+    attackNatural = naturalDiceTotal(attackRoll);
     attackTotal = Number(attackRoll.total);
     attackCriticalFailure = isCriticalFailure(attackRoll);
   }
+  // Automatic attack critical on the monster's active roll: natural double 6
+  // beats the defender's Evasion regardless of the totals. Fixed-mode
+  // attacks roll no dice and therefore cannot score one.
+  const attackAutomaticCritical = attackRoll ? isNaturalDouble(attackRoll, 6) : false;
 
   const defensePartsSeed = characterEvasionParts(targetActor)
     .map(part => ({ ...part, enabled: true, temporary: false }));
@@ -430,14 +496,24 @@ export async function monsterWeaponAttackFlow({
   const evasionParts = breakdownParts(modifiers);
   const evasionExtra = enabledModifiersTotal(evasionParts);
   const evasionRoll = await new Roll(assembleRollFormula("2d6", evasionExtra)).evaluate();
-  const evasionNatural = rollDiceResults(evasionRoll).reduce((sum, value) => sum + Number(value || 0), 0);
-  const evasionCriticalFailure = await markCriticalFailure(targetActor, evasionRoll);
+  const evasionNatural = naturalDiceTotal(evasionRoll);
+  // Detection only: the double 1 never writes the counter; the card offers
+  // the registration button so the player decides (character defender).
+  const evasionCriticalFailure = isCriticalFailure(evasionRoll);
+  const evasionAutomaticSuccess = isNaturalDouble(evasionRoll, 6);
 
-  // Strict comparison with the character's active Evasion roll. A critical
-  // failure on the defender's roll lets the attack through (same semantics
-  // as the existing Evasion challenge); an attacking critical failure always
-  // misses.
-  const hit = !attackCriticalFailure && (evasionCriticalFailure || attackTotal > Number(evasionRoll.total));
+  // RAW precedence: a defender Automatic Success (natural double 6 on the
+  // Evasion roll) wins over any Accuracy result; a defender fumble lets the
+  // attack through; an attacking natural double 6 always hits unless the
+  // defender also automatic-succeeds.
+  const hit = resolveAttackHit({
+    attackCriticalFailure,
+    attackNatural,
+    attackTotal,
+    defenseTotal: Number(evasionRoll.total),
+    defenseCriticalFailure: evasionCriticalFailure,
+    defenseAutomaticSuccess: evasionAutomaticSuccess
+  });
   const attackOrigin = mode === "passive"
     ? `fixed (${signedValue(attackTotal)})`
     : `active roll (2d6 ${signedValue(attackBase)})`;
@@ -461,9 +537,13 @@ export async function monsterWeaponAttackFlow({
     defenseParts: evasionParts,
     defenseTotal: Number(evasionRoll.total),
     defenseCriticalFailure: evasionCriticalFailure,
+    defenseAutomaticSuccess: evasionAutomaticSuccess,
     attackerCritFailNote: attackCriticalFailure
       ? "Critical failure: the attack is an automatic miss."
       : "",
+    // The monster never registers Automatic Failures; the character defender
+    // gets the registration button on its own fumble.
+    defenseFailureButton: automaticFailureButton(targetActor),
     extraHtml: `<p class="sw25-attack-note">${esc(resolutionNote)}</p>`
   });
 
@@ -488,9 +568,11 @@ export async function monsterWeaponAttackFlow({
     attackTotal,
     attackNatural,
     attackRoll,
+    attackAutomaticCritical,
     defenseTotal: Number(evasionRoll.total),
     defenseMode: "active",
     defenseCriticalFailure: evasionCriticalFailure,
+    defenseAutomaticSuccess: evasionAutomaticSuccess,
     attackCriticalFailure
   };
 }

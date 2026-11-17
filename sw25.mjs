@@ -7,15 +7,14 @@ import { SW25Importer } from "./module/importer/sw25-importer.mjs";
 import { resolveAttackingClass, rollWeaponDamage } from "./module/rules/weapon-roll.mjs";
 import { rollMonsterKnowledge, findMonsterKnowledgeRoller } from "./module/combat/monster-knowledge.mjs";
 import { initializeConcealedMainSection } from "./module/combat/concealed-main-section.mjs";
-import { abilityBonus } from "./module/rules/weapon-damage.mjs";
 import { RollModifiersDialog } from "./module/apps/roll-modifiers-dialog.mjs";
 import { TargetSelectionDialog } from "./module/apps/target-selection-dialog.mjs";
 import { initializeSideInitiative } from "./module/combat/side-initiative.mjs";
-import { damageApplicationButton, initializeDamageApplication } from "./module/combat/damage-application.mjs";
-import { addNaturalPowerMP } from "./module/rules/spell-damage.mjs";
+import { initializeDamageApplication } from "./module/combat/damage-application.mjs";
+import { addNaturalPowerMP, rollSpellPowerTableDamage } from "./module/rules/spell-damage.mjs";
+import { registerAutomaticFailure } from "./module/rules/critical-failure.mjs";
 import { initializeSpellEffects } from "./module/rules/spell-effects.mjs";
 import { initializeEvasionChallenges } from "./module/combat/evasion-challenge.mjs";
-import { criticalFailureHTML, markCriticalFailure } from "./module/rules/critical-failure.mjs";
 import { initializeRecoveryItems } from "./module/rules/recovery-items.mjs";
 import { initializeClassGrants } from "./module/rules/class-grants.mjs";
 import { initializeStandardScenes } from "./module/scenes/standard-scenes.mjs";
@@ -26,7 +25,7 @@ import { SW25EffectModel } from "./module/effects/effect-model.mjs";
 import { initializeEffectService, registerSw25StackingResolver } from "./module/effects/effect-service.mjs";
 import { initializeEffectRelay } from "./module/effects/effect-relay.mjs";
 import { resolveSw25Stacking } from "./module/effects/stacking-resolver.mjs";
-import { installSw25EffectiveValues, sw25EffectModifier } from "./module/effects/effective-values.mjs";
+import { installSw25EffectiveValues } from "./module/effects/effective-values.mjs";
 import { initializeDefeatedStatusSync } from "./module/actor/defeated-status.mjs";
 import { initializePortraitGauges } from "./module/actor/portrait-gauges.mjs";
 import { initializeResourceMaxima } from "./module/actor/resource-maxima.mjs";
@@ -237,6 +236,17 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
     });
   });
 
+  html.querySelectorAll("[data-sw25-chat-action='register-automatic-failure']").forEach(button => {
+    button.addEventListener("click", async event => {
+      event.preventDefault();
+      const actor = game.actors.get(button.dataset.actorId);
+      if (!actor?.isOwner) return ui.notifications.warn("You do not own the character that rolled this Automatic Failure.");
+      button.disabled = true;
+      const registered = await registerAutomaticFailure(actor);
+      button.innerHTML = registered ? '<i class="fas fa-check"></i> Registered' : '<i class="fas fa-times"></i> Not registered';
+    });
+  });
+
   html.querySelectorAll("[data-sw25-chat-action='roll-spell-damage']").forEach(button => {
     button.addEventListener("click", async event => {
       event.preventDefault();
@@ -245,32 +255,19 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
       const castingClass = actor?.items.get(button.dataset.classId);
       if (!actor || !spell || !castingClass) return ui.notifications.warn("The actor, spell, or casting class could not be found.");
       button.disabled = true;
-      const roll = await new Roll("2d6").evaluate();
-      const criticalFailure = await markCriticalFailure(actor, roll);
-      if (criticalFailure) {
-        await roll.toMessage({ speaker:ChatMessage.getSpeaker({ actor }), flavor:`<div class="sw25-chat-card"><h3>${foundry.utils.escapeHTML(spell.name)} Damage</h3>${criticalFailureHTML()}<p>No damage is dealt.</p></div>` });
-        return;
-      }
-      const diceTotal = Number(roll.total ?? 0);
-      const lookup = String(Math.min(12, Math.max(3, diceTotal)));
-      const tableValue = Number(spell.system.powerTable?.[lookup] ?? 0);
-      // Effective Magic Power (DEC-28): base formula + the prepared effect
-      // ledger's combat.magicPower entry (ability mods already flow through
-      // abilityBonus). No independent effect reconstruction here.
-      const magicPower = Number(castingClass.system.level ?? 0)
-        + abilityBonus(actor.system, "intelligence")
-        + sw25EffectModifier(actor, "combat.magicPower");
-      const total = tableValue + magicPower;
-      // DEC-6: the Success Value is the result of the CASTING roll (this 2d6
-      // + Magic Power), never the damage total. A natural 12 (double 6s) is
-      // an automatic success and adds the +5 critical rule (Core Rulebook I
-      // pp. 91/167). The spell's own critical threshold affects damage only,
-      // not the SV. Critical failure (double 1s) already returned above.
-      const spellSuccessValue = diceTotal + (diceTotal === 12 ? 5 : 0) + magicPower;
-      const critical = Number(spell.system.critical ?? 0);
-      await ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ actor }),
-        content: `<div class="sw25-chat-card sw25-spell-power-result"><h3>${foundry.utils.escapeHTML(spell.name)} Damage</h3><p><strong>Power roll:</strong> ${diceTotal} â†’ ${tableValue}</p><p><strong>Magic Power:</strong> ${magicPower}</p><p class="sw25-weapon-total"><strong>Total:</strong> ${total}</p>${damageApplicationButton(total, "magical", true, null, null, spell.uuid, { successValue: spellSuccessValue, casterUuid: actor.uuid })}${critical && diceTotal >= critical ? '<p class="sw25-critical">CRITICAL</p>' : ""}</div>`
+      // Generic Power Table spell roll: shared with the weapon mechanism
+      // (rules/spell-damage.rollSpellPowerTableDamage), including the Power
+      // Table critical's additional roll through `roll-critical-damage`.
+      // DEC-6: the cast card stamps the AUTHENTIC Spellcasting Value of the
+      // cast on this button; it is transported as-is and never re-derived
+      // from the damage roll. An absent attribute means no cast SV (a
+      // damage roll posted outside a cast) and no value is fabricated.
+      const rawSuccessValue = button.dataset.successValue;
+      await rollSpellPowerTableDamage({
+        actor,
+        spell,
+        castingClass,
+        successValue: rawSuccessValue !== undefined && rawSuccessValue !== "" ? Number(rawSuccessValue) : null
       });
     });
   });
@@ -279,11 +276,26 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
     button.addEventListener("click", async event => {
       event.preventDefault();
       const actor = game.actors.get(button.dataset.actorId);
-      const weapon = actor?.items.get(button.dataset.itemId);
-      const attackingClass = actor && weapon
-        ? resolveAttackingClass(actor, weapon, button.dataset.classId)
-        : null;
-      if (!actor || !weapon || !attackingClass) {
+      const item = actor?.items.get(button.dataset.itemId);
+      if (!actor || !item) return ui.notifications.warn("The actor or item could not be found.");
+      // Spells reuse the SAME accumulated-power mechanism as weapons: a
+      // Power Table critical grants another full table roll through this
+      // shared chat action. No parallel spell implementation exists.
+      if (item.type === "spell") {
+        button.disabled = true;
+        const rawSuccessValue = button.dataset.successValue;
+        await rollSpellPowerTableDamage({
+          actor,
+          spell: item,
+          castingClass: actor.items.get(button.dataset.classId),
+          accumulatedPower: Number(button.dataset.accumulatedPower ?? 0),
+          successValue: rawSuccessValue !== undefined && rawSuccessValue !== "" ? Number(rawSuccessValue) : null
+        });
+        return;
+      }
+      const weapon = item;
+      const attackingClass = resolveAttackingClass(actor, weapon, button.dataset.classId);
+      if (!attackingClass) {
         ui.notifications.warn("The actor, weapon, or attacking class could not be found.");
         return;
       }
@@ -317,7 +329,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
         const roll = await new Roll(formula).evaluate();
         await roll.toMessage({
           speaker: ChatMessage.getSpeaker({ actor }),
-          flavor: `${weapon.name} Damage â€” Power ${Number(weapon.system.power ?? 0)}, Critical ${Number(weapon.system.critical ?? 10)}`
+          flavor: `${weapon.name} Damage — Power ${Number(weapon.system.power ?? 0)}, Critical ${Number(weapon.system.critical ?? 10)}`
         });
       } catch (error) {
         console.error("Sword World 2.5 | Invalid weapon damage formula", error);

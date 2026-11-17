@@ -1,13 +1,15 @@
-// Sword World 2.5 - Instant/X persistent-component integration tests (T5.7-C).
+// Sword World 2.5 - Instant/X persistent-component integration tests (T5.7-C,
+// updated to the centralized Spellcasting flow).
 //
-// Exercises the corrected data flow that creates the persistent component of
-// an Instant/X spell after its immediate damage: the chat card button
-// (damageApplicationButton) → requestDamage → applyInstantXPersistentEffect →
-// EffectService (via the GM relay when the caller is not GM).
+// The persistent component of an Instant/X spell is created AS A CONSEQUENCE
+// OF THE CAST (rules/spell-cast.mjs → applyInstantXPersistentEffect →
+// EffectService via the GM relay). The apply-damage path
+// (damage-application.mjs) applies ONLY the immediate damage: it can never
+// create, duplicate or re-process the persistent component.
 //
 // Verified contracts (DEC-6, DEC-1/DEC-16, T5.2/D4, T5.3, DEC-9):
 //   1. Major action: the casting Success Value (NEVER the damage total) is
-//      preserved as cast.successValue.
+//      preserved as cast.successValue; applying damage creates nothing.
 //   2. Minor action: successValue stays 0.
 //   3. Rounds duration receives a valid casterTurn combat anchor.
 //   4. Turns duration receives a valid casterTurn combat anchor.
@@ -16,7 +18,8 @@
 //   6. Family/rank identity follows DEC-1/DEC-16 (canonical name + parsed
 //      numeral; `system.school` is never used as family).
 //   7. casterUUID and origin (spell document UUID) are preserved.
-//   8. Local path and socket-GM path build identical applications.
+//   8. Local path and socket-GM path build identical applications, and the
+//      apply-damage transport carries no casting context anymore.
 //   9. Missing mandatory data (no Success Value, no resolvable combat
 //      anchor) skips the persistent creation without fabricating values.
 //
@@ -193,11 +196,13 @@ function setGm() {
 const service = await import("../module/effects/effect-service.mjs");
 const relay = await import("../module/effects/effect-relay.mjs");
 const spellEffects = await import("../module/rules/spell-effects.mjs");
+const spellCast = await import("../module/rules/spell-cast.mjs");
 const damageApplication = await import("../module/combat/damage-application.mjs");
 const engine = await import("../module/effects/duration-engine.mjs");
 
 const { registerSw25StackingResolver, initializeEffectService } = service;
-const { damageApplicationButton, applyInstantXPersistentEffect, initializeDamageApplication } = damageApplication;
+const { applyInstantXPersistentEffect } = spellCast;
+const { damageApplicationButton, initializeDamageApplication } = damageApplication;
 const { getInstantXSpellIdentity, getInstantXSpellData, resolveSw25CasterAnchor } = spellEffects;
 const { processSw25DurationEvent } = engine;
 
@@ -300,24 +305,33 @@ const contextWarnings = () => consoleWarnings.filter(line => line.includes("pers
   actorsCollection.push(target);
 
   // SV 13 (e.g. 2d6 → 8, +5 Magic Power), damage 40: deliberately different.
+  // The apply-damage button carries NO casting context anymore: applying
+  // damage never creates the persistent component.
   const button = {
     dataset: {
       actorId: target.uuid,
       damage: "40",
       damageType: "magical",
-      damageFactor: "1",
-      spellUuid: shockingWave.uuid,
-      successValue: "13",
-      casterUuid: CASTER_UUID
+      damageFactor: "1"
     }
   };
   await clickDamageButton(button);
 
-  assert.equal(target.effects.length, 1, "One persistent component created");
+  assert.equal(target.system.hp.value, -20, "The immediate damage was applied (40, defense 0)");
+  assert.equal(target.effects.length, 0, "Applying damage NEVER creates the persistent component (cast-time creation)");
+
+  // The persistent component is created at CAST time with the AUTHENTIC
+  // casting SV (the damage total is never used as the SV).
+  await applyInstantXPersistentEffect(target, {
+    spellUuid: shockingWave.uuid,
+    casterUuid: CASTER_UUID,
+    successValue: 13,
+    damageType: "magical"
+  });
+  assert.equal(target.effects.length, 1, "One persistent component created by the cast flow");
   const system = target.effects[0].system;
   assert.equal(system.successValue, 13, "cast.successValue is the casting SV");
   assert.notEqual(system.successValue, 40, "The damage total is NEVER the Success Value");
-  assert.equal(target.system.hp.value, -20, "The immediate damage was applied (40, defense 0)");
   // Rounds scale from "Instant/20 seconds (2 rounds)" with the caster anchor.
   assert.equal(system.durationScale, "rounds");
   assert.equal(system.initialDuration, 2);
@@ -325,7 +339,7 @@ const contextWarnings = () => consoleWarnings.filter(line => line.includes("pers
   assert.deepEqual(system.durationAnchor, {
     regime: "casterTurn", edge: "begin", state: "resolved", combatantId: "cmbt-caster", tokenId: "tkn-caster"
   });
-  // DEC-9 damageType: nature from the button channel, attribute from metadata.
+  // DEC-9 damageType: nature from the spell channel, attribute from metadata.
   assert.deepEqual(system.damageType, { nature: "Magical", attribute: "Psychic" });
   // Identity from the authored name (DEC-1/DEC-16), never from system.school.
   assert.equal(system.family, "Shocking Wave");
@@ -334,7 +348,7 @@ const contextWarnings = () => consoleWarnings.filter(line => line.includes("pers
   // DEC-6 context: caster and origin preserved.
   assert.equal(system.casterUUID, CASTER_UUID);
   assert.equal(target.effects[0].origin, shockingWave.uuid, "origin is the spell document UUID");
-  record("case 1: major action — SV 13 preserved (damage 40 never used as SV), full context stored");
+  record("case 1: cast-time creation with SV 13 preserved (damage 40 never used as SV); Apply Damage creates nothing");
 }
 
 // ── Debug aid: expose captured internals for a focused re-run ──────────────
@@ -506,7 +520,7 @@ if (process.env.T57C_DEBUG === "1") {
   record("case 7: casterUUID and origin (spell document UUID) preserved");
 }
 
-// ── 8. Local path and socket GM path equivalence ───────────────────────────
+// ── 8. Local path and socket GM path equivalence (damage only) ─────────────
 
 {
   setActiveCombat();
@@ -514,18 +528,17 @@ if (process.env.T57C_DEBUG === "1") {
     actorId: null, // filled per path below
     damage: "25",
     damageType: "magical",
-    damageFactor: "1",
-    spellUuid: shockingWave.uuid,
-    successValue: "14",
-    casterUuid: CASTER_UUID
+    damageFactor: "1"
   };
 
-  // Local path: owner target, GM client.
+  // Local path: owner target, GM client. Damage only — no casting context
+  // travels on the apply-damage transport anymore.
   setGm();
   const localTarget = new MockActor("target-8a", "Target Local", { isOwner: true });
   actorsCollection.push(localTarget);
   await clickDamageButton({ dataset: { ...buttonContext, actorId: localTarget.uuid } });
-  assert.equal(localTarget.effects.length, 1, "Local path created the persistent component");
+  assert.equal(localTarget.system.hp.value, -5, "Local path applied the immediate damage");
+  assert.equal(localTarget.effects.length, 0, "The apply-damage path creates no persistent component");
 
   // Socket path: non-owner target on a player client → emit → GM handler.
   setPlayer();
@@ -536,25 +549,40 @@ if (process.env.T57C_DEBUG === "1") {
   assert.equal(socketTarget.effects.length, 0, "No local write on the player client");
   const emission = socketEmissions.find(e => e.payload?.action === "apply-damage");
   assert.ok(emission, "The damage request was sent to the GM through the socket");
-  assert.equal(emission.payload.spellUuid, shockingWave.uuid, "The socket payload carries the spell UUID");
-  assert.equal(emission.payload.successValue, 14, "The socket payload carries the casting SV");
-  assert.equal(emission.payload.casterUuid, CASTER_UUID, "The socket payload carries the caster UUID");
+  assert.ok(!("spellUuid" in emission.payload), "The socket payload carries NO spell UUID (no casting context)");
+  assert.ok(!("successValue" in emission.payload), "The socket payload carries NO casting SV");
+  assert.ok(!("casterUuid" in emission.payload), "The socket payload carries NO caster UUID");
   assert.equal(emission.payload.damageType, "magical", "The socket payload carries the damage channel");
 
-  // The GM processes the payload through the registered socket handler.
+  // The GM processes the payload through the registered socket handler:
+  // immediate damage only.
   setGm();
   const damageSocketHandler = socketListeners[socketListeners.length - 1];
   assert.equal(typeof damageSocketHandler, "function", "The GM socket handler is registered");
   await damageSocketHandler(emission.payload, "player-1");
-  assert.equal(socketTarget.effects.length, 1, "Socket path created exactly one persistent component (no double application)");
+  assert.equal(socketTarget.system.hp.value, -5, "The socket path applied the immediate damage");
+  assert.equal(socketTarget.effects.length, 0, "The socket path creates no persistent component");
 
-  // Both routes built the IDENTICAL persistent system data.
+  // The cast flow creates the persistent components through the SAME entry
+  // point on both execution routes; the resulting system data is identical.
+  await applyInstantXPersistentEffect(localTarget, {
+    spellUuid: shockingWave.uuid,
+    casterUuid: CASTER_UUID,
+    successValue: 14,
+    damageType: "magical"
+  });
+  await applyInstantXPersistentEffect(socketTarget, {
+    spellUuid: shockingWave.uuid,
+    casterUuid: CASTER_UUID,
+    successValue: 14,
+    damageType: "magical"
+  });
   const localSystem = localTarget.effects[0].system;
   const socketSystem = socketTarget.effects[0].system;
   assert.deepEqual(socketSystem, localSystem, "Identical system payload on both execution routes");
   assert.equal(socketSystem.successValue, 14, "SV intact on the socket route");
   assert.equal(socketSystem.casterUUID, CASTER_UUID, "casterUUID intact on the socket route");
-  record("case 8: local and socket-GM paths produce identical persistent applications");
+  record("case 8: local and socket-GM paths apply damage identically; the cast flow builds identical persistent applications");
 }
 
 // ── 9. Missing mandatory data is rejected, never fabricated ────────────────
@@ -564,8 +592,9 @@ if (process.env.T57C_DEBUG === "1") {
   setActiveCombat();
   consoleWarnings.length = 0;
 
-  // 9a. No Success Value on the button: damage applies, persistent component
-  // does NOT, and the failure is communicated.
+  // 9a. The apply-damage path no longer processes casting context at all:
+  // damage applies, nothing is created and nothing casting-related is
+  // reported (creation belongs to the cast flow).
   const target = new MockActor("target-9a", "Target Nine A");
   actorsCollection.push(target);
   await clickDamageButton({
@@ -573,12 +602,20 @@ if (process.env.T57C_DEBUG === "1") {
       actorId: target.uuid,
       damage: "18",
       damageType: "magical",
-      damageFactor: "1",
-      spellUuid: shockingWave.uuid
-      // no successValue, no casterUuid
+      damageFactor: "1"
     }
   });
   assert.equal(target.system.hp.value, 2, "The immediate damage was still applied");
+  assert.equal(target.effects.length, 0, "No persistent component from the apply-damage path");
+  assert.equal(contextWarnings().length, 0, "The apply-damage path attempts no persistent creation and reports nothing");
+
+  // 9a'. A direct cast-flow creation without a Success Value is rejected
+  // with clear reporting, never fabricated.
+  await applyInstantXPersistentEffect(target, {
+    spellUuid: shockingWave.uuid,
+    casterUuid: CASTER_UUID
+    // no successValue
+  });
   assert.equal(target.effects.length, 0, "No persistent component without the casting SV");
   assert.ok(contextWarnings().some(line => line.includes("Success Value")), "The missing-SV failure is clearly reported");
 
@@ -608,17 +645,17 @@ if (process.env.T57C_DEBUG === "1") {
 // ── Transport: button attributes ───────────────────────────────────────────
 
 {
-  const withContext = damageApplicationButton(40, "magical", false, null, null, shockingWave.uuid, { successValue: 13, casterUuid: CASTER_UUID });
-  assert.ok(withContext.includes('data-success-value="13"'), "The button carries the casting SV");
-  assert.ok(withContext.includes(`data-caster-uuid="${CASTER_UUID}"`), "The button carries the caster UUID");
-  assert.ok(withContext.includes(`data-spell-uuid="${shockingWave.uuid}"`), "The button carries the spell UUID");
-
-  const minorAction = damageApplicationButton(10, "magical", false, null, null, fieldProtection.uuid, { successValue: 0, casterUuid: CASTER_UUID });
-  assert.ok(minorAction.includes('data-success-value="0"'), "SV 0 (minor action) is transported, never dropped");
-
-  const withoutContext = damageApplicationButton(10, "physical", false);
-  assert.ok(!withoutContext.includes("data-success-value"), "No SV attribute without casting context");
-  assert.ok(!withoutContext.includes("data-caster-uuid"), "No caster attribute without casting context");
+  // Damage buttons NEVER carry casting context: the persistent components
+  // are created at cast time with the authentic cast SV. The SV transport
+  // lives only on the damage-ROLL buttons (roll-spell-damage,
+  // roll-critical-damage) that must preserve it across critical rolls.
+  const damageButton = damageApplicationButton(40, "magical", false);
+  assert.ok(!damageButton.includes("data-success-value"), "Damage buttons never carry a Success Value");
+  assert.ok(!damageButton.includes("data-caster-uuid"), "Damage buttons never carry a caster UUID");
+  assert.ok(!damageButton.includes("data-spell-uuid"), "Damage buttons never carry a spell UUID");
+  const fullDamageButton = damageApplicationButton(10, "physical", true);
+  assert.ok(fullDamageButton.includes("Apply Physical Damage"), "Full damage button present");
+  assert.ok(fullDamageButton.includes("Apply Half Damage"), "Half damage button present");
 
   // Anchor resolution helper (pure wrt the mock environment).
   setActiveCombat();

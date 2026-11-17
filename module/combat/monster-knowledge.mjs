@@ -1,4 +1,4 @@
-import { isCriticalFailure, criticalFailureHTML, markCriticalFailure, rollDiceResults } from "../rules/critical-failure.mjs";
+import { isCriticalFailure, criticalFailureHTML, isNaturalDouble, automaticFailureButton, naturalDiceTotal } from "../rules/critical-failure.mjs";
 import { assembleRollFormula, openRollModifiersDialog } from "../rules/roll-modifiers.mjs";
 import { normalizeSpeciesId, speciesId } from "../knowledge/mk-identity.mjs";
 import { isMkSpeciesKnown, registerMkDiscovery, withdrawMkDiscovery } from "../knowledge/monster-knowledge-registry.mjs";
@@ -578,7 +578,7 @@ function mkVerdict(discoveries, criticalFailure) {
 }
 
 function rollMKHtml({
-  title, actorName, natural, total, criticalFailure,
+  title, actorName, natural, total, criticalFailure, failureButton = "",
   targetName = null, verdict = null, warning = null,
   mainResult = null, classResultsDisplay = []
 } = {}) {
@@ -609,7 +609,7 @@ function rollMKHtml({
   return `
     <div class="sw25-chat-card sw25-mk-roll-card">
       <h3>${esc(title)} — ${esc(actorName)}${targetHeading}</h3>
-      ${criticalFailure ? criticalFailureHTML() : ""}
+      ${criticalFailure ? criticalFailureHTML() + failureButton : ""}
       ${mainHtml}
       ${warningHtml}
       ${verdictHtml}
@@ -1114,7 +1114,7 @@ export async function rollMonsterKnowledge({
     return { status: "error", error: error.message };
   }
 
-  const dice = rollDiceResults(roll).reduce((sum, value) => sum + Number(value || 0), 0);
+  const dice = naturalDiceTotal(roll);
   const natural = dice;
 
   // Per-class individual results from the one shared roll.
@@ -1151,11 +1151,14 @@ export async function rollMonsterKnowledge({
       }
     : null;
 
-  // Automatic success: double 6s on 2d6 (CR I — the natural success rule).
-  // Double 1s (critical failure) cannot co-occur with 12 on 2d6.
-  const automaticSuccess = natural === 12;
+  // Automatic success: natural double 6 on 2d6 (CR I — the natural success
+  // rule), detected from the natural dice via the shared utility. Double 1s
+  // (critical failure) cannot co-occur with a double 6 on 2d6.
+  const automaticSuccess = isNaturalDouble(roll, 6);
 
-  const criticalFailure = await markCriticalFailure(actor, roll);
+  // Detection only: the double 1 never writes the counter; the card below
+  // offers the registration button so the player decides (characters only).
+  const criticalFailure = isCriticalFailure(roll);
 
   const targetTokenUuids = targetMonster ? [targetMonster.uuid] : [];
   const classResults = mkClassResults(actor, roll, "");
@@ -1243,6 +1246,7 @@ export async function rollMonsterKnowledge({
       natural,
       total: Number(roll.total),
       criticalFailure,
+      failureButton: automaticFailureButton(actor),
       targetName: targetMonster ? targetMonster.name : null,
       verdict,
       warning: manualClass && manualIneligible && targetMonster

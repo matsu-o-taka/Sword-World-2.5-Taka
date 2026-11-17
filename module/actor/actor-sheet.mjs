@@ -1,17 +1,16 @@
 import { abilityBonus, isGunWeapon, isWarriorClass } from "../rules/weapon-damage.mjs";
 import { resolveAttackingClass, rollWeaponDamage } from "../rules/weapon-roll.mjs";
 import { playerInitiativeModifier, recordPlayerInitiative } from "../combat/side-initiative.mjs";
-import { isDoubleStomp, isNaturalPower, rememberMagicPowerRoll, rollDoubleStompDamage, rollNaturalPower, rollSpecialSpellDamage, specialDamageBands, trackNaturalPowerSpending } from "../rules/spell-damage.mjs";
-import { isExhaustiveSucking, regenerationSpellData, requestRegenerationSpell, resolveExhaustiveSucking } from "../rules/spell-effects.mjs";
+import { rememberMagicPowerRoll } from "../rules/spell-damage.mjs";
 import { rollDeathCheck } from "../rules/death-check.mjs";
-import { criticalFailureHTML, markCriticalFailure } from "../rules/critical-failure.mjs";
+import { automaticFailureButton, criticalFailureHTML, isCriticalFailure } from "../rules/critical-failure.mjs";
 import { recoveryPowerTableHTML } from "../rules/recovery-items.mjs";
 import { characterHPMaximum, characterMPMaximum } from "../rules/resources.mjs";
 import { featureDefenseModifier } from "../rules/feature-defense.mjs";
 import { SKILL_DEFINITION_MAP, SKILL_DEFINITIONS } from "../rules/skill-definitions.mjs";
 import { AUTO_SELECTION, resolveClassAssignment, resolveSkillClass } from "../rules/skill-resolution.mjs";
 import { openRollModifiersDialog } from "../rules/roll-modifiers.mjs";
-import { damageApplicationButton } from "../combat/damage-application.mjs";
+import { castSpellAsMajor, castSpellAsMinor, castSpellInCombatPreparation, isCombatPreparationSpell, isMinorActionSpell } from "../rules/spell-cast.mjs";
 import { characterWeaponAttackFlow, resolveAttackTarget, describeTargetFailure } from "../combat/attack-resolution.mjs";
 import { readMonsterActorCombatStyles } from "./monster-sheet-data.mjs";
 import { rollMonsterKnowledge } from "../combat/monster-knowledge.mjs";
@@ -188,6 +187,13 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       return a.school.localeCompare(b.school);
     });
     context.favouriteSpellLevels = favouriteSpellLevels;
+    // Casting modality capability for the sheet buttons: ⏩ Minor Action and
+    // △ Combat Preparation are read from the authored name markers (the
+    // importer keeps them; DEC-1). Major Action remains available for both.
+    for (const spell of context.spells) {
+      spell.castMinor = isMinorActionSpell(spell);
+      spell.castPrep = isCombatPreparationSpell(spell);
+    }
     context.equipment = byType("equipment");
     const correctedClassName = name => /^abyss gaer$/i.test(String(name ?? "").trim()) ? "Abyss Gazer" : String(name ?? "");
     const legacyClassUpdates = this.actor.isOwner ? [...this.actor.items].flatMap(item => {
@@ -379,6 +385,9 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     context.calculated.hpMax = formulaHP;
     const formulaMP = characterMPMaximum(system, context.classes);
     context.calculated.mpMax = formulaMP;
+    const rawMpValue = system.mp?.value;
+    const mpArray = Array.isArray(rawMpValue) ? rawMpValue : [rawMpValue];
+    context.calculated.mpCurrent = mpArray.find(v => v != null && Number.isFinite(Number(v))) ?? 0;
     context.calculated.sageLevel = context.classLevels.sage;
     context.calculated.riderLevel = context.classLevels.rider;
     // Monster Knowledge resolves through the same production resolver as the
@@ -849,8 +858,8 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       if (!skill || !check) return;
       const modifier = Number(skill.level ?? 0) + Number(this._sheetCalculated?.bonuses?.[check.ability] ?? 0);
       const roll = await new Roll(`2d6 + ${modifier}`).evaluate();
-      const criticalFailure = await markCriticalFailure(this.actor, roll);
-      await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: this.actor }), flavor: `${skill.name}: ${check.name} (${check.time || "Instant"})${criticalFailure ? criticalFailureHTML() : ""}` });
+      const criticalFailure = isCriticalFailure(roll);
+      await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: this.actor }), flavor: `${skill.name}: ${check.name} (${check.time || "Instant"})${criticalFailure ? criticalFailureHTML() + automaticFailureButton(this.actor) : ""}` });
     });
 
     html.find("[data-action='edit-language']").on("change", async event => {
@@ -1020,8 +1029,8 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       const modifier = Number(event.currentTarget.dataset.mod ?? 0);
       const skillName = event.currentTarget.closest(".skill-line")?.querySelector(".skill-name-roll")?.textContent?.trim() || "Skill";
       const roll = await new Roll(`2d6 + ${modifier}`).evaluate();
-      const criticalFailure = await markCriticalFailure(this.actor, roll);
-      await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: this.actor }), flavor: `${skillName} Check${criticalFailure ? criticalFailureHTML() : ""}` });
+      const criticalFailure = isCriticalFailure(roll);
+      await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: this.actor }), flavor: `${skillName} Check${criticalFailure ? criticalFailureHTML() + automaticFailureButton(this.actor) : ""}` });
     });
 
     html.find("[data-action='roll-check']").on("click", async event => {
@@ -1050,10 +1059,14 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       };
       const modifier = Number(dynamic[check] ?? this.actor.system.combat?.[check] ?? 0);
       const roll = await new Roll(`2d6 + ${modifier}`).evaluate();
-      const criticalFailure = await markCriticalFailure(this.actor, roll);
+      // Initiative is purely numeric: no Automatic Success/Failure detection,
+      // no consequences and no Automatic Failure registration. Every other
+      // 2d6 check detects the natural double 1 and offers the player the
+      // registration button (the detection never writes the counter itself).
+      const criticalFailure = check === "initiative" ? false : isCriticalFailure(roll);
       await roll.toMessage({
         speaker: ChatMessage.getSpeaker({ actor: this.actor }),
-        flavor: `${labels[check] ?? "Check"}${criticalFailure ? criticalFailureHTML() : ""}`
+        flavor: `${labels[check] ?? "Check"}${criticalFailure ? criticalFailureHTML() + automaticFailureButton(this.actor) : ""}`
       });
       if (check === "magicPower") await rememberMagicPowerRoll(this.actor, roll, this.actor.system.combat?.magicClassId || "");
       if (check === "initiative") await recordPlayerInitiative(this.actor, roll.total);
@@ -1068,8 +1081,8 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       const modifier = this._classLevel(classItem) + abilityBonus(this.actor.system, "intelligence")
         + sw25EffectModifier(this.actor, "combat.magicPower");
       const roll = await new Roll(`2d6 + ${modifier}`).evaluate();
-      const criticalFailure = await markCriticalFailure(this.actor, roll);
-      await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: this.actor }), flavor: `${classItem.name} Magic Power${criticalFailure ? criticalFailureHTML() : ""}` });
+      const criticalFailure = isCriticalFailure(roll);
+      await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: this.actor }), flavor: `${classItem.name} Magic Power${criticalFailure ? criticalFailureHTML() + automaticFailureButton(this.actor) : ""}` });
       await rememberMagicPowerRoll(this.actor, roll, classItem.id);
     });
 
@@ -1077,89 +1090,40 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       event.preventDefault();
       const spell = this.actor.items.get(event.currentTarget.closest("[data-item-id]")?.dataset.itemId);
       if (!spell) return;
-      const castingClass = this.actor.items.get(spell.system.classId) || [...this.actor.items].find(item =>
-        item.type === "class" && item.name.toLowerCase() === String(spell.system.className || spell.system.school || "").toLowerCase()
-      ) || this.actor.items.get(this.actor.system.combat?.magicClassId);
-      if (!castingClass) return ui.notifications.warn(`${spell.name} is not assigned to a casting class.`);
+      // The full Major Action flow lives in rules/spell-cast.mjs: one shared
+      // implementation of validation, MP deduction before the roll, the
+      // Spellcasting check, the Success Value, per-target resistances, cast-
+      // time effect creation and the independent Power Table damage. Sheets
+      // never reimplement it.
+      await castSpellAsMajor({ actor: this.actor, spell, applyCost: this.isEditable });
+    });
 
-      const doubleStomp = isDoubleStomp(spell);
-      const doubleStompTargets = doubleStomp ? [...game.user.targets] : [];
-      if (doubleStomp && (doubleStompTargets.length !== 2 || doubleStompTargets.some(token => !token.actor))) {
-        return ui.notifications.warn("Target exactly two characters before casting Double Stomp.");
-      }
+    html.find("[data-action='cast-spell-minor']").on("click", async event => {
+      event.preventDefault();
+      const spell = this.actor.items.get(event.currentTarget.closest("[data-item-id]")?.dataset.itemId);
+      if (!spell) return;
+      // Minor Action (⏩): a SEPARATE flow — no Spellcasting check, SV 0,
+      // castable repeatedly, MP per cast (CR1 p. 174).
+      await castSpellAsMinor({ actor: this.actor, spell, applyCost: this.isEditable });
+    });
 
-      const regenerationSpell = regenerationSpellData(spell);
-      const selectedTargets = regenerationSpell ? [...game.user.targets] : [];
-      if (regenerationSpell && selectedTargets.length !== 1) return ui.notifications.warn(`Target exactly one character before casting ${spell.name}.`);
-      const regenerationTarget = selectedTargets[0]?.actor;
-      if (regenerationSpell && regenerationTarget?.type !== "character") return ui.notifications.warn(`${spell.name} requires a character target.`);
-      const targetInCombat = regenerationSpell && [...(game.combat?.combatants || [])].some(combatant => combatant.actor?.uuid === regenerationTarget.uuid || combatant.actor?.id === regenerationTarget.id);
-      if (regenerationSpell && !targetInCombat) return ui.notifications.warn(`The ${spell.name} target must be in the active combat encounter.`);
-      if (regenerationSpell && !regenerationTarget.isOwner && !game.users.activeGM) return ui.notifications.error("An active GM is required to affect that target.");
-
-      const hasSpecialDamage = specialDamageBands(spell).length > 0;
-      const exhaustiveSucking = isExhaustiveSucking(spell);
-      const needsPreviousMagicPower = hasSpecialDamage || exhaustiveSucking;
-      const previousMagicPower = needsPreviousMagicPower ? this.actor.getFlag("sw25-taka", "lastMagicPowerRoll") ?? null : null;
-      if (needsPreviousMagicPower && (!previousMagicPower || previousMagicPower.criticalFailure || (previousMagicPower.classId && String(previousMagicPower.classId) !== String(castingClass.id)))) {
-        return ui.notifications.warn(`Roll ${castingClass.name} Magic Power before casting ${spell.name}.`);
-      }
-
-      const cost = Math.max(0, Number(spell.system.mpCost ?? 0));
-      const currentMP = Number(this.actor.system.mp?.value ?? 0);
-      if (currentMP < cost) return ui.notifications.warn(`${this.actor.name} does not have enough MP to cast ${spell.name}.`);
-      if (this.isEditable) {
-        await this.actor.update({ "system.mp.value": currentMP - cost });
-        await trackNaturalPowerSpending(this.actor, cost, spell);
-      }
-
-      const escape = value => foundry.utils.escapeHTML(String(value || "")).replace(/\n/g, "<br>");
-      const magicPower = this._classLevel(castingClass) + abilityBonus(this.actor.system, "intelligence");
-      const naturalPower = isNaturalPower(spell);
-      const powerResult = spell.system.hasPowerTable && !naturalPower
-        ? `<button type="button" data-sw25-chat-action="roll-spell-damage" data-actor-id="${this.actor.id}" data-item-id="${spell.id}" data-class-id="${castingClass.id}"><i class="fas fa-dice-d6"></i> Roll Damage</button>`
-        : "";
-
-      await ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ actor: this.actor }),
-        content: `<div class="sw25-chat-card spell-card"><h3>${escape(spell.name)}</h3><p><strong>${escape(castingClass.name)} Magic Power:</strong> ${magicPower} &nbsp; <strong>MP:</strong> ${cost}</p>${spell.system.metadata ? `<p>${escape(spell.system.metadata)}</p>` : ""}${spell.system.description ? `<p>${escape(spell.system.description)}</p>` : ""}${powerResult}<p><em>${escape(this.actor.name)} spends ${cost} MP.</em></p></div>`
-      });
-      if (hasSpecialDamage && !doubleStomp) await rollSpecialSpellDamage({ actor:this.actor, spell, castingClass });
-      if (doubleStomp) await rollDoubleStompDamage({ actor:this.actor, spell, castingClass, targets:doubleStompTargets });
-      if (naturalPower) await rollNaturalPower({ actor:this.actor, spell });
-      if (regenerationSpell) await requestRegenerationSpell({ target:regenerationTarget, caster:this.actor, spell });
-      if (exhaustiveSucking) await resolveExhaustiveSucking({ actor:this.actor, spell, castingClass });
+    html.find("[data-action='cast-spell-prep']").on("click", async event => {
+      event.preventDefault();
+      const spell = this.actor.items.get(event.currentTarget.closest("[data-item-id]")?.dataset.itemId);
+      if (!spell) return;
+      // Combat Preparation (△): a SEPARATE flow — no Spellcasting check,
+      // SV 0, once per name during the preparation (CR1 p. 175).
+      await castSpellInCombatPreparation({ actor: this.actor, spell, applyCost: this.isEditable });
     });
 
     html.find("[data-action='cast-spell-legacy']").on("click", async event => {
       event.preventDefault();
-      const itemId = event.currentTarget.closest("[data-item-id]")?.dataset.itemId;
-      const spell = this.actor.items.get(itemId);
+      // Legacy cast entry point (no template writes this action anymore, but
+      // external macros or modules may still trigger it). It is an alias of
+      // the SAME centralized Major Action flow: no duplicated casting logic.
+      const spell = this.actor.items.get(event.currentTarget.closest("[data-item-id]")?.dataset.itemId);
       if (!spell) return;
-
-      const cost = Math.max(0, Number(spell.system.mpCost ?? 0));
-      const currentMP = Number(this.actor.system.mp?.value ?? 0);
-      if (currentMP < cost) {
-        ui.notifications.warn(`${this.actor.name} does not have enough MP to cast ${spell.name}.`);
-        return;
-      }
-
-      if (this.isEditable) {
-        await this.actor.update({ "system.mp.value": currentMP - cost });
-        await trackNaturalPowerSpending(this.actor, cost, spell);
-      }
-
-      const description = foundry.utils.escapeHTML(spell.system.description || "").replace(/\n/g, "<br>");
-      await ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ actor: this.actor }),
-        content: `
-          <div class="sw25-chat-card spell-card">
-            <h3>${foundry.utils.escapeHTML(spell.name)}</h3>
-            <p><strong>School:</strong> ${foundry.utils.escapeHTML(spell.system.school || "—")} &nbsp; <strong>Level:</strong> ${Number(spell.system.level ?? 0)} &nbsp; <strong>MP:</strong> ${cost}</p>
-            ${description ? `<p>${description}</p>` : ""}
-            <p><em>${this.actor.name} spends ${cost} MP.</em></p>
-          </div>`
-      });
+      await castSpellAsMajor({ actor: this.actor, spell, applyCost: this.isEditable });
     });
 
     if (!this.isEditable) return;

@@ -267,14 +267,14 @@ assert.ok(lastFlavor.includes("sw25-attack-compare"));
 assert.ok(!lastFlavor.includes("Roll Damage"), "No damage button on MISS");
 assert.equal(character.updates.length, 0, "Modifier dialog never persists to the actor");
 
-console.log("=== Character attack: HIT + damage button ===");
+console.log("=== Character attack: automatic critical (natural double 6) ===");
 dialogNotes.calls.length = 0;
 dialogScript(
   [
     { label: "Class level", value: 16, enabled: true, temporary: false }
   ]
 )(chatFlavors.length);
-queueRolls([[6, 6]]); // natural 12 + 16 = 28 > 22 -> HIT
+queueRolls([[6, 6]]); // natural 12: automatic critical beats Evasion
 const hitFlow = await characterWeaponAttackFlow({
   actor: character,
   weapon: weaponItem,
@@ -287,10 +287,82 @@ const hitFlow = await characterWeaponAttackFlow({
   }
 });
 assert.equal(hitFlow.hit, true);
+assert.equal(hitFlow.attackAutomaticCritical, true, "Natural double 6 flags the automatic attack critical");
 const hitFlavor = chatFlavors[chatFlavors.length - 1].flavor;
-assert.ok(hitFlavor.includes("HIT"));
-assert.ok(hitFlavor.includes("roll-critical-damage"), "Damage button present on HIT");
+assert.ok(hitFlavor.includes("sw25-attack-critical"), "Card shows the CRITICAL outcome badge on natural double 6");
+assert.ok(!hitFlavor.includes("CRITICAL FAILURE"), "An automatic critical is not a critical failure");
+assert.ok(hitFlavor.includes("roll-critical-damage"), "Damage button present on automatic critical");
 assert.ok(hitFlavor.includes("data-class-id"), "Damage button carries the attacking class id");
+
+console.log("=== Automatic critical beats Evasion regardless of totals ===");
+// Natural 12 with NO modifiers: total 12 does not exceed Evasion 22, but the
+// automatic critical hits anyway.
+queueRolls([[6, 6]]);
+const lowTotalCrit = await characterWeaponAttackFlow({
+  actor: characterActor(),
+  weapon: weaponItem,
+  attackingClass: classItem("cls-atk", "Fighter", 5),
+  accuracyParts: [],
+  targetMonster: monsterDefense22,
+  promptModifiers: () => []
+});
+assert.equal(lowTotalCrit.hit, true, "Natural double 6 beats Evasion regardless of the totals");
+assert.equal(lowTotalCrit.attackAutomaticCritical, true);
+
+console.log("=== Weapon Power Table threshold does NOT apply to the attack roll ===");
+// The weapon's damage critical value (10) must not turn natural 11 into an
+// attack critical; only the natural double 6 does.
+const critWeapon = { id: "wpn-crit", name: "Keen Sword", type: "weapon", system: { category: "Melee", critical: 10 } };
+queueRolls([[6, 5]]); // natural 11 + 0 = 11 <= 22 -> MISS
+const natural11Flow = await characterWeaponAttackFlow({
+  actor: characterActor(),
+  weapon: critWeapon,
+  attackingClass: classItem("cls-atk", "Fighter", 5),
+  accuracyParts: [],
+  targetMonster: monsterDefense22,
+  promptModifiers: () => []
+});
+assert.equal(natural11Flow.hit, false, "Natural 11 with weapon critical 10 is NOT an automatic critical");
+assert.equal(natural11Flow.attackAutomaticCritical, false);
+const natural11Flavor = chatFlavors[chatFlavors.length - 1].flavor;
+assert.ok(natural11Flavor.includes("sw25-attack-miss"), "Card shows MISS for natural 11 below Evasion");
+assert.ok(!natural11Flavor.includes("sw25-attack-critical"), "No CRITICAL badge from the weapon's Power Table threshold");
+
+console.log("=== Character attack: defender automatic success precedence ===");
+// Character [6,6] natural 12 versus an ACTIVE monster defense that also rolls
+// [6,6]: the passive side wins (Core Rulebook I p.100).
+const activeDefMonster = monsterActor([{ style: "Claw", accuracy: "12 (19)", evasion: "15 (22)", isMainSection: true }], { activeCombatRolls: true });
+// resolveMonsterDefense runs BEFORE the attack roll: first the defense pair.
+queueRolls([[6, 6]], [[6, 6]]);
+const charBothAuto = await characterWeaponAttackFlow({
+  actor: characterActor(),
+  weapon: weaponItem,
+  attackingClass: classItem("cls-atk", "Fighter", 5),
+  accuracyParts: [],
+  targetMonster: activeDefMonster,
+  promptModifiers: () => []
+});
+assert.equal(charBothAuto.hit, false, "Both automatic success => the monster defense wins");
+assert.equal(charBothAuto.defenseAutomaticSuccess, true);
+const charBothAutoFlavor = chatFlavors[chatFlavors.length - 1].flavor;
+assert.ok(charBothAutoFlavor.includes("sw25-attack-miss"), "Card shows MISS despite the attacker's natural 12");
+assert.ok(charBothAutoFlavor.includes("AUTOMATIC SUCCESS"), "Card marks the defense automatic success");
+assert.ok(!charBothAutoFlavor.includes("register-automatic-failure"), "Monster defense fumble button never appears for automatic success");
+
+// Attacker natural 12 versus a normal active monster defense => HIT.
+// resolveMonsterDefense runs BEFORE the attack roll: the first scripted
+// pair is the monster's active Evasion.
+queueRolls([[3, 4]], [[6, 6]]);
+const charAutoHit = await characterWeaponAttackFlow({
+  actor: characterActor(),
+  weapon: weaponItem,
+  attackingClass: classItem("cls-atk", "Fighter", 5),
+  accuracyParts: [],
+  targetMonster: activeDefMonster,
+  promptModifiers: () => []
+});
+assert.equal(charAutoHit.hit, true, "Attacker natural 12 beats a normal active Evasion");
+assert.equal(charAutoHit.attackAutomaticCritical, true);
 
 console.log("=== Character attack: cancelled dialog ===");
 queueRolls([[3, 3]], [[3, 3]], [[3, 3]]);
@@ -339,9 +411,11 @@ const critFailFlow = await characterWeaponAttackFlow({
 });
 assert.equal(critFailFlow.hit, false, "Double 1 is an automatic MISS despite huge total");
 assert.equal(critFailFlow.attackerCriticalFailure, true);
-assert.ok(chatFlavors[chatFlavors.length - 1].flavor.includes("CRITICAL FAILURE"));
-assert.equal(critActor.updates.length, 1, "Character critical failures persist the automatic failure counter");
-assert.equal(critActor.updates[0]["system.automaticFailureCount"], 1);
+const critFlavor = chatFlavors[chatFlavors.length - 1].flavor;
+assert.ok(critFlavor.includes("CRITICAL FAILURE"));
+assert.ok(critFlavor.includes("register-automatic-failure"), "Card offers the player the Automatic Failure registration button");
+assert.equal(critActor.updates.length, 0, "Detection never writes the counter; registration is the player's choice");
+assert.ok(critFlavor.includes(`data-actor-id="${critActor.id}"`), "Registration button targets the rolling character");
 
 // ---------------------------------------------------------------------------
 // 6. Monster -> character attack (active and passive)
@@ -391,6 +465,34 @@ assert.equal(activeMonsterFlow.attackNatural, 9, "Active monster accuracy keeps 
 assert.equal(activeMonsterFlow.hit, true, "21 > 17 hits");
 assert.ok(chatFlavors[chatFlavors.length - 1].flavor.includes("active roll"), "Card notes the active origin");
 
+console.log("=== Monster attack: automatic critical on natural double 6 ===");
+// Attack roll [6,6]: natural double 6 is an automatic critical even though
+// the character's boosted Evasion (7 + 100 = 107) far exceeds the total 24.
+const autoCritMonster = monsterActor([attackStyle], { activeCombatRolls: true });
+queueRolls([[6, 6]], [[3, 4]]);
+const monsterAutoCrit = await monsterWeaponAttackFlow({
+  monsterActor: autoCritMonster,
+  style: attackStyle,
+  targetActor: defsCharacter,
+  promptModifiers: () => [{ label: "Boost", value: 100, enabled: true }]
+});
+assert.equal(monsterAutoCrit.hit, true, "Natural double 6 beats Evasion regardless of the totals");
+assert.equal(monsterAutoCrit.attackAutomaticCritical, true);
+assert.ok(chatFlavors[chatFlavors.length - 1].flavor.includes("sw25-attack-critical"), "Card shows the CRITICAL badge");
+
+console.log("=== Monster attack natural 11 is not an automatic critical ===");
+// [6,5] natural 11 + base 12 = 23 vs boosted Evasion 107 -> MISS.
+const noAutoCritMonster = monsterActor([attackStyle], { activeCombatRolls: true });
+queueRolls([[6, 5]], [[3, 4]]);
+const monsterNatural11 = await monsterWeaponAttackFlow({
+  monsterActor: noAutoCritMonster,
+  style: attackStyle,
+  targetActor: defsCharacter,
+  promptModifiers: () => [{ label: "Boost", value: 100, enabled: true }]
+});
+assert.equal(monsterNatural11.hit, false, "Natural 11 must exceed Evasion normally");
+assert.equal(monsterNatural11.attackAutomaticCritical, false);
+
 console.log("=== Setting toggle changes resolution evidence ===");
 // Same dice, fixed attack total 10 vs evasion 17 -> MISS; active attack total 21 vs 17 -> HIT
 queueRolls([[4, 4]]);
@@ -427,6 +529,52 @@ const defenderCrit = await monsterWeaponAttackFlow({
 });
 assert.equal(defenderCrit.hit, true, "Defender double 1 lets the attack through");
 assert.equal(defenderCrit.defenseCriticalFailure, true);
+const defenderCritFlavor = chatFlavors[chatFlavors.length - 1].flavor;
+assert.ok(defenderCritFlavor.includes("register-automatic-failure"), "Character defender fumble offers the registration button");
+
+console.log("=== Defender automatic success (natural double 6) precedence ===");
+// RAW CR I p.100: a passive Automatic Success wins over ANY active result.
+// Attack [5,5]+12=22 vs Evasion [6,6]+9=21 -> the lower defender total wins.
+const defAutoMonster = monsterActor([attackStyle], { activeCombatRolls: true });
+queueRolls([[5, 5]], [[6, 6]]);
+const defAutoFlow = await monsterWeaponAttackFlow({
+  monsterActor: defAutoMonster,
+  style: attackStyle,
+  targetActor: defsCharacter,
+  promptModifiers: monsterDialog
+});
+assert.equal(defAutoFlow.hit, false, "Defender natural double 6 wins despite the lower total");
+assert.equal(defAutoFlow.defenseAutomaticSuccess, true);
+const defAutoFlavor = chatFlavors[chatFlavors.length - 1].flavor;
+assert.ok(defAutoFlavor.includes("sw25-attack-miss"), "Card shows MISS on the defender's automatic success");
+assert.ok(defAutoFlavor.includes("AUTOMATIC SUCCESS"), "Card marks the defense's automatic success");
+assert.ok(!defAutoFlavor.includes("sw25-attack-critical"), "No CRITICAL badge when the attack misses");
+
+// Both sides automatic: the passive side wins (Core Rulebook I p.100).
+const bothAutoMonster = monsterActor([attackStyle], { activeCombatRolls: true });
+queueRolls([[6, 6]], [[6, 6]]);
+const bothAutoFlow = await monsterWeaponAttackFlow({
+  monsterActor: bothAutoMonster,
+  style: attackStyle,
+  targetActor: defsCharacter,
+  promptModifiers: monsterDialog
+});
+assert.equal(bothAutoFlow.hit, false, "Both automatic success => passive side wins");
+assert.equal(bothAutoFlow.attackAutomaticCritical, true);
+assert.equal(bothAutoFlow.defenseAutomaticSuccess, true);
+
+// Attacker automatic success versus a NORMAL active defense => HIT.
+const autoVsNormalMonster = monsterActor([attackStyle], { activeCombatRolls: true });
+queueRolls([[6, 6]], [[3, 4]]);
+const autoVsNormalFlow = await monsterWeaponAttackFlow({
+  monsterActor: autoVsNormalMonster,
+  style: attackStyle,
+  targetActor: defsCharacter,
+  promptModifiers: monsterDialog
+});
+assert.equal(autoVsNormalFlow.hit, true, "Attacker natural 12 beats a normal active Evasion");
+assert.equal(autoVsNormalFlow.attackAutomaticCritical, true);
+assert.equal(autoVsNormalFlow.defenseAutomaticSuccess, false);
 
 console.log("=== Strict monster comparison: equal Evasion ===");
 // Attack total exactly equal to the defender's Evasion total => MISS.
@@ -464,7 +612,7 @@ const disabledFlow = await monsterWeaponAttackFlow({
 });
 // Disabled parts are excluded: defense total = 7 (natural) + 3 (only enabled agility)
 assert.equal(disabledFlow.defenseTotal, 10, "Disabled dialog entries are excluded from the Evasion total");
-assert.notEqual(defsCharacter.updates.length, true, "Marking only persists on critical failure");
+assert.equal(defsCharacter.updates.length, 0, "Detection without fumble never touches the Automatic Failure counter");
 
 console.log("=== Cancelled monster dialog ===");
 const fixedMonster4 = monsterActor([attackStyle], { activeCombatRolls: false });

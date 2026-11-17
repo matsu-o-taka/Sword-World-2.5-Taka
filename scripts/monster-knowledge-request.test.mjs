@@ -91,8 +91,6 @@ class MockRoll {
 
 globalThis.Roll = MockRoll;
 
-globalThis.markCriticalFailure = async () => false;
-globalThis.rollDiceResults = (roll) => roll.dice.flatMap(die => die.results.map(r => r.result));
 globalThis.assembleRollFormula = (diceFormula, total) => {
   const n = Number(total ?? 0);
   if (!Number.isFinite(n) || n === 0) return String(diceFormula);

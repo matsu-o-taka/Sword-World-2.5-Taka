@@ -6,7 +6,7 @@ This is a fork of [Sword-World-2.5-Foundry](https://github.com/DaedaIus/Sword-Wo
 
 A note from me: I am not a programmer. I am building and maintaining this fork as a hobby, with the help of AI, purely as a fan of Sword World 2.5. I test everything as I go hoping it works, but expect rough edges.
 
-![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sw25--taka%200.19.1%2B-blue)
+![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sw25--taka%200.19.2%2B-blue)
 
 ## Features at a glance
 
@@ -20,6 +20,15 @@ A note from me: I am not a programmer. I am building and maintaining this fork a
 - **Skill checks** — reorganized catalogue with per-check class lists and automatic highest-level selection.
 - **Spell drag & drop** — spells dropped on a character go straight to the viewed class page or open a wizard-type picker.
 - **Standard combat maps** — Combat A, Combat B and Coliseum scenes auto-created in a Simplified Combat Battlefields folder.
+
+## v0.19.2 - Wizard class pages: Casting + MP header redesign, spell button order, escuadras in Light theme
+
+- **Wizard class pages: Casting + MP header** — the top of the nine Wizard class pages (Abyss Gazer, Artificer, Bibliomancer, Conjurer, Daemonologist, Druid, Fairy Tamer, Priest, Sorcerer) now shows a three-column header: **Casting** panel (title, Magic Power button and formula), **Mana Points** panel (reusing the exact same inputs, storage and mechanisms as Combat Data — edits in one view reflect in the other), and a reserved **class art** space (604 px) ready for a future class icon or illustration. Casting and MP panels have identical dimensions and visual presence. `Spells` remains full-width unchanged; non-Wizard classes are untouched.
+- **Spell button order** — cast buttons on class spell rows now follow a fixed order: **Combat Preparation (△)**, **Minor Action (⏩)**, **Cast**, **Favourite (★)**, **Delete**. Buttons that do not exist for a given spell are simply absent without affecting alignment of the others. Applies to all Wizard classes by default.
+- **Class pages full-width** — `.class-feature-page` now uses a single `1fr` column so the spells and class-feature sections occupy the full sheet width on all classes.
+- **Action column width** — the class-feature Actions column was widened to 180 px so cast/favourite/delete buttons no longer compress when spells have extra modality buttons (⏩ / △).
+- **Armour name edit + note** — armour names remain clickable (`data-action="edit-item"`, opens the item sheet like weapons) and the note (`<small>`) stays immediately after the name without truncation.
+- **Escuadras doradas en Light theme** — all `.paper-panel` boxes in the Light theme now carry the same four gold corner brackets (top-left, top-right, bottom-left, bottom-right) as Light Red, with the gold march beneath the header.
 
 ## v0.19.1 - Monster import, character sheet visuals, portrait gauges, Combat Data redesign and Instant/X effects
 

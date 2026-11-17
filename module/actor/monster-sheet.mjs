@@ -3,7 +3,7 @@ import { damageApplicationButton } from "../combat/damage-application.mjs";
 import { staticAccuracy } from "../combat/evasion-challenge.mjs";
 import { monsterWeaponAttackFlow, getMonsterActiveCombatRolls, describeTargetFailure } from "../combat/attack-resolution.mjs";
 import { openRollModifiersDialog } from "../rules/roll-modifiers.mjs";
-import { criticalFailureHTML, markCriticalFailure, rollDiceResults } from "../rules/critical-failure.mjs";
+import { criticalFailureHTML, isCriticalFailure, naturalDiceTotal } from "../rules/critical-failure.mjs";
 import { appendMonsterCombatStyle, applyMonsterMainSectionPolicyToStyles, createMonsterUniqueSkill, getMonsterSectionChoices, hasValidMainCombatStyle, mergeMonsterCombatStyleFields, mergeMonsterUniqueSkillFields, prepareMonsterCombatStyles, prepareMonsterUniqueSkillGroups, readMonsterActorCombatStyles, setMonsterMainSectionFlag } from "./monster-sheet-data.mjs";
 import { MONSTER_SPECIAL_RULES, SPECIAL_RULE_LABELS, MAIN_SECTION_POLICIES, resolveMonsterSectionPolicy, resolveMonsterSpecialRule } from "./monster-section-state.mjs";
 import { concealedSelectionCandidates, getConcealedMainSectionConfig, getConcealedMainSectionSelection, getConcealedMainSectionPresentation, randomizeConcealedMainSection, setConcealedMainSectionSelection, selectConcealedMainSection, setConcealedMainSectionConfig } from "../combat/concealed-main-section.mjs";
@@ -609,7 +609,7 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
         }
         roll = await new Roll(`2d6 + ${modifier}`).evaluate();
         rollTotal = Number(roll.total);
-        rollNatural = rollDiceResults(roll).reduce((sum, value) => sum + Number(value || 0), 0);
+        rollNatural = naturalDiceTotal(roll);
       } else {
         const fixedValue = staticAccuracy(style.accuracy);
         if (fixedValue === null) {
@@ -619,7 +619,10 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
         rollNatural = null;
         roll = null;
       }
-      const criticalFailure = roll ? await markCriticalFailure(this.actor, roll) : false;
+      // Detection only, from the natural dice. Monster fumbles never touch
+      // the Automatic Failure counter and never get the registration button
+      // (that mechanism is exclusively for characters).
+      const criticalFailure = roll ? isCriticalFailure(roll) : false;
       const escape = value => foundry.utils.escapeHTML(String(value ?? ""));
       const flavor = roll
         ? `${this.actor.name} — ${escape(style.style || "Attack")} Accuracy${criticalFailure ? criticalFailureHTML() : ""}`

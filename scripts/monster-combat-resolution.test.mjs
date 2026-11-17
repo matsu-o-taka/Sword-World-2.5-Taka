@@ -89,8 +89,6 @@ class MockRoll {
 
 globalThis.Roll = MockRoll;
 
-globalThis.markCriticalFailure = async () => false;
-globalThis.rollDiceResults = (roll) => roll.dice.flatMap(d => d.results.map(r => r.result));
 
 // ── Import after mocks ─────────────────────────────────────────────────────
 
