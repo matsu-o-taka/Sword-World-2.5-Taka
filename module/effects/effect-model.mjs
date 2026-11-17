@@ -5,11 +5,12 @@
 // architecture (see reports/sw25-effects-stacking-design-decisions.md,
 // DEC-1..DEC-52; persistence criteria in DEC-49, schema versioning in DEC-41).
 //
-// This module defines ONLY the type data model class. It is not registered
-// anywhere by itself: wiring the subtype declaration (system.json
-// documentTypes) and the `CONFIG.ActiveEffect.dataModels` registration belongs
-// to the follow-up integration task, and until then this model is not used by
-// Foundry at runtime.
+// This module defines ONLY the type data model class. The subtype is
+// registered in sw25.mjs (Hooks.once("init")) under
+// `CONFIG.ActiveEffect.dataModels["sw25Effect"]`, and the subtype key is
+// declared in system.json `documentTypes.ActiveEffect`. The model is active
+// at runtime: every `sw25Effect` ActiveEffect carries `effect.system` as an
+// instance of this class.
 //
 // Registration mechanism verified against the installed Foundry v14 client and
 // the official v14 API documentation (see reports/sw25-t1-0-...):

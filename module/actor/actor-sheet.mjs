@@ -144,7 +144,50 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
         .sort(([a], [b]) => a - b)
         .map(([level, items]) => ({ level, label:`Level ${level}`, items }));
     };
-    context.favouriteSpellLevels = groupSpellsByLevel(context.favouriteSpells);
+    const classToSchool = {
+      "sorcerer": "Truespeech Magic",
+      "conjurer": "Spiritualism",
+      "fairy tamer": "Fairy Magic",
+      "priest": "Divine Magic"
+    };
+    const schoolOrder = ["Truespeech Magic", "Spiritualism", "Fairy Magic", "Divine Magic"];
+    const schoolSpells = new Map();
+    for (const spell of context.favouriteSpells) {
+      const schoolKey = String(spell.system.school ?? "").trim() || "General";
+      const school = classToSchool[schoolKey.toLowerCase()] || schoolKey;
+      if (!schoolSpells.has(school)) schoolSpells.set(school, { spells: [], schoolKey });
+      schoolSpells.get(school).spells.push(spell);
+    }
+    const favouriteSpellLevels = [];
+    for (const [school, data] of schoolSpells) {
+      const spells = data.spells;
+      const schoolKey = data.schoolKey;
+      const classNames = context.classes
+        .filter(c => String(c.system.school ?? "").toLowerCase() === schoolKey.toLowerCase() ||
+                     String(c.name ?? "").toLowerCase() === schoolKey.toLowerCase())
+        .map(c => String(c.name ?? ""));
+      const levels = new Map();
+      for (const spell of spells) {
+        const level = Math.max(0, Number(spell.system.level ?? 0));
+        if (!levels.has(level)) levels.set(level, []);
+        levels.get(level).push(spell);
+      }
+      favouriteSpellLevels.push({
+        school,
+        label: school,
+        className: classNames.join(", "),
+        levels: [...levels.entries()].sort(([a],[b]) => a - b).map(([level, items]) => ({level, label: `Lv ${level}`, items}))
+      });
+    }
+    favouriteSpellLevels.sort((a, b) => {
+      const ai = schoolOrder.indexOf(a.school);
+      const bi = schoolOrder.indexOf(b.school);
+      if (ai !== -1 && bi !== -1) return ai - bi;
+      if (ai !== -1) return -1;
+      if (bi !== -1) return 1;
+      return a.school.localeCompare(b.school);
+    });
+    context.favouriteSpellLevels = favouriteSpellLevels;
     context.equipment = byType("equipment");
     const correctedClassName = name => /^abyss gaer$/i.test(String(name ?? "").trim()) ? "Abyss Gazer" : String(name ?? "");
     const legacyClassUpdates = this.actor.isOwner ? [...this.actor.items].flatMap(item => {
@@ -460,7 +503,7 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       const nameKey = String(classItem?.name || "").trim().toLowerCase();
       tab.classId = classItem?.id || "";
       tab.classLevel = Number(classItem?.system.level ?? 0);
-      tab.isWizard = tab.sections.some(section => section.key === "spell");
+      tab.isWizard = String(classItem?.system?.classType || "").trim().toLowerCase() === "wizard";
       tab.magicPower = tab.classLevel + bonuses.intelligence;
       tab.isGeomancer = nameKey === "geomancer";
       tab.isAlchemist = nameKey === "alchemist";
@@ -481,6 +524,7 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
         }));
       }
     }
+    context.wizardClassTabs = context.classTabs.filter(tab => tab.isWizard);
     context.accessoryRows = [
       ["head","Head"],["face","Face"],["ears","Ears"],["neck","Neck"],["back","Back"],
       ["rightHand","Right Hand"],["leftHand","Left Hand"],["waist","Waist"],["feet","Feet"],["other","Other"]

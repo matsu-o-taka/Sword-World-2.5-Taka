@@ -173,54 +173,66 @@
 <div class="special-check-control"><button type="button" data-action="roll-check" data-check="initiative"><span>Initiative</span><strong>{{calculated.initiative}}{{#with effectBadges.initiative as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.initiativeBase}}">{{badge.label}}</span>{{/with}}</strong></button><label><span>Bonus</span><input type="number" name="system.combat.initiativeBonus" value="{{calculated.initiativeBonus}}"></label></div>
 </div></section>
         <section class="paper-panel movement-box"><h2>Movement</h2><div class="movement-track"><label>Limited Move<input type="number" value="3" disabled></label><label>Normal Move <small>(Agility Score)</small><input type="number" value="{{calculated.normalMove}}" disabled></label><label>Full Move<input type="number" value="{{calculated.fullMove}}" disabled></label></div><input type="text" name="system.combat.movementEnhancements" value="{{system.combat.movementEnhancements}}" placeholder="Movement enhancements"></section>
-        <section class="paper-panel hp-box">
-          <button type="button" class="death-check-button" data-action="roll-death-check" title="Roll Death Check" aria-label="Roll Death Check"><i class="fas fa-skull-crossbones"></i></button>
-          <div class="resource-heart">
-            <div class="resource-heart-inner">
-              <div class="resource-title">HP</div>
-              <div class="resource-subtitle">(Hit Points)</div>
-              <div class="resource-value-line">
-                <input class="resource-current" type="number" name="system.hp.value" value="{{system.hp.value}}" aria-label="Current HP">
-                <span class="resource-divider">/</span>
-                <input class="resource-max" type="number" value="{{calculated.hpMax}}" aria-label="Maximum HP" readonly>
+        <div class="twin-area">
+          <section class="resource-panel panel-hp">
+            <div class="panel-head"><span class="panel-head-title">Hit Points</span><button type="button" class="death-check-button" data-action="roll-death-check" title="Roll Death Check" aria-label="Roll Death Check"><i class="fas fa-skull-crossbones"></i></button></div>
+            <div class="panel-body">
+              <div class="twin-values">
+                <input class="twin-current" type="number" name="system.hp.value" value="{{system.hp.value}}" aria-label="Current HP">
+                <span class="twin-divider">/</span>
+                <input class="twin-max" type="number" value="{{calculated.hpMax}}" aria-label="Maximum HP" readonly>
               </div>
-              <div class="resource-max-caption">MAX HP{{#with effectBadges.hpMax as |badge|}} <span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.hpMax}}">{{badge.label}}</span>{{/with}}</div>
+              <div class="twin-badges">{{#with effectBadges.hpMax as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.hpMax}}">{{badge.label}}</span>{{/with}}</div>
+              <div class="twin-formula">Adventurer Level × 3 + Vitality</div>
             </div>
-          </div>
-          <small>Adventurer Level × 3 + Vitality</small>
-        </section>
+          </section>
+          <section class="resource-panel panel-mp">
+            <div class="panel-head"><span class="panel-head-title">Mana Points</span></div>
+            <div class="panel-body">
+              <div class="twin-values">
+                <input class="twin-current" type="number" name="system.mp.value" value="{{system.mp.value}}" aria-label="Current MP">
+                <span class="twin-divider">/</span>
+                <input class="twin-max" type="number" value="{{calculated.mpMax}}" disabled aria-label="Maximum MP">
+              </div>
+              <div class="twin-badges">{{#with effectBadges.mpMax as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.mpMax}}">{{badge.label}}</span>{{/with}}</div>
+              <div class="twin-formula">Level + Int modifier · per Wizard class</div>
+            </div>
+          </section>
+        </div>
         <section class="paper-panel accessories-box"><h2>Accessories <button type="button" class="panel-add" data-action="import-accessory" title="Import accessory"><i class="fas fa-file-import"></i></button></h2><div class="accessory-table"><div><strong>Section</strong><strong>Accessory</strong></div>{{#each accessoryRows as |row|}}<label><span>{{row.label}}</span><input type="text" name="system.accessories.{{row.key}}" value="{{row.value}}"></label>{{/each}}</div></section>
         <section class="paper-panel defense-box"><h2>Defensive Combat Stats <button type="button" class="panel-add" data-action="add-armour"><i class="fas fa-plus"></i></button></h2><div class="defense-selector evasion-builder"><label>Defense Class<select data-action="select-defense-class"><option value="">—</option>{{#each defenseClassChoices as |choice|}}<option value="{{choice.value}}" {{#if choice.selected}}selected{{/if}}>{{choice.label}}</option>{{/each}}</select></label><span>Class Lv <strong>{{calculated.defenseClassLevel}}</strong></span><span>Agility Bonus <strong>{{calculated.bonuses.agility}}</strong></span><label>Situational Evasion Modifier <input type="number" name="system.combat.situationalEvasion" value="{{calculated.situationalEvasion}}"></label></div><div class="defense-table"><div class="def-head"><span>Armour / Shield</span><span title="Equipped">Eq</span><span title="Minimum Strength">STR</span><span title="Evasion">Eva</span><span title="Defense">Def</span><span title="Magical Defense">M.Def</span><span aria-label="Delete" title="Delete"><i class="fas fa-trash"></i></span></div>{{#each armour as |item|}}<div class="armour-entry" data-item-id="{{item.id}}"><div class="armour-name-cell"><button type="button" class="paper-link" data-action="toggle-armour">{{item.name}}</button>{{#if item.system.notes}}<small>{{item.system.notes}}</small>{{/if}}</div><label class="armour-equipped" title="Only equipped armour applies its modifiers"><input type="checkbox" data-action="toggle-armour-equipped" {{checked item.system.equipped}}><span class="sr-only">Equipped</span></label><span>{{item.system.minStrength}}</span><span>{{item.system.evasion}}</span><span>{{item.system.defence}}</span><span>{{item.system.magicalDefence}}</span><button type="button" class="armour-delete" data-action="delete-armour" title="Delete armour"><i class="fas fa-trash"></i></button></div>{{else}}<p class="paper-empty">No armour</p>{{/each}}</div><div class="defense-totals"><span>Defense <strong>{{calculated.defense}}{{#with effectBadges.defense as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.defenseBase}}">{{badge.label}}</span>{{/with}}</strong></span><span>Magical Defense <strong>{{calculated.magicalDefense}}{{#with effectBadges.magicalDefense as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.magicalDefenseBase}}">{{badge.label}}</span>{{/with}}</strong></span></div><div class="resistance-strip"><button type="button" data-action="roll-check" data-check="fortitude">Fortitude <strong>{{calculated.fortitude}}{{#with effectBadges.fortitude as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.fortitudeBase}}">{{badge.label}}</span>{{/with}}</strong></button><button type="button" data-action="roll-check" data-check="willpower">Willpower <strong>{{calculated.willpower}}{{#with effectBadges.willpower as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.willpowerBase}}">{{badge.label}}</span>{{/with}}</strong></button><button type="button" data-action="roll-check" data-check="evasion">Evasion <strong>{{calculated.evasion}}{{#with effectBadges.evasion as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.evasionBase}}">{{badge.label}}</span>{{/with}}</strong></button></div></section>
         <section class="paper-panel magic-box"><h2>Spells &amp; Magic</h2>
-          <div class="mp-crystal">
-            <div class="mp-crystal-inner">
-              <div class="resource-title">MP</div>
-              <div class="resource-subtitle">(Mana Points)</div>
-              <div class="resource-value-line">
-                <input class="resource-current" type="number" name="system.mp.value" value="{{system.mp.value}}" aria-label="Current MP">
-                <span class="resource-divider">/</span>
-                <input class="resource-max" type="number" value="{{calculated.mpMax}}" disabled aria-label="Maximum MP">
-              </div>
-              <div class="resource-max-caption">MAX MP{{#with effectBadges.mpMax as |badge|}} <span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.mpMax}}">{{badge.label}}</span>{{/with}}</div>
+          <div class="magic-content">
+            <div class="magic-classes">
+              <div class="magic-power-list">{{#each wizardClassTabs as |wizardTab|}}
+                <div class="magic-power-entry">
+                  <span class="magic-power-class">{{wizardTab.label}} <small>(Lv {{wizardTab.classLevel}})</small></span>
+                  <button type="button" class="magic-power-roll" data-action="roll-class-magic-power" data-class-id="{{wizardTab.classId}}">Magic Power <strong>{{wizardTab.magicPower}}</strong></button>
+                </div>
+              {{/each}}</div>
+            </div>
+            <div class="magic-spells">
+              <div class="magic-list">{{#each favouriteSpellLevels as |schoolGroup|}}<h3 class="spell-school-heading">{{schoolGroup.label}} {{#if schoolGroup.className}}<small>· {{schoolGroup.className}}</small>{{/if}}</h3>{{#each schoolGroup.levels as |levelGroup|}}<h4 class="spell-level-heading">Lv {{levelGroup.level}}</h4>{{#each levelGroup.items as |item|}}<div data-item-id="{{item.id}}"><button type="button" class="paper-link" data-action="edit-item">{{item.name}}</button><span>MP {{item.system.mpCost}}</span><button type="button" data-action="cast-spell">Cast</button></div>{{/each}}{{/each}}{{else}}<p class="paper-empty">No favourite spells</p>{{/each}}</div>
             </div>
           </div>
-          <div class="page-two-magic-power"><select data-action="select-magic-class" aria-label="Wizard class"><option value="">— Wizard Class —</option>{{#each magicClassChoices as |choice|}}<option value="{{choice.value}}" {{#if choice.selected}}selected{{/if}}>{{choice.label}}</option>{{/each}}</select><button type="button" class="magic-power-roll" data-action="roll-check" data-check="magicPower">Magic Power <strong>{{calculated.magicPower}}{{#with effectBadges.magicPower as |badge|}}<span class="sw25-mod-badge sw25-mod-{{badge.cls}}" title="Base {{../calculated.magicPowerBase}}">{{badge.label}}</span>{{/with}}</strong></button></div><div class="magic-list">{{#each favouriteSpellLevels as |levelGroup|}}<h3 class="spell-level-heading">{{levelGroup.label}}</h3>{{#each levelGroup.items as |item|}}<div data-item-id="{{item.id}}"><button type="button" class="paper-link" data-action="edit-item">{{item.name}}</button><span>Lv {{item.system.level}}</span><span>MP {{item.system.mpCost}}</span><button type="button" data-action="cast-spell">Cast</button></div>{{/each}}{{else}}<p class="paper-empty">No favourite spells</p>{{/each}}</div></section>
+        </section>
         <section class="paper-panel feats-box">
           <h2>Combat Feats <button type="button" class="panel-add" data-action="add-feat"><i class="fas fa-plus"></i></button></h2>
           <div class="feat-list">
             <div class="feat-row feat-head">
-              <span>Name</span><span>Prerequisite</span><span>Use</span><span></span>
+              <span>Name</span><span>Prerequisite</span><span>Description</span><span>Use</span><span></span>
             </div>
             {{#each feats as |item|}}
               <div class="feat-entry" data-item-id="{{item.id}}">
                 <div class="feat-row">
                   <button type="button" class="paper-link feat-name" data-action="toggle-feat">{{item.name}}</button>
                   <span class="feat-prerequisite">{{item.system.prerequisite}}</span>
+                  <span class="feat-description">{{item.system.summary}}</span>
                   <span class="feat-use">{{item.system.use}}</span>
                   <span class="feat-actions">
                     <button type="button" class="feat-post" data-action="post-item" title="Post feat to chat"><i class="fas fa-comment"></i></button>
                     <button type="button" class="feat-edit" data-action="edit-item" title="Edit feat"><i class="fas fa-pen"></i></button>
-                    <button type="button" class="feat-delete" data-action="delete-item" title="Delete feat"><i class="fas fa-trash"></i></button>
+                    <button type="button" class="row-delete feat-delete" data-action="delete-item" title="Delete feat"><i class="fas fa-trash"></i></button>
                   </span>
                 </div>
                 <div class="feat-details">
@@ -267,7 +279,7 @@
       <div class="official-page effects-page">
         <section class="paper-panel effects-panel">
           <h2>Effects{{#if effectsTab.canRepair}}<span class="class-feature-heading-actions"><button type="button" class="effects-repair" data-action="repair-sw25-effect-data" title="Normalize and repair the data of this sheet's persistent effects. GM only: no write is made when nothing needs fixing; newer-schema and irrecoverable data are never touched."><i class="fas fa-wrench"></i> Repair Data</button></span>{{/if}}</h2>
-          <div class="effects-head"><span>Effect</span><span>SV</span><span>Duration</span><span>Source</span><span>State</span></div>
+          <div class="effects-head"><span>Effect</span><span>SV</span><span>Duration</span><span>Anchor</span><span>Source</span><span>State</span></div>
           <div class="effects-list">
             {{#if effectsTab.nativeStatusRow}}
             <div class="effects-row native-status">
@@ -291,6 +303,7 @@
               </span>
               <span class="effect-sv">{{row.successValueLabel}}</span>
               <span class="effect-duration" title="{{row.durationTitle}}">{{row.durationLabel}}</span>
+              <span class="effect-anchor" title="{{#if row.anchorUnavailableReason}}Anchor unavailable: {{row.anchorUnavailableReason}}{{else}}{{row.anchorLabel}}{{/if}}">{{#if row.anchorLabel}}{{row.anchorLabel}}{{else}}—{{/if}}</span>
               <span class="effect-source" title="{{row.originUUID}}">{{#if row.originLabel}}{{row.originLabel}}{{else}}—{{/if}}</span>
               <span class="effect-state">{{row.stateLabel}}</span>
             </div>

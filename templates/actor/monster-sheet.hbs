@@ -11,7 +11,7 @@
       <label class="wide">Weak Point<input name="system.weakPoint" value="{{system.weakPoint}}">{{#if weaknessKnown}}<span class="weakness-known-indicator" title="Weakness known for this species">&#10003;</span>{{/if}}</label><label>Initiative<input type="number" name="system.initiative" value="{{system.initiative}}"></label><label>Movement<input name="system.movementSpeed" value="{{system.movementSpeed}}"></label><label>Fortitude<span class="monster-check-control"><input name="system.fortitude" value="{{system.fortitude}}"><button type="button" data-action="roll-monster-resistance" data-check="fortitude" title="Roll Fortitude"><i class="fas fa-dice-d6"></i></button></span></label><label>Willpower<span class="monster-check-control"><input name="system.willpower" value="{{system.willpower}}"><button type="button" data-action="roll-monster-resistance" data-check="willpower" title="Roll Willpower"><i class="fas fa-dice-d6"></i></button></span></label>
     </section>
 
-    <section class="monster-panel"><h2>Combat Statistics <span class="monster-section-policy" title="How this monster's marked Main Sections incapacitate it">{{mainSectionPolicyLabel}}{{#if isGM}}<button type="button" class="monster-section-policy-button" data-action="configure-main-sections" title="Configure Main Section interpretation (Any / All / None)"><i class="fas fa-gear"></i></button>{{/if}}</span>{{#if isGM}}<button type="button" data-action="add-monster-style"><i class="fas fa-plus"></i></button>{{/if}}</h2>
+    <section class="monster-panel"><h2>Combat Statistics <span class="monster-section-policy" title="How this monster's marked Main Sections incapacitate it">{{mainSectionPolicyLabel}}{{#if isGM}}<button type="button" class="monster-section-policy-button" data-action="configure-main-sections" title="Configure Main Section interpretation (Any / All / None)"><i class="fas fa-gear"></i></button>{{#if concealedMainSectionActive}}<button type="button" class="monster-section-randomize-button" data-action="randomize-concealed-main-section" title="Re-randomize concealed Main Section (new random selection for this individual)."><i class="fas fa-random"></i></button>{{/if}}{{/if}}</span>{{#if isGM}}<button type="button" data-action="add-monster-style"><i class="fas fa-plus"></i></button>{{/if}}</h2>
       {{#if mainCombatStyleIncomplete}}<p class="monster-main-section-incomplete">Select a Main Section for this monster.</p>{{/if}}
       {{#if mainSectionSpecialUnconfigured}}<p class="monster-main-section-incomplete">Special policy has no special rule selected — open the Main Sections dialog and choose one (e.g. Concealed Main Section or Manual Resolution); DEFEATED will not be resolved automatically until then.</p>{{/if}}
       <div class="monster-main-combat-head"><span>Main</span><span>Style</span><span>Section</span><span>Accuracy</span><span>Damage</span><span>Evasion</span><span>Defense</span><span>HP</span><span>MP</span><span></span></div>
@@ -25,7 +25,7 @@
 
     <section class="monster-panel effects-panel">
       <h2>Effects{{#if effectsTab.canRepair}}<span class="class-feature-heading-actions"><button type="button" class="effects-repair" data-action="repair-sw25-effect-data" title="Normalize and repair the data of this sheet's persistent effects. GM only: no write is made when nothing needs fixing; newer-schema and irrecoverable data are never touched."><i class="fas fa-wrench"></i> Repair Data</button></span>{{/if}}</h2>
-      <div class="effects-head"><span>Effect</span><span>SV</span><span>Duration</span><span>Source</span><span>State</span></div>
+      <div class="effects-head"><span>Effect</span><span>SV</span><span>Duration</span><span>Anchor</span><span>Source</span><span>State</span></div>
       <div class="effects-list">
         {{#if effectsTab.nativeStatusRow}}
         <div class="effects-row native-status">
@@ -50,6 +50,7 @@
           </span>
           <span class="effect-sv">{{row.successValueLabel}}</span>
           <span class="effect-duration" title="{{row.durationTitle}}">{{row.durationLabel}}</span>
+          <span class="effect-anchor" title="{{#if row.anchorUnavailableReason}}Anchor unavailable: {{row.anchorUnavailableReason}}{{else}}{{row.anchorLabel}}{{/if}}">{{#if row.anchorLabel}}{{row.anchorLabel}}{{else}}—{{/if}}</span>
           <span class="effect-source" title="{{row.originUUID}}">{{#if row.originLabel}}{{row.originLabel}}{{else}}—{{/if}}</span>
           <span class="effect-state">{{row.stateLabel}}</span>
         </div>

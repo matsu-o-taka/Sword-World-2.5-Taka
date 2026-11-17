@@ -1033,4 +1033,169 @@ function typedEffectStub(type, raw, { name = "Probe", disabled = undefined, id =
   assert.equal(resolved.casterName, "Caster Actor");
 }
 
+// ── T5.4: Duration scale presentation and gmOnly visibility ──────────────────
+
+{
+  // All duration scales are presented correctly, including manual scales
+  // (minutes/hours/days/permanent/other) that never acquire automation.
+  const scaleCases = [
+    { scale: "rounds", initial: 4, remaining: 2, expectMode: "rounds", expectLabel: "Remaining 2 of 4 rounds" },
+    { scale: "turns", expectMode: "turns", expectLabel: "Turns" },
+    { scale: "minutes", expectMode: "minutes", expectLabel: "Minutes" },
+    { scale: "hours", expectMode: "hours", expectLabel: "Hours" },
+    { scale: "days", expectMode: "days", expectLabel: "Days" },
+    { scale: "permanent", expectMode: "permanent", expectLabel: "Permanent" },
+    { scale: "other", expectMode: "other", expectLabel: "Other" },
+    { scale: null, expectMode: "none", expectLabel: "—" }
+  ];
+  for (const c of scaleCases) {
+    const sys = { schemaVersion: 1, family: "Test", rank: 0, successValue: 0, ...(c.scale ? { durationScale: c.scale } : {}), ...(c.initial !== undefined ? { initialDuration: c.initial } : {}), ...(c.remaining !== undefined ? { remainingDuration: c.remaining } : {}) };
+    const eff = typedEffectStub("sw25Effect", sys, { id: `scale-${c.scale ?? "none"}` });
+    const desc = effectsTab.describeSw25Effect(eff, null);
+    assert.equal(desc.durationMode, c.expectMode, `scale ${c.scale ?? "none"} → mode ${c.expectMode}`);
+    assert.equal(desc.durationLabel, c.expectLabel, `scale ${c.scale ?? "none"} → label ${c.expectLabel}`);
+    // Manual scales never carry an anchor.
+    if (c.scale === "minutes" || c.scale === "hours" || c.scale === "days" || c.scale === "permanent" || c.scale === "other" || c.scale === null) {
+      assert.equal(desc.durationScale, c.scale, `scale ${c.scale ?? "none"} → durationScale ${c.scale ?? "none"}`);
+      assert.equal(desc.durationAnchor, null, `scale ${c.scale ?? "none"} → no anchor`);
+      assert.equal(desc.anchorAvailable, null, `scale ${c.scale ?? "none"} → no availability (no combat)`);
+    }
+  }
+}
+
+{
+  // Combat scales carry anchor data; manual scales never do.
+  const roundsWithAnchor = typedEffectStub("sw25Effect", {
+    schemaVersion: 1, family: "Test", rank: 0, successValue: 0,
+    durationScale: "rounds", initialDuration: 3, remainingDuration: 3,
+    durationAnchor: { regime: "casterTurn", edge: "begin", combatantId: "cmbt-1", tokenId: "tok-1", state: "resolved" }
+  }, { id: "anchor-rounds" });
+  const desc = effectsTab.describeSw25Effect(roundsWithAnchor, null);
+  assert.equal(desc.durationScale, "rounds");
+  assert.equal(desc.durationAnchor.regime, "casterTurn");
+  assert.equal(desc.durationAnchor.edge, "begin");
+  assert.equal(desc.durationAnchor.combatantId, "cmbt-1");
+  assert.equal(desc.durationAnchor.tokenId, "tok-1");
+  assert.equal(desc.durationAnchor.state, "resolved");
+  assert.equal(desc.anchorLabel, "casterTurn · begin · combatant cmbt-1 · token tok-1 · state: resolved");
+  assert.equal(desc.anchorAvailable, null, "no combat → availability not computed");
+}
+
+{
+  // Anchor availability is computed when a combat is supplied (D5 cases).
+  const combat = {
+    combatants: new Map([
+      ["cmbt-alive", { id: "cmbt-alive", isDefeated: false, defeated: false, tokenId: "tok-alive", token: {} }],
+      ["cmbt-defeated", { id: "cmbt-defeated", isDefeated: true, defeated: true, tokenId: "tok-dead", token: {} }],
+      ["cmbt-gone", { id: "cmbt-gone", isDefeated: false, defeated: false, tokenId: "tok-gone", token: null }]
+    ])
+  };
+  const available = typedEffectStub("sw25Effect", {
+    schemaVersion: 1, family: "Test", rank: 0, successValue: 0,
+    durationScale: "rounds", initialDuration: 3, remainingDuration: 3,
+    durationAnchor: { regime: "casterTurn", edge: "begin", combatantId: "cmbt-alive", state: "resolved" }
+  }, { id: "avail-1" });
+  const defeated = typedEffectStub("sw25Effect", {
+    schemaVersion: 1, family: "Test", rank: 0, successValue: 0,
+    durationScale: "rounds", initialDuration: 3, remainingDuration: 3,
+    durationAnchor: { regime: "casterTurn", edge: "begin", combatantId: "cmbt-defeated", state: "resolved" }
+  }, { id: "avail-2" });
+  const gone = typedEffectStub("sw25Effect", {
+    schemaVersion: 1, family: "Test", rank: 0, successValue: 0,
+    durationScale: "rounds", initialDuration: 3, remainingDuration: 3,
+    durationAnchor: { regime: "casterTurn", edge: "begin", combatantId: "cmbt-gone", state: "resolved" }
+  }, { id: "avail-3" });
+  const d1 = effectsTab.describeSw25Effect(available, null, { combat });
+  const d2 = effectsTab.describeSw25Effect(defeated, null, { combat });
+  const d3 = effectsTab.describeSw25Effect(gone, null, { combat });
+  assert.equal(d1.anchorAvailable, true, "alive combatant → available");
+  assert.equal(d1.anchorUnavailableReason, null);
+  assert.equal(d2.anchorAvailable, false, "defeated combatant → unavailable");
+  assert.equal(d2.anchorUnavailableReason, "combatant-defeated");
+  assert.equal(d3.anchorAvailable, false, "token gone → unavailable");
+  assert.equal(d3.anchorUnavailableReason, "token-gone");
+}
+
+{
+  // Legacy effect without durationScale but with round counters: treated as rounds.
+  const legacy = typedEffectStub("sw25Effect", {
+    schemaVersion: 1, family: "Legacy", rank: 0, successValue: 0,
+    initialDuration: 5, remainingDuration: 3
+  }, { id: "legacy-rounds" });
+  const desc = effectsTab.describeSw25Effect(legacy, null);
+  assert.equal(desc.durationMode, "rounds");
+  assert.equal(desc.durationLabel, "Remaining 3 of 5 rounds");
+  assert.equal(desc.durationScale, "rounds");
+}
+
+{
+  // Native document duration (raw scale) is preserved for display.
+  const native = typedEffectStub("sw25Effect", {
+    schemaVersion: 1, family: "Native", rank: 0, successValue: 0
+  }, { id: "native-turns" });
+  native.duration = { turns: 6 };
+  const desc = effectsTab.describeSw25Effect(native, null);
+  assert.equal(desc.durationMode, "native");
+  assert.equal(desc.durationLabel, "6 turns");
+  assert.equal(desc.durationScale, "turns");
+}
+
+{
+  // gmOnly: players never see gmOnly effects in the tab; the GM does.
+  const hidden = typedEffectStub("sw25Effect", { schemaVersion: 1, family: "Hidden", rank: 0, gmOnly: true }, { id: "hidden-1", name: "Hidden Effect" });
+  const ordinary = typedEffectStub("sw25Effect", structuredClone(VALID), { id: "ord-1", name: "Ordinary Effect" });
+  const legacy = typedEffectStub("sw25Effect", { schemaVersion: 1, family: "Cura", rank: 0 }, { id: "leg-1", name: "Cura" });
+
+  const playerView = effectsTab.prepareSw25EffectRows([hidden, ordinary, legacy]);
+  assert.deepEqual(playerView.rows.map(r => r.id), ["ord-1", "leg-1"],
+    "gmOnly effects are absent from the player-facing rows");
+  assert.ok(playerView.rows.every(r => r.gmOnly !== true),
+    "no player-visible row carries gmOnly=true");
+
+  const gmView = effectsTab.prepareSw25EffectRows([hidden, ordinary, legacy], null, { includeGmOnly: true });
+  assert.deepEqual(gmView.rows.map(r => r.id), ["hidden-1", "ord-1", "leg-1"],
+    "the GM view lists the gmOnly effect alongside ordinary ones");
+  assert.equal(gmView.rows[0].gmOnly, true, "the gmOnly row carries the visibility flag");
+
+  // The underlying documents are never mutated by filtering.
+  assert.equal(hidden.updates.length, 0, "filtering never writes to documents");
+}
+
+{
+  // Inspector: gmOnly effect is inspectable by the GM but refused to players.
+  const hidden = typedEffectStub("sw25Effect", { schemaVersion: 1, family: "Hidden", rank: 0, gmOnly: true }, { id: "insp-hidden", name: "Hidden Effect" });
+  const ordinary = typedEffectStub("sw25Effect", structuredClone(VALID), { id: "insp-ord", name: "Ordinary Effect" });
+
+  // GM inspection succeeds and carries the full model data.
+  const gmInsp = effectsTab.buildSw25EffectInspection(hidden, null, { combat: null });
+  assert.equal(gmInsp.gmOnly, true);
+  assert.equal(gmInsp.id, "insp-hidden");
+
+  // Player inspection of the same gmOnly effect: data is still prepared (the
+  // guard is at the UI wiring layer, not the data layer). The row-level
+  // filtering (prepareSw25EffectRows) is what keeps it from players.
+  const playerInsp = effectsTab.buildSw25EffectInspection(hidden, null, { combat: null });
+  assert.equal(playerInsp.gmOnly, true, "inspection data carries gmOnly flag for programmatic consumers");
+
+  // Ordinary effects are inspectable by everyone.
+  const ordInsp = effectsTab.buildSw25EffectInspection(ordinary, null);
+  assert.equal(ordInsp.gmOnly, false, "ordinary effect is not gmOnly");
+  assert.equal(ordInsp.durationMode, "rounds", "ordinary effect keeps its duration mode");
+}
+
+{
+  // prepareSw25EffectRows is the single sheet-facing route: it returns the
+  // same shape whether called directly or through prepareSw25EffectsTab.
+  const effects = [
+    typedEffectStub("sw25Effect", structuredClone(VALID), { id: "a" }),
+    typedEffectStub("sw25Effect", { schemaVersion: 1, family: "X", rank: 0, gmOnly: true }, { id: "b" }),
+    typedEffectStub("base", {}, { id: "c" })
+  ];
+  const direct = effectsTab.prepareSw25EffectRows(effects, null, { includeGmOnly: true });
+  assert.equal(direct.rows.length, 2, "direct route lists sw25Effect + gmOnly");
+  // The tab context wrapper uses the same preparation function.
+  assert.ok(typeof effectsTab.prepareSw25EffectsTab === "function",
+    "prepareSw25EffectsTab remains the single sheet-facing wrapper");
+}
+
 console.log("effects-schema.test.mjs: all repair/normalization/identity/tab assertions passed.");

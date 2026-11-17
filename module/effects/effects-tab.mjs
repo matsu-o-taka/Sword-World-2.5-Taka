@@ -26,7 +26,11 @@
 
 import { buildSw25CanonicalName, sw25RankToRoman } from "./effect-identity.mjs";
 import { normalizeSw25EffectSystem, SEVERITY_REVIEW, repairSw25Effect } from "./effect-repair.mjs";
-import { SW25_EFFECT_SUBTYPE } from "./effect-model.mjs";
+import {
+  SW25_EFFECT_SUBTYPE, SW25_DURATION_SCALES, SW25_COMBAT_DURATION_SCALES,
+  SW25_ANCHOR_REGIMES, SW25_ANCHOR_EDGES, SW25_ANCHOR_STATES
+} from "./effect-model.mjs";
+import { sw25AnchorAvailability } from "./duration-engine.mjs";
 
 /** The system's registered ActiveEffect subtype shown by the tab. */
 export { SW25_EFFECT_SUBTYPE } from "./effect-model.mjs";
@@ -73,39 +77,118 @@ function readEffectSource(effect) {
 }
 
 /**
- * Describe the duration bookkeeping of one effect (DEC-23).
+ * Describe the duration bookkeeping of one effect (DEC-23), extended with the
+ * full duration scale model (T5.2).
  *
  * Two clearly distinguished modes:
  *   - "rounds": the system's round-managed bookkeeping
  *     (`system.initialDuration` / `system.remainingDuration`, both nullable);
+ *   - "turns": the turn-edge condition scale (no numeric count);
+ *   - "minutes" / "hours" / "days": manual scales — GM-managed, no timers,
+ *     no `worldTime`, no calendar expiry, no automation of any kind;
+ *   - "permanent": permanent duration, no expiry;
+ *   - "other": non-standard / non-normalized duration, no automation;
  *   - "native": the effect carries a native document duration (rounds, turns
- *     or seconds scale kept in the native `duration` field for display —
- *     manual GM management per DEC-39/DEC-42);
+ *     or seconds scale kept in the native `duration` field for display);
  *   - "none": the effect has no duration by rounds and no native duration
  *     value (indefinite / permanent).
  *
- * Only real document data is used; nothing is invented. The prepared
- * `effect.duration` (Foundry's ActiveEffectDuration: `label`, `value`,
- * `units`, `remaining`, `expired`) is preferred for the native mode when the
- * live document provides it; the raw source duration is the fallback.
+ * Only real document data is used; nothing is invented. Manual scales never
+ * acquire automation. The prepared `effect.duration` (Foundry's
+ * ActiveEffectDuration: `label`, `value`, `units`, `remaining`, `expired`)
+ * is preferred for the native mode when the live document provides it; the
+ * raw source duration is the fallback.
+ *
+ * When `scale` is a combat scale (`rounds`/`turns`), the returned `anchor`
+ * carries the persisted `system.durationAnchor` (regime, edge, combatantId,
+ * tokenId, state) so the caller can present anchor information.
  * @param {object} system - Persisted `system.*` payload.
  * @param {object|null} nativeDuration - Native duration data (prepared or raw).
- * @returns {{mode: string, label: string, title: string}}
+ * @returns {{mode: string, label: string, title: string, scale: string|null,
+ *   anchor: object|null}}
  */
 function describeDuration(system, nativeDuration) {
+  const scale = typeof system.durationScale === "string" && system.durationScale !== ""
+    ? system.durationScale : null;
   const initial = typeof system.initialDuration === "number" ? system.initialDuration : null;
   const remaining = typeof system.remainingDuration === "number" ? system.remainingDuration : null;
-  if (initial !== null || remaining !== null) {
+
+  // Combat scale: rounds (system bookkeeping). A legacy effect without a
+  // declared scale but with round counters is treated the same.
+  if (scale === "rounds" || (scale === null && (initial !== null || remaining !== null))) {
     let label;
     if (remaining !== null && initial !== null) label = `Remaining ${remaining} of ${initial} rounds`;
     else if (remaining !== null) label = `Remaining ${remaining} rounds`;
-    else label = `Initial ${initial} rounds`;
+    else if (initial !== null) label = `Initial ${initial} rounds`;
+    else label = "Rounds";
     return {
       mode: "rounds",
       label,
-      title: "Round-managed effect duration (system bookkeeping)."
+      title: "Round-managed effect duration (system bookkeeping).",
+      scale: "rounds",
+      anchor: system.durationAnchor ?? null
     };
   }
+
+  // Combat scale: turns (condition-based, no numeric counter).
+  if (scale === "turns") {
+    return {
+      mode: "turns",
+      label: "Turns",
+      title: "Turn-edge condition duration (no numeric counter; expires at the anchor edge).",
+      scale: "turns",
+      anchor: system.durationAnchor ?? null
+    };
+  }
+
+  // Manual scales: GM-managed, no timers, no `worldTime`, no calendar, no
+  // automation of any kind.
+  if (scale === "minutes") {
+    return {
+      mode: "minutes",
+      label: "Minutes",
+      title: "Manual duration (minutes). GM-managed; no automatic discounting or expiry.",
+      scale: "minutes",
+      anchor: null
+    };
+  }
+  if (scale === "hours") {
+    return {
+      mode: "hours",
+      label: "Hours",
+      title: "Manual duration (hours). GM-managed; no automatic discounting or expiry.",
+      scale: "hours",
+      anchor: null
+    };
+  }
+  if (scale === "days") {
+    return {
+      mode: "days",
+      label: "Days",
+      title: "Manual duration (days). GM-managed; no automatic discounting or expiry.",
+      scale: "days",
+      anchor: null
+    };
+  }
+  if (scale === "permanent") {
+    return {
+      mode: "permanent",
+      label: "Permanent",
+      title: "Permanent duration; no expiry.",
+      scale: "permanent",
+      anchor: null
+    };
+  }
+  if (scale === "other") {
+    return {
+      mode: "other",
+      label: "Other",
+      title: "Non-standard duration scale; no system automation.",
+      scale: "other",
+      anchor: null
+    };
+  }
+
   // Native duration: prefer the prepared ActiveEffectDuration, fall back to
   // the raw document scale (rounds / turns / seconds).
   const preparedValue = typeof nativeDuration?.value === "number" ? nativeDuration.value : null;
@@ -115,20 +198,22 @@ function describeDuration(system, nativeDuration) {
     return {
       mode: "native",
       label: preparedLabel ?? `${preparedValue} ${nativeDuration.units ?? ""}`.trim(),
-      title: "Native document duration."
+      title: "Native document duration.",
+      scale: typeof nativeDuration?.units === "string" ? nativeDuration.units : null,
+      anchor: null
     };
   }
   const raw = nativeDuration ?? {};
   if (typeof raw.rounds === "number" && raw.rounds > 0) {
-    return { mode: "native", label: `${raw.rounds} rounds`, title: "Native document duration." };
+    return { mode: "native", label: `${raw.rounds} rounds`, title: "Native document duration.", scale: "rounds", anchor: null };
   }
   if (typeof raw.turns === "number" && raw.turns > 0) {
-    return { mode: "native", label: `${raw.turns} turns`, title: "Native document duration." };
+    return { mode: "native", label: `${raw.turns} turns`, title: "Native document duration.", scale: "turns", anchor: null };
   }
   if (typeof raw.seconds === "number" && raw.seconds > 0) {
-    return { mode: "native", label: `${raw.seconds} seconds`, title: "Native document duration." };
+    return { mode: "native", label: `${raw.seconds} seconds`, title: "Native document duration.", scale: "seconds", anchor: null };
   }
-  return { mode: "none", label: "—", title: "No duration by rounds and no native duration (indefinite)." };
+  return { mode: "none", label: "—", title: "No duration by rounds and no native duration (indefinite).", scale: null, anchor: null };
 }
 
 /**
@@ -172,6 +257,23 @@ function describeUuid(uuid, resolve) {
 }
 
 /**
+ * Build a human-readable label for one effect's `durationAnchor`, or null
+ * when there is no anchor data. Pure presentation: nothing invented.
+ * @param {object|null} anchor - The persisted `system.durationAnchor`.
+ * @returns {string|null}
+ */
+function describeAnchorLabel(anchor) {
+  if (!anchor || typeof anchor !== "object") return null;
+  const parts = [];
+  if (typeof anchor.regime === "string" && anchor.regime !== "") parts.push(anchor.regime);
+  if (typeof anchor.edge === "string" && anchor.edge !== "") parts.push(anchor.edge);
+  if (typeof anchor.combatantId === "string" && anchor.combatantId !== "") parts.push(`combatant ${anchor.combatantId}`);
+  if (anchor.tokenId) parts.push(`token ${anchor.tokenId}`);
+  if (typeof anchor.state === "string" && anchor.state !== "") parts.push(`state: ${anchor.state}`);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+/**
  * Full inspection description of one effect document (pure).
  *
  * Used both for the list rows (via `prepareSw25EffectRows`) and the individual
@@ -179,9 +281,12 @@ function describeUuid(uuid, resolve) {
  * the real document; absent data stays null/"—" and is never invented.
  * @param {object} effect - Effect document or plain stub.
  * @param {Function|null} [resolve] - UUID → document/index-entry resolver.
+ * @param {{combat?: Combat}} [options] - Optional combat encounter used to
+ *   compute anchor availability (D5). When absent, availability is not
+ *   computed and stays null.
  * @returns {object} Full display description.
  */
-export function describeSw25Effect(effect, resolve = null) {
+export function describeSw25Effect(effect, resolve = null, options = {}) {
   const source = readEffectSource(effect);
   const system = source.system;
 
@@ -196,6 +301,17 @@ export function describeSw25Effect(effect, resolve = null) {
   const state = describeState(effect);
   const origin = describeUuid(source.origin, resolve);
   const caster = describeUuid(typeof system.casterUUID === "string" ? system.casterUUID : null, resolve);
+
+  // Anchor presentation and availability (D5). Availability is only computed
+  // when a combat encounter is supplied and the effect carries a combat
+  // duration scale with an anchor.
+  const anchor = system.durationAnchor ?? null;
+  const anchorLabel = describeAnchorLabel(anchor);
+  const anchorAvailability = options.combat && anchor
+    && typeof system.durationScale === "string"
+    && SW25_COMBAT_DURATION_SCALES.includes(system.durationScale)
+    ? sw25AnchorAvailability(options.combat, anchor)
+    : null;
 
   const changes = Array.isArray(system.changes)
     ? system.changes.map(change => ({
@@ -233,13 +349,21 @@ export function describeSw25Effect(effect, resolve = null) {
     // Presentation visibility (gmOnly): the row consumers decide whether to
     // list the effect (players never see gmOnly effects in the tab).
     gmOnly: system.gmOnly === true,
-    // Duration bookkeeping (DEC-23) and native duration.
+    // Duration bookkeeping (DEC-23), native duration, and the full scale
+    // model (T5.2): manual scales never acquire automation.
     initialDuration: typeof system.initialDuration === "number" ? system.initialDuration : null,
     remainingDuration: typeof system.remainingDuration === "number" ? system.remainingDuration : null,
     durationMode: duration.mode,
     durationLabel: duration.label,
     durationTitle: duration.title,
+    durationScale: duration.scale,
     nativeDuration: source.duration ?? effect?.duration ?? null,
+    // Anchor (T5.2): regime, edge, combatantId, tokenId, state. Only combat
+    // scales (`rounds`/`turns`) carry an anchor; manual scales never do.
+    durationAnchor: anchor,
+    anchorLabel,
+    anchorAvailable: anchorAvailability?.available ?? null,
+    anchorUnavailableReason: anchorAvailability?.reason ?? null,
     // Provenance (DEC-49: metadata, never identity).
     originUUID: origin.uuid,
     originName: origin.label,
@@ -274,8 +398,10 @@ export function describeSw25Effect(effect, resolve = null) {
  * effective values, repair) read them directly and keep working.
  * @param {Array<object>} effects - Effect documents (or plain stubs) to list.
  * @param {Function|null} [resolve] - UUID → document/index-entry resolver.
- * @param {{includeGmOnly?: boolean}} [options] - `includeGmOnly` lists
- *   `system.gmOnly` effects too (GM view). Default false (player view).
+ * @param {{includeGmOnly?: boolean, combat?: Combat}} [options] - `includeGmOnly`
+ *   lists `system.gmOnly` effects too (GM view). Default false (player view).
+ *   `combat` is an optional combat encounter used to compute anchor
+ *   availability (D5) for combat-scale effects.
  * @returns {{rows: Array<object>, needsReviewCount: number, futureCount: number}}
  */
 export function prepareSw25EffectRows(effects, resolve = null, options = {}) {
@@ -285,7 +411,7 @@ export function prepareSw25EffectRows(effects, resolve = null, options = {}) {
   let futureCount = 0;
   for (const effect of Array.isArray(effects) ? effects : []) {
     if (!effect || effect.type !== SW25_EFFECT_SUBTYPE) continue;
-    const description = describeSw25Effect(effect, resolve);
+    const description = describeSw25Effect(effect, resolve, options);
     if (description.gmOnly === true && !includeGmOnly) continue;
     rows.push({
       id: description.id,
@@ -299,9 +425,16 @@ export function prepareSw25EffectRows(effects, resolve = null, options = {}) {
       successValue: description.successValue,
       successValueLabel: description.successValueLabel,
       gmOnly: description.gmOnly,
+      // Duration (T5.2): full scale model, manual scales without automation.
       durationMode: description.durationMode,
       durationLabel: description.durationLabel,
       durationTitle: description.durationTitle,
+      durationScale: description.durationScale,
+      // Anchor (T5.2): only combat scales carry an anchor.
+      durationAnchor: description.durationAnchor,
+      anchorLabel: description.anchorLabel,
+      anchorAvailable: description.anchorAvailable,
+      anchorUnavailableReason: description.anchorUnavailableReason,
       originUUID: description.originUUID,
       originLabel: description.originName,
       casterLabel: description.casterName,
@@ -377,7 +510,8 @@ export function prepareSw25EffectsTab(actor, isGM) {
     }
   };
   const { rows, needsReviewCount, futureCount } = prepareSw25EffectRows(
-    actor?.effects ? [...actor.effects] : [], resolve, { includeGmOnly: isGM === true }
+    actor?.effects ? [...actor.effects] : [], resolve,
+    { includeGmOnly: isGM === true, combat: game.combat ?? null }
   );
 
   // Native DEFEATED status row (HP sync): presented above the persistent
@@ -473,10 +607,12 @@ export function buildSw25BestiaryConcealedSectionRow(section) {
  * Prepare the individual inspection dialog context (pure; UI framework free).
  * @param {object} effect - Effect document or plain stub.
  * @param {Function|null} [resolve] - UUID → document/index-entry resolver.
+ * @param {{combat?: Combat}} [options] - Optional combat encounter used to
+ *   compute anchor availability (D5).
  * @returns {object} Inspection context (see `describeSw25Effect`).
  */
-export function buildSw25EffectInspection(effect, resolve = null) {
-  return describeSw25Effect(effect, resolve);
+export function buildSw25EffectInspection(effect, resolve = null, options = {}) {
+  return describeSw25Effect(effect, resolve, options);
 }
 
 // ── GM-only repair orchestration (the tab's single write path) ───────────────

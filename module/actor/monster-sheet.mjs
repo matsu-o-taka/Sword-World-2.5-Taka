@@ -6,7 +6,7 @@ import { openRollModifiersDialog } from "../rules/roll-modifiers.mjs";
 import { criticalFailureHTML, markCriticalFailure, rollDiceResults } from "../rules/critical-failure.mjs";
 import { appendMonsterCombatStyle, applyMonsterMainSectionPolicyToStyles, createMonsterUniqueSkill, getMonsterSectionChoices, hasValidMainCombatStyle, mergeMonsterCombatStyleFields, mergeMonsterUniqueSkillFields, prepareMonsterCombatStyles, prepareMonsterUniqueSkillGroups, readMonsterActorCombatStyles, setMonsterMainSectionFlag } from "./monster-sheet-data.mjs";
 import { MONSTER_SPECIAL_RULES, SPECIAL_RULE_LABELS, MAIN_SECTION_POLICIES, resolveMonsterSectionPolicy, resolveMonsterSpecialRule } from "./monster-section-state.mjs";
-import { concealedSelectionCandidates, getConcealedMainSectionConfig, getConcealedMainSectionSelection, getConcealedMainSectionPresentation, setConcealedMainSectionSelection, selectConcealedMainSection, setConcealedMainSectionConfig } from "../combat/concealed-main-section.mjs";
+import { concealedSelectionCandidates, getConcealedMainSectionConfig, getConcealedMainSectionSelection, getConcealedMainSectionPresentation, randomizeConcealedMainSection, setConcealedMainSectionSelection, selectConcealedMainSection, setConcealedMainSectionConfig } from "../combat/concealed-main-section.mjs";
 import { prepareSw25EffectsTab, attachSw25ConcealedSelectionLabel, buildSw25BestiaryConcealedSectionRow } from "../effects/effects-tab.mjs";
 import { wireSw25EffectsTabHandlers } from "./effects-tab-ui.mjs";
 import { rollMonsterKnowledge, findMonsterKnowledgeRoller, speciesWeaknessKnown } from "../combat/monster-knowledge.mjs";
@@ -426,6 +426,7 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
     context.sectionSpecialRule = context.sectionPolicy.policy === "special"
       ? resolveMonsterSpecialRule(this.actor.system).rule
       : null;
+    context.concealedMainSectionActive = context.sectionSpecialRule === "concealedMainSection";
     context.mainSectionSpecialUnconfigured = context.sectionPolicy.policy === "special"
       && context.sectionPolicy.source === "explicit"
       && !context.sectionSpecialRule;
@@ -549,6 +550,22 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
       if (!game.user.isGM) return;
       const policy = await openMainSectionPolicyDialog(this.actor, resolveMonsterSectionPolicy(this.actor.system));
       if (policy) this.render(false);
+    });
+
+    // Re-randomize the concealed Main Section of this monster (GM only).
+    // Replaces the existing concealed effect with a new random selection —
+    // never accumulates, never touches other effects, never touches other
+    // individuals that share this Actor.
+    html.find("[data-action='randomize-concealed-main-section']").on("click", async event => {
+      event.preventDefault();
+      if (!game.user.isGM) return;
+      try {
+        await randomizeConcealedMainSection(this.actor);
+        this.render(false);
+        ui.notifications.info(`Concealed Main Section of ${this.actor.name} re-randomized.`);
+      } catch (error) {
+        ui.notifications.error(error.message || "The concealed Main Section could not be re-randomized.");
+      }
     });
 
     html.find("[data-action='roll-monster-accuracy']").on("click", async event => {

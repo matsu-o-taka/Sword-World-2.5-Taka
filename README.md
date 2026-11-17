@@ -21,7 +21,7 @@ A note from me: I am not a programmer. I am building and maintaining this fork a
 - **Spell drag & drop** — spells dropped on a character go straight to the viewed class page or open a wizard-type picker.
 - **Standard combat maps** — Combat A, Combat B and Coliseum scenes auto-created in a Simplified Combat Battlefields folder.
 
-## v0.19.1 - Monster import moved to Actors directory, character sheet visuals and portrait gauges
+## v0.19.1 - Monster import, character sheet visuals, portrait gauges, Combat Data redesign and Instant/X effects
 
 - **Monster import entry point relocated** — the Import button was removed from the monster sheet and a new GM-only **"Import Monster"** action was added to the Actors directory. It opens the existing wiki import interface and creates a **brand-new monster Actor** from the imported data (no need to select a destination actor); the new monster appears in the Actors directory automatically.
 - **Species fallback** — when the wiki does not provide a Species field, `species` defaults to the creature's own name, mirroring the previous import-into-actor behavior.
@@ -31,6 +31,14 @@ A note from me: I am not a programmer. I am building and maintaining this fork a
 - **Effect values & tab** — improvements to `module/effects/effective-values.mjs` and `module/effects/effects-tab.mjs` for effect value resolution and tab presentation.
 - **Resources & recovery** — updates to `module/rules/resources.mjs` and `module/rules/recovery-items.mjs` for resource tracking and recovery-item logic.
 - **Combat maps** — Combat A and Combat B maps replaced with higher-resolution `.webp` versions; old `.png` adventurer sheet background removed in favor of `.webp`.
+
+- **Combat Data redesign** — the Combat Data page was reorganized into full-width rows: **Spells & Magic** spans the full page width with favourite spells grouped by magic school (Truespeech · Sorcerer, Spiritualism · Conjurer, Fairy Magic · Fairy Tamer), subheadings per level (no longer repeated on every spell row) and three columns filled top-to-bottom before scrolling; **Combat Feats** moved to the bottom as a full-width panel with Name / Prerequisite / Description (the feat's summary) / Use columns, themed red delete buttons placed together with the post and edit actions, and a description column fed by each feat's summary.
+- **HP/MP twin panels** — the old heart and MP crystal indicators were replaced with twin rectangular panels (HP crimson, MP blue) with gold corner brackets and a gold march that now also apply to the Light theme; editable current/max values with effect badges, formulas under each resource and a compact round icon-only Death Check button.
+- **Unified check buttons** — Monster Knowledge, Initiative, Fortitude, Willpower and Evasion now share one parchment-and-gold style (light gold top border echoing the panel march, soft parchment gradient, hover and pressed states); Magic Power and Cast keep their distinct gold gradient.
+- **Instant/X effect application (T5.7)** — new `module/effects/instant-x.mjs`: the immediate component of an Instant/X spell resolves exactly once during casting (via the damage-application chat flow: `requestDamage` → `applyInstantXPersistentEffect` → EffectService, with the GM relay when the caster is not the GM), while the persistent component is a `sw25Effect` ActiveEffect carrying only `durationScale`/`durationAnchor` (DEC-49). Major actions preserve the casting Success Value as `cast.successValue`; minor actions keep 0; rounds/turns durations anchor to the caster's turn and manual scales (minutes/other) never receive invented anchors.
+- **Combat-end purge of rounds/turns effects (T5.5)** — deleting a Combat document removes every `sw25Effect` with durationScale `rounds` or `turns` from all actors; minutes/hours/days/permanent scales, legacy effects and other subtypes survive. The purge is GM-authority and idempotent.
+- **Concealed Main Section management** — actor duplication and library import now generate an independent concealed Main Section selection, manual re-randomization updates the existing effect in place without duplicating it, and non-GM users cannot re-randomize (gmOnly protection preserved).
+- **New automated tests** — `concealed-section-management.test.mjs`, `effects-combat-purge.test.mjs`, `effects-instant-x.test.mjs` and `effects-instant-x-application.test.mjs`, plus extended `effects-schema.test.mjs`; `npm run check` runs the extended suite list.
 
 ## v0.19.0 - GM-only Effects presentation, Concealed Main Section plaintext storage, monster sheet Effects section
 

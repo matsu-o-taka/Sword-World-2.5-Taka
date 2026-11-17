@@ -271,6 +271,16 @@ export function initializeEffectService() {
     Hooks.on("preCreateActiveEffect", guardSw25EffectWrite);
     Hooks.on("preUpdateActiveEffect", guardSw25EffectWrite);
     Hooks.on("preDeleteActiveEffect", guardSw25EffectWrite);
+    // T5.5: purge combat-lifecycle duration effects (rounds / turns) when a
+    // Combat document is deleted (endCombat, programmatic delete, etc.).
+    // Fires on all clients; purgeSw25CombatDurationEffects gates writes on GM.
+    Hooks.on("deleteCombat", async () => {
+      if (game?.user?.isGM !== true) return;
+      const result = await purgeSw25CombatDurationEffects();
+      if (result.code === "partial") {
+        console.warn("[SW25 EffectService] Combat-end purge completed with errors:", result.errors);
+      }
+    });
     console.log("[SW25 EffectService] write guards registered");
   }
 }
@@ -1093,4 +1103,51 @@ export function getSw25Effect(actor, effectId, resolve = null) {
   const effect = findSw25Effect(actor, effectId);
   if (!effect) return null;
   return prepareSw25EffectRows([effect], resolve).rows[0] ?? null;
+}
+
+// ── T5.5: combat-end purge of rounds/turns scale effects ─────────────────────
+
+/**
+ * `purgeSw25CombatDurationEffects`: delete every `sw25Effect` document whose
+ * `system.durationScale` is `rounds` or `turns` (the combat-lifecycle scales)
+ * from every actor in the world. Called when a combat encounter ends: these
+ * scales have no valid temporal frame outside an active encounter.
+ *
+ * Survives: minutes, hours, days, permanent, other, native, none, legacy
+ * effects without a recognized scale, and non-sw25Effect subtypes.
+ * Based on durationScale only — not on anchor availability or state.
+ * No anchor completion, no degradation recalculation, no partial expiry.
+ *
+ * GM authority: writes go through removeSw25Effect (the sole write path).
+ * Idempotent: a second call on the same world finds nothing to remove.
+ * No retries, no queues, no parallel storage, no deletion ledger.
+ * @returns {Promise<{ok: boolean, code: string, removed: number, scanned: number, errors: Array}>}
+ */
+export async function purgeSw25CombatDurationEffects() {
+  if (game?.user?.isGM !== true) return notGmResult();
+  if (!game?.actors) return { ok: false, code: "no-actors", error: "No actor collection available.", removed: 0, scanned: 0, errors: [] };
+
+  const combatScales = new Set(SW25_COMBAT_DURATION_SCALES); // ["rounds", "turns"]
+  let removed = 0;
+  let scanned = 0;
+  const errors = [];
+
+  for (const actor of game.actors.contents) {
+    if (!actor?.effects) continue;
+    const effects = actor.effects.contents ?? actor.effects;
+    for (const effect of [...effects]) {
+      if (effect.type !== SW25_EFFECT_SUBTYPE) continue;
+      const scale = effect.system?.durationScale;
+      if (!combatScales.has(scale)) continue;
+      scanned += 1;
+      const result = await removeSw25Effect(actor, effect.id);
+      if (result.ok) {
+        removed += 1;
+      } else {
+        errors.push({ actorId: actor.id, effectId: effect.id, code: result.code, error: result.error });
+      }
+    }
+  }
+
+  return { ok: errors.length === 0, code: errors.length === 0 ? "purged" : "partial", removed, scanned, errors };
 }

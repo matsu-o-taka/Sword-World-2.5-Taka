@@ -66,7 +66,7 @@ export class Sw25EffectInspector extends HandlebarsApplicationV2 {
     const context = await super._prepareContext(options);
     return {
       ...context,
-      effect: buildSw25EffectInspection(this._effect, this._resolve)
+      effect: buildSw25EffectInspection(this._effect, this._resolve, { combat: game.combat ?? null })
     };
   }
 

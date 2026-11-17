@@ -42,7 +42,7 @@ export function wireSw25EffectsTabHandlers(sheet, html) {
     // only at click time, so sheets that render the section (and headless
     // test environments) never pay its module load just for rendering.
     const { Sw25EffectInspector } = await import("../apps/effect-inspector.mjs");
-    new Sw25EffectInspector(effect).render(true);
+    new Sw25EffectInspector(effect, null, { combat: game.combat ?? null }).render(true);
   });
 
   html.find('[data-action="repair-sw25-effect-data"]').on("click", async event => {

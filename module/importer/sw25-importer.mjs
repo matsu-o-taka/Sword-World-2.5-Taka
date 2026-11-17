@@ -1,6 +1,7 @@
 import { parseMonsterPage, validateMonsterProfile } from "./monster-parser.mjs";
 import { parseClassSpecificItems, parseEquipmentTables } from "./equipment-parser.mjs";
 import { defaultFeatureDefenseModifier } from "../rules/feature-defense.mjs";
+import { selectConcealedMainSection } from "../combat/concealed-main-section.mjs";
 
 export class SW25Importer {
   static async open(actor = null) {
@@ -644,6 +645,13 @@ export class SW25Importer {
       type: "monster",
       system: parsed.system
     });
+    // Give the imported monster its own random concealed Main Section so each
+    // imported individual has an independent selection.
+    try {
+      await selectConcealedMainSection(actor);
+    } catch (error) {
+      console.warn(`Sword World 2.5 | Imported monster ${actor.name} could not receive a concealed Main Section: ${String(error?.message ?? error)}`);
+    }
     return actor;
   }
 

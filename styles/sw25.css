@@ -912,7 +912,7 @@
 .skill-head,.skill-line{display:grid;grid-template-columns:1fr 42px 55px 34px 34px;align-items:center;min-height:18px;border-bottom:1px solid #aaa;font-size:9px}.skill-head{font-weight:bold;text-transform:uppercase}.skill-line>*{padding:1px 3px}.skill-line button{height:17px;margin:0;padding:0;border:0;background:transparent}.official-skill-groups h3{display:flex;justify-content:space-between;font-size:11px}.official-skill-groups h3 small{font-size:8px;text-transform:none;font-weight:normal}
 .ability-score-box{padding-bottom:5px}.ability-groups{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:8px 5px}.ability-group{text-align:center}.base-diamond{width:58px;height:58px;margin:0 auto -17px;transform:rotate(45deg);border:2px solid #555;background:#f4efe2;position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center}.base-diamond>*{transform:rotate(-45deg)}.base-diamond span{font-size:9px;text-transform:uppercase}.base-diamond input{width:34px;text-align:center;border:0;font-weight:bold}.ability-pair-official{display:grid;grid-template-columns:1fr 1fr;gap:2px}.ability-tower{display:flex;flex-direction:column;align-items:center}.adjust-diamond{width:34px;height:34px;transform:rotate(45deg);border:1px solid #555;background:#f4efe2;display:flex;flex-direction:column;align-items:center;justify-content:center}.adjust-diamond>*{transform:rotate(-45deg)}.adjust-diamond span{font-size:6px}.adjust-diamond input{width:23px;height:13px;text-align:center;border:0;font-size:9px}.growth-box{width:54px;margin-top:9px;border:1px solid #555;font-size:7px;text-transform:uppercase}.growth-box input{width:100%;height:19px;text-align:center;border:0}.score-octagon,.bonus-orb{display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px solid #555;background:#f4efe2}.score-octagon{width:66px;height:70px;clip-path:polygon(20% 0,80% 0,100% 20%,100% 80%,80% 100%,20% 100%,0 80%,0 20%)}.score-octagon span{font-size:8px;text-transform:uppercase}.score-octagon strong{font-size:20px}.bonus-orb{width:48px;height:48px;border-radius:50%;margin-top:-5px}.bonus-orb span{font-size:7px;text-transform:uppercase}.bonus-orb strong{font-size:16px}
 .inventory-box{display:flex;flex-direction:column}.inventory-lines{padding:4px;min-height:195px}.inventory-lines>div{display:flex;justify-content:space-between;border-bottom:1px solid #aaa;font-size:11px}.inventory-box textarea{height:105px;margin:3px 6px;border:1px solid #aaa}.money-line{display:flex;align-items:center;gap:8px;padding:5px}.money-line input{flex:1;text-align:right}.language-head,.language-line{display:grid;grid-template-columns:1fr 35px 35px;padding:2px 7px;border-bottom:1px solid #aaa;font-size:10px}.language-line input{margin:auto}.notes-box textarea{width:calc(100% - 10px);height:103px;margin:4px;border:0}
-.official-page-two{display:grid;grid-template-columns:300px 1fr 240px;grid-template-rows:150px 320px 230px 220px;gap:10px;grid-template-areas:"special movement hp" "access defense defense" "magic feats feats" "offense offense offense"}.special-box{grid-area:special}.movement-box{grid-area:movement}.hp-box{grid-area:hp}.accessories-box{grid-area:access}.defense-box{grid-area:defense}.magic-box{grid-area:magic}.feats-box{grid-area:feats}.offense-box{grid-area:offense}.special-grid{display:grid;grid-template-columns:1fr 110px;gap:4px;padding:6px}.special-grid label{display:flex;align-items:center;justify-content:space-between;font-size:11px}.special-grid input{width:40px;text-align:center}.special-grid button{font-size:9px}.movement-track{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:10px}.movement-track label{font-size:9px;text-align:center;text-transform:uppercase}.movement-track input{width:100%;font-size:20px;text-align:center}.movement-box>input{width:calc(100% - 12px);margin:6px}.resource-shield{margin:18px auto;width:150px;height:80px;clip-path:polygon(12% 0,88% 0,100% 25%,85% 100%,15% 100%,0 25%);border:3px solid #555;display:flex;align-items:center;justify-content:center;gap:4px;background:#f4efe2}.resource-shield input{width:50px;text-align:center;font-size:19px}.accessory-list>div{display:grid;grid-template-columns:70px 1fr;border-bottom:1px solid #aaa;padding:4px;font-size:11px}.defense-classes,.offense-summary{display:flex;justify-content:space-around;flex-wrap:wrap;padding:5px;border-bottom:1px solid #777;font-size:10px}.def-head,.defense-table>div,.weapon-head,.weapon-table>div{display:grid;align-items:center;border-bottom:1px solid #aaa;font-size:10px}.def-head,.defense-table>div{grid-template-columns:1fr 60px 60px 60px}.weapon-head,.weapon-table>div{grid-template-columns:1fr 80px 75px 65px 55px 50px}.def-head,.weapon-head{font-weight:bold;text-transform:uppercase}.defense-table>* >*,.weapon-table>* >*{padding:3px}.resistance-strip{display:flex;justify-content:flex-end;gap:5px;padding:8px}.resistance-strip button{min-width:100px}.mp-gem{display:flex;align-items:center;justify-content:center;gap:4px;padding:8px}.mp-gem input{width:55px;text-align:center;font-size:18px}.magic-list>div{display:grid;grid-template-columns:1fr 45px 45px 45px;border-bottom:1px solid #aaa;font-size:10px;align-items:center}.magic-list button{height:20px;margin:0;padding:0}.feat-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;padding:4px}.feat-grid>div{border-bottom:1px solid #aaa;min-height:24px}.additional-columns{display:grid;grid-template-columns:1fr 1fr}.additional-columns>div{padding:5px}.additional-columns>div:first-child{border-right:1px solid #777}.additional-columns h3{text-align:center}.offense-box{align-self:stretch}.utility-tab{padding:10px}.utility-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:10px}.utility-grid label{display:flex;flex-direction:column}.utility-item-list>div{display:grid;grid-template-columns:1fr 100px 35px;border-bottom:1px solid #999;padding:4px}
+.official-page-two{display:grid;grid-template-columns:300px 1fr 404px;grid-template-rows:150px 320px 320px 320px 240px;gap:10px;grid-template-areas:"special movement hp" "offense offense offense" "access defense defense" "magic magic magic" "feats feats feats"}.special-box{grid-area:special}.movement-box{grid-area:movement}.hp-box{grid-area:hp}.accessories-box{grid-area:access}.defense-box{grid-area:defense;display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}.magic-box{grid-area:magic}.feats-box{grid-area:feats}.offense-box{grid-area:offense}.special-grid{display:grid;grid-template-columns:1fr 110px;gap:4px;padding:6px}.special-grid label{display:flex;align-items:center;justify-content:space-between;font-size:11px}.special-grid input{width:40px;text-align:center}.special-grid button{font-size:9px}.movement-track{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:10px}.movement-track label{font-size:9px;text-align:center;text-transform:uppercase}.movement-track input{width:100%;font-size:20px;text-align:center}.movement-box>input{width:calc(100% - 12px);margin:6px}.resource-shield{margin:18px auto;width:150px;height:80px;clip-path:polygon(12% 0,88% 0,100% 25%,85% 100%,15% 100%,0 25%);border:3px solid #555;display:flex;align-items:center;justify-content:center;gap:4px;background:#f4efe2}.resource-shield input{width:50px;text-align:center;font-size:19px}.accessory-list>div{display:grid;grid-template-columns:70px 1fr;border-bottom:1px solid #aaa;padding:4px;font-size:11px}.defense-classes,.offense-summary{display:flex;justify-content:space-around;flex-wrap:wrap;padding:5px;border-bottom:1px solid #777;font-size:10px}.def-head,.defense-table>div,.weapon-head,.weapon-table>div{display:grid;align-items:center;border-bottom:1px solid #aaa;font-size:10px}.def-head,.defense-table>div{grid-template-columns:1fr 60px 60px 60px}.weapon-head,.weapon-table>div{grid-template-columns:1fr 80px 75px 65px 55px 50px}.def-head,.weapon-head{font-weight:bold;text-transform:uppercase}.defense-table>* >*,.weapon-table>* >*{padding:3px}.resistance-strip{display:flex;justify-content:flex-end;gap:5px;padding:8px}.resistance-strip button{min-width:100px}.mp-gem{display:flex;align-items:center;justify-content:center;gap:4px;padding:8px}.mp-gem input{width:55px;text-align:center;font-size:18px}.magic-list>div{display:grid;grid-template-columns:1fr 45px 45px 45px;border-bottom:1px solid #aaa;font-size:10px;align-items:center}.magic-list button{height:20px;margin:0;padding:0}.feat-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;padding:4px}.feat-grid>div{border-bottom:1px solid #aaa;min-height:24px}.additional-columns{display:grid;grid-template-columns:1fr 1fr}.additional-columns>div{padding:5px}.additional-columns>div:first-child{border-right:1px solid #777}.additional-columns h3{text-align:center}.offense-box{align-self:stretch}.utility-tab{padding:10px}.utility-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:10px}.utility-grid label{display:flex;flex-direction:column}.utility-item-list>div{display:grid;grid-template-columns:1fr 100px 35px;border-bottom:1px solid #999;padding:4px}
 
 
 
@@ -1141,7 +1141,9 @@
 .sw25-official-sheet .defense-table {
   width:100%;
   min-width:0;
+  flex:1 1 auto;
   overflow-x:hidden;
+  overflow-y:auto;
 }
 .sw25-official-sheet .defense-table .def-head,
 .sw25-official-sheet .defense-table > .armour-entry {
@@ -1425,17 +1427,180 @@
 .sw25-official-sheet .mp-crystal .resource-value-line { margin-bottom:0 !important; }
 
 
+/* Twin HP/MP resource panels — Taka Edition combat redesign.
+   Two rectangular sibling panels replace the heart (HP) and crystal (MP) shapes:
+   shared structure, proportions and double-border treatment; per-resource identity
+   comes from the header gradient (HP red, MP blue). Header carries the shared gold
+   corner brackets and march so the panels read as part of the same design system. */
+.sw25-official-sheet .twin-area {
+  grid-area: hp;
+  display: flex;
+  gap: 10px;
+  min-height: 0;
+}
+.sw25-official-sheet .resource-panel {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: #f9f5ea;
+  border: 1px solid #a89578;
+  border-radius: 2px;
+  outline: 1px solid #d5cbb2;
+  outline-offset: -3px;
+  overflow: hidden;
+}
+.sw25-official-sheet .resource-panel .panel-head {
+  position: relative;
+  flex: 0 0 auto;
+  min-height: 22px;
+  padding: 3px 30px 2px 26px;
+  background-image:
+    var(--sw25-gold-corner-tl),
+    var(--sw25-gold-corner-tr),
+    linear-gradient(180deg, var(--tp-head-a, #6e2f28), var(--tp-head-b, #54231d));
+  background-repeat: no-repeat, no-repeat, no-repeat;
+  background-position: top left, top right, center;
+  border-bottom: 1px solid #c9a35c;
+  color: #f0e7d1;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: bold;
+  line-height: 17px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .35);
+}
+.sw25-official-sheet .resource-panel .panel-head::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -4.5px;
+  width: 7px;
+  height: 7px;
+  transform: translateX(-50%) rotate(45deg);
+  background: #c9a35c;
+  border: 1px solid var(--tp-head-b, #54231d);
+  z-index: 1;
+  pointer-events: none;
+}
+.sw25-official-sheet .panel-hp .panel-head { --tp-head-a: #7d1f16; --tp-head-b: #a63d32; }
+.sw25-official-sheet .panel-mp .panel-head { --tp-head-a: #2c4a78; --tp-head-b: #5b7fa6; }
+.sw25-official-sheet .resource-panel .panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 7px 10px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.sw25-official-sheet .resource-panel .twin-values {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+}
+.sw25-official-sheet .resource-panel .twin-current {
+  width: 56px;
+  height: 27px;
+  text-align: center;
+  font-family: inherit;
+  font-size: 22px;
+  font-weight: 800;
+  background: #fffdf6;
+  border: 1px solid #c1b191;
+  border-radius: 3px;
+  padding: 0 3px;
+}
+.sw25-official-sheet .panel-hp .twin-current { color: #7d1f16; }
+.sw25-official-sheet .panel-mp .twin-current { color: #2c4a78; }
+.sw25-official-sheet .resource-panel .twin-divider {
+  font-size: 16px;
+  font-weight: 800;
+  color: #6f6455;
+  padding-bottom: 2px;
+}
+.sw25-official-sheet .resource-panel .twin-max {
+  width: 44px;
+  height: 24px;
+  text-align: center;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  background: transparent;
+  border: 1px solid #a89578;
+  border-radius: 3px;
+  padding: 0 3px;
+}
+.sw25-official-sheet .panel-hp .twin-max { color: #7d1f16; }
+.sw25-official-sheet .panel-mp .twin-max { color: #2c4a78; }
+.sw25-official-sheet .resource-panel .twin-badges {
+  display: flex;
+  justify-content: flex-start;
+  padding-left: 4px;
+}
+.sw25-official-sheet .resource-panel .twin-formula {
+  margin-top: auto;
+  padding-top: 5px;
+  border-top: 1px solid #e5dcc6;
+  font-size: 9px;
+  font-style: italic;
+  color: #6f6455;
+  line-height: 1.35;
+}
+/* Round, icon-only Death Check embedded in the HP panel header */
+.sw25-official-sheet .resource-panel .death-check-button {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  z-index: 2;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #d9b36a;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .18);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sw25-official-sheet .resource-panel .death-check-button i { margin: 0; font-size: 9px; line-height: 1; }
+.sw25-official-sheet .resource-panel .death-check-button:hover { background: #7d1f16; color: #fff; }
+
+
 /* v0.7.0.24 combat feat importer and expanded feat table */
 .sw25-official-sheet .feat-list {
   padding: 4px;
 }
 .sw25-official-sheet .feat-row {
   display: grid;
-  grid-template-columns: minmax(150px, 1.25fr) minmax(110px, 1fr) minmax(80px, .7fr) 28px;
+  grid-template-columns: minmax(140px, 1.1fr) minmax(130px, .9fr) minmax(200px, 1.5fr) minmax(80px, .6fr) 76px;
   align-items: center;
   min-height: 27px;
   border-bottom: 1px solid #aaa;
   column-gap: 6px;
+  padding: 0 6px;
+  overflow: hidden;
+}
+.sw25-official-sheet .feat-name {
+  padding-left: 8px;
+  min-width: 0;
+}
+.sw25-official-sheet .feat-delete {
+  width: 24px;
+  height: 24px;
+  min-width: 0;
+  padding: 0;
+  margin: 0 auto;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.sw25-official-sheet .feat-delete:hover {
+  text-shadow: 0 0 4px currentColor;
 }
 .sw25-official-sheet .feat-head {
   min-height: 23px;
@@ -1451,6 +1616,7 @@
   border-bottom: 1px solid #aaa;
 }
 .sw25-official-sheet .feat-prerequisite,
+.sw25-official-sheet .feat-description,
 .sw25-official-sheet .feat-use {
   overflow: hidden;
   font-size: 10px;
@@ -1500,7 +1666,7 @@
 
 /* v0.7.0.25 feat deletion and racial-abilities-only panel */
 .sw25-official-sheet .feat-row {
-  grid-template-columns: minmax(150px, 1.25fr) minmax(110px, 1fr) minmax(80px, .7fr) 80px;
+  grid-template-columns: minmax(140px, 1.1fr) minmax(130px, .9fr) minmax(200px, 1.5fr) minmax(80px, .6fr) 76px;
 }
 .sw25-official-sheet .feat-actions {
   display: flex;
@@ -1865,18 +2031,32 @@ form.sw25-official-sheet .spell-row > * {
   margin-block: 0 !important;
 }
 form.sw25-official-sheet .defense-totals {
+  flex:0 0 auto;
   min-height: 26px;
   border-top: 2px solid #3d3933;
   font-size: 12px;
 }
-form.sw25-official-sheet .resistance-strip button {
+form.sw25-official-sheet .resistance-strip button,
+form.sw25-official-sheet .special-check-control > button {
   min-height: 29px;
-  border: 1px solid #aaa;
-  border-radius: 0;
-  background: #ded8cb;
-  color: #292622;
-  box-shadow: none;
+  border: 1px solid #a89578;
+  border-top-color: #b38c46;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #f7f2e6, #e9e1cf);
+  color: #3a3226;
+  box-shadow: inset 0 1px 0 rgba(255,253,246,.9), 0 1px 2px rgba(43,35,22,.18);
   font-family: inherit;
+}
+form.sw25-official-sheet .resistance-strip button:hover,
+form.sw25-official-sheet .special-check-control > button:hover {
+  border-color: #8a6a34;
+  background: linear-gradient(180deg, #fdf9ef, #efe7d4);
+  box-shadow: inset 0 1px 0 rgba(255,253,246,.9), 0 1px 3px rgba(43,35,22,.28);
+}
+form.sw25-official-sheet .resistance-strip button:active,
+form.sw25-official-sheet .special-check-control > button:active {
+  background: linear-gradient(180deg, #e9e1cf, #ded5bf);
+  box-shadow: inset 0 1px 3px rgba(43,35,22,.2);
 }
 
 /* v0.7.4: imported weapon power tables */
@@ -2003,17 +2183,37 @@ form.sw25-official-sheet .offense-selector > label input {
 
 /* v0.10.0 class-specific magic power and work skills */
 .sw25-official-sheet .official-page-two {
-  grid-template-rows:150px 220px 320px 230px;
+  grid-template-rows:150px 320px 320px 320px 240px;
   grid-template-areas:
     "special movement hp"
     "offense offense offense"
     "access defense defense"
-    "magic feats feats";
+    "magic magic magic"
+    "feats feats feats";
 }
 .sw25-official-sheet .abilities-box,.sw25-official-sheet .work-skills-box { min-width:0; min-height:0; overflow:auto; }
 .page-two-magic-power { display:flex; align-items:center; gap:5px; padding:3px 5px; }
 .page-two-magic-power select { flex:1; min-width:0; height:26px; font-size:10px; }
 .page-two-magic-power .magic-power-roll { flex:0 0 auto; width:auto; min-width:92px; margin:0; }
+.sw25-official-sheet .magic-box { flex-direction: column !important; }
+.sw25-official-sheet .magic-box .magic-content { display:flex; flex:1 1 auto; min-height:0; gap:8px; overflow:hidden; flex-direction:column; }
+.sw25-official-sheet .magic-box .magic-classes { flex:0 0 auto; min-width:0; display:flex; flex-direction:row; gap:10px; padding:6px 8px; overflow-x:auto; overflow-y:hidden; border-bottom:1px solid rgba(0,0,0,.15); }
+.sw25-official-sheet .magic-box .magic-classes .magic-power-list { flex:0 0 auto; min-width:0; display:flex; flex-direction:row; gap:10px; padding:0; margin:0; overflow-x:auto; overflow-y:hidden; }
+.sw25-official-sheet .magic-box .magic-classes .magic-power-entry { flex:0 0 auto; min-width:0; white-space:nowrap; padding:3px 4px; }
+.sw25-official-sheet .magic-box .magic-spells { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; min-height:0; overflow:hidden; }
+.sw25-official-sheet .magic-box .magic-spells .magic-list { flex:1 1 auto; min-height:0; padding:2px 8px 4px; overflow:auto; columns:3; column-gap:12px; column-fill:auto; }
+.sw25-official-sheet .magic-box .magic-spells .magic-list .spell-school-heading{ break-inside:avoid; margin:8px 0 2px; padding:2px 6px; font-size:10px; font-weight:bold; letter-spacing:.05em; color:#8a6a34; background:rgba(168,125,61,.14); border-top:1px solid #a89578; border-bottom:1px solid #a89578; text-transform:none; }
+.sw25-official-sheet .magic-box .magic-spells .magic-list .spell-school-heading small{ font-weight:normal; color:#6f6455; letter-spacing:0; }
+.sw25-official-sheet .magic-box .magic-spells .magic-list .spell-level-heading{ break-inside:avoid; padding-left:10px; }
+.sw25-official-sheet .magic-box .magic-spells .magic-list > div{ break-inside:avoid; display:flex; justify-content:space-between; align-items:center; gap:8px; padding:9px 8px; border-bottom:1px dotted rgba(0,0,0,.15); font-size:10.5px; line-height:1.4; min-height:0; }
+.sw25-official-sheet .magic-box .magic-spells .magic-list > div > button.paper-link{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; }
+.sw25-official-sheet .magic-box .magic-spells .magic-list > div > span{ flex:0 0 auto; text-align:center; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.sw25-official-sheet .magic-box .magic-spells .magic-list > div > button[data-action="cast-spell"]{ flex:0 0 auto; width:52px; padding:2px 4px; font-size:10px; display:flex; align-items:center; justify-content:center; }
+.sw25-official-sheet .mp-crystal { flex-shrink: 0; }
+.magic-power-list { display:flex; flex-direction:column; gap:4px; padding:4px 6px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
+.magic-power-entry { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:3px 6px; border:1px solid rgba(0,0,0,.1); border-radius:3px; font-size:11px; }
+.magic-power-entry .magic-power-class { font-weight:600; white-space:normal; min-width:0; }
+.magic-power-entry .magic-power-roll { display:inline-flex !important; width:auto; min-width:110px; padding:2px 6px; margin:0 !important; overflow:hidden; text-overflow:ellipsis; white-space:normal; }
 .work-skills-list { padding:4px; }
 .work-skill-entry { border-bottom:1px solid #8f877b; }
 .work-skill-header { display:grid; grid-template-columns:minmax(100px,1fr) 58px 70px 26px 26px; align-items:center; gap:3px; min-height:28px; }
@@ -3383,10 +3583,35 @@ strong.sw25-mod-down { color: #c46a10; }
 
 /* ── Sheet header band — Light skin ────────────────────────────────────────── */
 
+/* Escuadras doradas compartidas (escuadra + punta de diamante) por los encabezados
+   de Light y Light-Red, de modo que ambos temas lean como un mismo sistema. */
+.sw25-official-sheet {
+  --sw25-gold-corner-tl: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M1.25 16 L1.25 1.25 L16 1.25' fill='none' stroke='%23c9a35c' stroke-width='1.5'/%3E%3Cpath d='M2.4 0 L4.8 2.4 L2.4 4.8 L0 2.4 Z' fill='%23c9a35c'/%3E%3C/svg%3E");
+  --sw25-gold-corner-tr: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M14.75 16 L14.75 1.25 L0 1.25' fill='none' stroke='%23c9a35c' stroke-width='1.5'/%3E%3Cpath d='M13.6 0 L16 2.4 L13.6 4.8 L11.2 2.4 Z' fill='%23c9a35c'/%3E%3C/svg%3E");
+}
+
+/* Light header band: escuadras + subrayado dorado + marcha, en espejo de Light-Red */
 .sw25-theme-light.sw25-official-sheet .sw25-sheet-header {
-  background: linear-gradient(180deg, #443a28, #322a1c);
-  border-bottom: 2px solid var(--sw25-light-gold);
+  position: relative;
+  background-image:
+    var(--sw25-gold-corner-tl),
+    var(--sw25-gold-corner-tr),
+    linear-gradient(180deg, #443a28, #322a1c);
+  background-repeat: no-repeat, no-repeat, no-repeat;
+  background-position: top left, top right, center;
+  border-bottom: 1px solid var(--sw25-light-gold);
   box-shadow: inset 0 -1px 0 rgba(0, 0, 0, .35), 0 1px 3px rgba(43, 35, 22, .25);
+}
+.sw25-theme-light.sw25-official-sheet .sw25-sheet-header::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -4.5px;
+  width: 7px;
+  height: 7px;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--sw25-light-gold);
+  border: 1px solid #322a1c;
 }
 
 .sw25-theme-light.sw25-official-sheet .sheet-header-title {
@@ -3487,14 +3712,33 @@ strong.sw25-mod-down { color: #c46a10; }
   min-height: 25px;
   margin: 0;
   padding: 4px 40px 3px 27px;
-  border-bottom: 1px solid #241e13;
-  background: linear-gradient(180deg, #4a4030, #352d1f);
+  background-image:
+    var(--sw25-gold-corner-tl),
+    var(--sw25-gold-corner-tr),
+    linear-gradient(180deg, #4a4030, #352d1f);
+  background-repeat: no-repeat, no-repeat, no-repeat;
+  background-position: top left, top right, center;
+  border-bottom: 1px solid var(--sw25-light-gold);
   color: var(--sw25-light-text-on-dark);
   font-size: 13px;
   line-height: 18px;
   letter-spacing: .07em;
   text-align: left;
   text-shadow: 0 1px 0 rgba(0, 0, 0, .35);
+}
+/* Marcha dorada centrada en el subrayado del h2 (en espejo de Light-Red). */
+.sw25-theme-light.sw25-official-sheet .paper-panel > h2::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -4.5px;
+  width: 7px;
+  height: 7px;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--sw25-light-gold);
+  border: 1px solid #352d1f;
+  z-index: 1;
+  pointer-events: none;
 }
 .sw25-theme-light.sw25-official-sheet .paper-panel > h2 > .panel-add {
   position: absolute;
@@ -4064,6 +4308,25 @@ strong.sw25-mod-down { color: #c46a10; }
   color: var(--sw25-light-accent-hover);
 }
 
+/* Check roll buttons (Monster Knowledge, Initiative, Fortitude, Willpower,
+   Evasion): unified parchment-and-gold style shared with .resistance-strip */
+.sw25-theme-light.sw25-official-sheet .special-grid .special-check-control > button {
+  border: 1px solid #a89578;
+  border-top-color: #b38c46;
+  background: linear-gradient(180deg, #f7f2e6, #e9e1cf);
+  color: #3a3226;
+  box-shadow: inset 0 1px 0 rgba(255,253,246,.9), 0 1px 2px rgba(43,35,22,.18);
+}
+.sw25-theme-light.sw25-official-sheet .special-grid .special-check-control > button:hover {
+  border-color: #8a6a34;
+  background: linear-gradient(180deg, #fdf9ef, #efe7d4);
+  box-shadow: inset 0 1px 0 rgba(255,253,246,.9), 0 1px 3px rgba(43,35,22,.28);
+}
+.sw25-theme-light.sw25-official-sheet .special-grid .special-check-control > button:active {
+  background: linear-gradient(180deg, #e9e1cf, #ded5bf);
+  box-shadow: inset 0 1px 3px rgba(43,35,22,.2);
+}
+
 /* ── Buttons — tier system ─────────────────────────────────────────────────── */
 
 /* Tier 0: quiet base (no layout changes, only paint) */
@@ -4349,78 +4612,91 @@ strong.sw25-mod-down { color: #c46a10; }
    class from the application window. Kept so existing behaviour is preserved.
    ═════════════════════════════════════════════════════════════════════════════ */
 
-.sw25-theme-light .sw-panel,
-.sw25-theme-light .header-box {
+/* Generic components — scoped to official sheets only, never to Foundry dialogs */
+.sw25-theme-light.sw25-official-sheet .sw-panel,
+.sw25-theme-light.sw25-official-sheet .panel-header {
+  border-bottom: 1px solid var(--sw25-light-border);
+}
+
+.sw25-theme-light.sw25-official-sheet .panel-header h2,
+.sw25-theme-light.sw25-official-sheet .panel-header h3 {
+  color: var(--sw25-light-text);
+}
+
+.sw25-theme-light.sw25-official-sheet .subheader {
+  border-bottom: 1px solid var(--sw25-light-border-muted);
+  background: var(--sw25-light-header-bg);
+}
+
+.sw25-theme-light.sw25-official-sheet .subheader h3 {
+  color: var(--sw25-light-text);
+}
+
+.sw25-theme-light.sw25-official-sheet .race-collapsible-header {
+  background: var(--sw25-light-header-bg);
+  color: #ffffff;
+  text-shadow: none;
+}
+
+.sw25-theme-light.sw25-official-sheet .list-heading {
+  color: var(--sw25-light-text-muted);
+}
+
+.sw25-theme-light.sw25-official-sheet .empty-list {
+  color: var(--sw25-light-text-muted);
+}
+
+.sw25-theme-light.sw25-official-sheet .icon-button {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.sw25-theme-light.sw25-official-sheet .delete-button {
+  opacity: .55;
+}
+
+.sw25-theme-light.sw25-official-sheet .delete-button:hover {
+  opacity: 1;
+  color: var(--sw25-light-danger-hover);
+  box-shadow: none;
+}
+
+.sw25-theme-light.sw25-official-sheet .item-cast-spell,
+.sw25-theme-light.sw25-official-sheet .check-buttons button,
+.sw25-theme-light.sw25-official-sheet .side-check-list button,
+.sw25-theme-light.sw25-official-sheet .cast-button {
+  border: 1px solid var(--sw25-light-accent);
+  border-radius: 2px;
+  background: var(--sw25-light-accent);
+  color: #ffffff;
+  font-weight: bold;
+}
+
+/* Item sheet components — item sheets use .sw25-item-sheet, not .sw25-official-sheet */
+.sw25-theme-light.sw25-item-sheet .header-box {
   border: 1px solid var(--sw25-light-border);
   border-radius: 3px;
   background: var(--sw25-light-surface);
   box-shadow: inset 0 0 0 1px var(--sw25-light-shadow-inset);
 }
 
-.sw25-theme-light .panel-header {
-  border-bottom: 1px solid var(--sw25-light-border);
-}
-
-.sw25-theme-light .panel-header h2,
-.sw25-theme-light .panel-header h3 {
-  color: var(--sw25-light-text);
-}
-
-.sw25-theme-light .subheader {
-  border-bottom: 1px solid var(--sw25-light-border-muted);
-  background: var(--sw25-light-header-bg);
-}
-
-.sw25-theme-light .subheader h3 {
-  color: var(--sw25-light-text);
-}
-
-.sw25-theme-light .dark-header {
+.sw25-theme-light.sw25-item-sheet .dark-header {
   background: var(--sw25-light-header-bg);
   color: #ffffff;
   text-shadow: none;
 }
 
-.sw25-theme-light .race-collapsible-header {
-  background: var(--sw25-light-header-bg);
-  color: #ffffff;
-  text-shadow: none;
-}
-
-.sw25-theme-light .item-row {
+.sw25-theme-light.sw25-item-sheet .item-row {
   border-bottom: 1px solid var(--sw25-light-border-muted);
 }
 
-.sw25-theme-light .item-name {
+.sw25-theme-light.sw25-item-sheet .item-name {
   color: var(--sw25-light-text);
 }
 
-.sw25-theme-light .item-summary {
+.sw25-theme-light.sw25-item-sheet .item-summary {
   color: var(--sw25-light-text-muted);
-}
-
-.sw25-theme-light .list-heading {
-  color: var(--sw25-light-text-muted);
-}
-
-.sw25-theme-light .empty-list {
-  color: var(--sw25-light-text-muted);
-}
-
-.sw25-theme-light .icon-button {
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.sw25-theme-light .delete-button {
-  opacity: .55;
-}
-
-.sw25-theme-light .delete-button:hover {
-  opacity: 1;
-  color: var(--sw25-light-danger-hover);
-  box-shadow: none;
 }
 
 /* Item sheets keep their existing Light input treatment. */

@@ -40,12 +40,37 @@
 
 import { applySw25Effect, removeSw25Effect } from "../effects/effect-service.mjs";
 import { SW25_EFFECT_SUBTYPE } from "../effects/effect-model.mjs";
+
+// Test hooks: allow overriding EffectService functions for headless testing.
+// In production these globals are absent and the real imports are used.
+const _applySw25Effect = globalThis.__test_applySw25Effect__ ?? applySw25Effect;
+const _removeSw25Effect = globalThis.__test_removeSw25Effect__ ?? removeSw25Effect;
 import { normalizeSpeciesId, speciesId } from "../knowledge/mk-identity.mjs";
 
 /** Stable stacking family of the concealed selection effect. */
 export const CONCEALED_EFFECT_FAMILY = "Concealed Main Section";
 
-/** Effect flag namespace and key that carry the plaintext selection record. */
+/**
+ * Effect flag namespace and key that carry the plaintext concealed-section
+ * selection record (`{ sectionId }`) in `ActiveEffect.flags["sw25-taka"].concealedSection`.
+ *
+ * This flag belongs to the `Concealed Main Section` effect family and is a
+ * deliberate part of the functional contract of the Concealed Main Section
+ * system. It is NOT a field of `SW25EffectModel`: the `sectionId` is
+ * configuration data for a monster instance, not effect data, so it has no
+ * equivalent in the `system.*` schema.
+ *
+ * Current consumers:
+ *   - module/combat/concealed-main-section.mjs:
+ *     getConcealedMainSectionPresentation() and getConcealedMainSectionMkReveal()
+ *     read the record to resolve and expose the selected section.
+ *   - module/knowledge/mk-relay.mjs: reads it via getConcealedMainSectionMkReveal()
+ *     for Monster Knowledge weakness revelation.
+ *
+ * Do not remove or relocate this flag without first updating every consumer
+ * above and taking an explicit architecture decision. It is intentionally
+ * supported and must not be treated as a candidate for generic flag cleanup.
+ */
 export const CONCEALED_FLAG_NAMESPACE = "sw25-taka";
 export const CONCEALED_FLAG_RECORD_KEY = "concealedSection";
 
@@ -391,7 +416,7 @@ export async function setConcealedMainSectionSelection(actor, sectionName) {
   // identity per actor (no contradictory selections).
   const existing = findConcealedEffect(actor);
   if (existing) {
-    const removed = await removeSw25Effect(actor, existing.id);
+    const removed = await _removeSw25Effect(actor, existing.id);
     if (!removed?.ok) {
       throw new Error(`The previous concealed Main Section effect of ${actor.name} could not be removed (${removed?.code ?? "unknown"}).`);
     }
@@ -401,7 +426,7 @@ export async function setConcealedMainSectionSelection(actor, sectionName) {
   // EffectService (the only authorized write path). The record is hidden
   // from players by the effect's gmOnly presentation flag, not by
   // encryption (presentation-layer trade-off; see the module header).
-  const result = await applySw25Effect(actor, {
+  const result = await _applySw25Effect(actor, {
     family: EFFECT_FAMILY,
     rank: 0,
     cast: { mode: "minor" },
@@ -458,6 +483,49 @@ export async function selectConcealedMainSection(actor, randomIndex = cryptoRand
   const index = randomIndex(candidates.length);
   if (!Number.isInteger(index) || index < 0 || index >= candidates.length) {
     throw new Error("Concealed Main Section selection returned an invalid index.");
+  }
+  return setConcealedMainSectionSelection(actor, candidates[index].section);
+}
+
+/**
+ * Re-randomize the concealed Main Section of a monster actor.
+ *
+ * GM-only. Removes any existing concealed selection effect and creates a
+ * new one with a fresh random selection from the active candidates. The
+ * existing effect is replaced (not accumulated), so there is never more
+ * than one concealed Main Section effect per actor. Other effects on the
+ * actor are untouched.
+ *
+ * Unlike `selectConcealedMainSection` (which preserves an existing,
+ * resolvable selection), this function always forces a new random choice.
+ * @param {Actor} actor - The monster actor whose concealed section is re-randomized.
+ * @param {Function} [randomIndex] - Random index provider (default: crypto).
+ * @returns {Promise<{section: string, sectionId: string}>} The new selection.
+ */
+export async function randomizeConcealedMainSection(actor, randomIndex = cryptoRandomIndex) {
+  if (game?.user?.isGM !== true) throw new Error("Only a GM can re-randomize the concealed Main Section.");
+  if (!actor || actor.type !== "monster") throw new Error("Concealed Main Section requires a monster actor.");
+
+  const candidates = getActiveCandidates(actor);
+  if (candidates.length < MIN_CANDIDATES) {
+    throw new Error(
+      `${actor.name} has fewer than ${MIN_CANDIDATES} candidate sections; the concealed Main Section cannot be activated.`
+    );
+  }
+
+  // Remove any existing concealed selection effect (replacement, not accumulation).
+  const existing = findConcealedEffect(actor);
+  if (existing) {
+    const removed = await _removeSw25Effect(actor, existing.id);
+    if (!removed?.ok) {
+      throw new Error(`The previous concealed Main Section effect of ${actor.name} could not be removed (${removed?.code ?? "unknown"}).`);
+    }
+  }
+
+  // Pick a fresh random candidate and persist it.
+  const index = randomIndex(candidates.length);
+  if (!Number.isInteger(index) || index < 0 || index >= candidates.length) {
+    throw new Error("Concealed Main Section re-randomization returned an invalid index.");
   }
   return setConcealedMainSectionSelection(actor, candidates[index].section);
 }
@@ -523,8 +591,9 @@ export async function resolveConcealedMainSectionKnowledgeCheck(token, successVa
  * dialog persists it with a real write when the GM saves Special.
  */
 export function initializeConcealedMainSection() {
-  if (game?.user?.isGM !== true) return;
-
+  // Hooks are always registered; GM authority is checked inside each handler.
+  // This ensures duplication/re-randomization works even if no GM was logged
+  // in when Foundry's "ready" hook fired.
   Hooks.on("updateActor", async (actor, change) => {
     if (actor?.type !== "monster") return;
     const changeStr = JSON.stringify(change ?? {});
@@ -536,6 +605,45 @@ export function initializeConcealedMainSection() {
       ui.notifications.warn(
         `Sword World 2.5 | The concealed Main Section state of ${actor.name} could not be validated: ${String(error?.message ?? error)}`
       );
+    }
+  });
+
+  /**
+   * When a monster Actor is created (including via duplication from the
+   * Actors directory), replace any inherited concealed selection with a
+   * fresh random one so each individual has its own concealed Main Section.
+   * Actors without an existing concealed effect are left untouched — the GM
+   * activates the feature through the Main Sections dialog.
+   */
+  Hooks.on("createActor", async (actor) => {
+    if (game?.user?.isGM !== true) return;
+    if (actor?.type !== "monster") return;
+    const existing = findConcealedEffect(actor);
+    if (!existing) return;
+    try {
+      await randomizeConcealedMainSection(actor);
+    } catch (error) {
+      console.warn(`Sword World 2.5 | Could not assign a concealed Main Section to the new monster ${actor.name}: ${String(error?.message ?? error)}`);
+    }
+  });
+
+  /**
+   * When a token is created (including via duplication on a scene), re-randomize
+   * the concealed Main Section of synthetic (non-linked) actors so each token
+   * individual has its own selection. Linked actors share the concealed selection
+   * with their world Actor and are intentionally left untouched.
+   */
+  Hooks.on("createToken", async (token) => {
+    if (game?.user?.isGM !== true) return;
+    const actor = token?.actor;
+    if (!actor || actor.type !== "monster") return;
+    // Linked actors share the concealed selection with their world Actor — do not modify it.
+    if (game.actors?.get?.(actor.id)) return;
+    // Synthetic actor: each token individual gets its own selection.
+    try {
+      await randomizeConcealedMainSection(actor);
+    } catch (error) {
+      console.warn(`Sword World 2.5 | Could not re-randomize the concealed Main Section of synthetic actor ${actor.name}: ${String(error?.message ?? error)}`);
     }
   });
 }

@@ -26,6 +26,7 @@
       <dt>Initial Duration</dt><dd>{{effect.initialDurationLabel}}</dd>
       <dt>Remaining Duration</dt><dd>{{effect.remainingDurationLabel}}</dd>
       <dt>Duration Mode</dt><dd>{{effect.durationMode}}</dd>
+      <dt>Duration Scale</dt><dd>{{#if effect.durationScale}}{{effect.durationScale}}{{else}}—{{/if}}</dd>
     </dl>
     {{#if effect.changes.length}}
     <h3>Changes</h3>
@@ -61,6 +62,22 @@
       <dt>Caster (resolved)</dt><dd>{{#if effect.casterName}}{{effect.casterName}}{{else}}—{{/if}}</dd>
     </dl>
   </section>
+
+  {{#if effect.durationAnchor}}
+  <section class="sw25-effect-inspector-section">
+    <h3>Anchor</h3>
+    <dl>
+      <dt>Regime</dt><dd>{{#if effect.durationAnchor.regime}}{{effect.durationAnchor.regime}}{{else}}—{{/if}}</dd>
+      <dt>Edge</dt><dd>{{#if effect.durationAnchor.edge}}{{effect.durationAnchor.edge}}{{else}}—{{/if}}</dd>
+      <dt>Combatant</dt><dd>{{#if effect.durationAnchor.combatantId}}{{effect.durationAnchor.combatantId}}{{else}}—{{/if}}</dd>
+      <dt>Token</dt><dd>{{#if effect.durationAnchor.tokenId}}{{effect.durationAnchor.tokenId}}{{else}}—{{/if}}</dd>
+      <dt>State</dt><dd>{{#if effect.durationAnchor.state}}{{effect.durationAnchor.state}}{{else}}—{{/if}}</dd>
+      {{#if effect.anchorAvailable !== null}}
+      <dt>Availability</dt><dd>{{#if effect.anchorAvailable}}Available{{else}}Unavailable ({{effect.anchorUnavailableReason}}){{/if}}</dd>
+      {{/if}}
+    </dl>
+  </section>
+  {{/if}}
 
   {{#if effect.reviewDetails.length}}
   <section class="sw25-effect-inspector-section">

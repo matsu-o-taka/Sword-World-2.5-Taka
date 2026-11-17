@@ -156,6 +156,194 @@ async function requestExhaustiveHealing(message, button) {
   game.socket.emit(SOCKET, { action:"heal-exhaustive-sucking", actorUuid:actor.uuid, amount, messageId:message.id });
 }
 
+// ── Instant/X spell detection (T5.7) ───────────────────────────────────────
+
+/**
+ * Read the Duration value from a spell's metadata (raw text imported from
+ * the SW2.5 wiki, e.g. "Duration: Instant" or "Duration: Instant/3 rounds").
+ * @param {object} spell - Spell Item document.
+ * @returns {string|null} The duration string, or null when absent.
+ */
+export function getSpellDuration(spell) {
+  const metadata = String(spell?.system?.metadata || "");
+  const match = metadata.match(/^duration:\s*(.+)$/im);
+  return match ? match[1].trim() : null;
+}
+
+/**
+ * Whether a spell is an Instant/X effect: its duration declares an immediate
+ * part plus a persistent part after the slash (e.g. "Instant/3 rounds").
+ * A bare "Instant" duration (immediate only, no persistent queue) is NOT
+ * Instant/X.
+ * @param {object} spell - Spell Item document.
+ * @returns {boolean}
+ */
+export function isInstantXSpell(spell) {
+  const duration = getSpellDuration(spell);
+  if (!duration) return false;
+  return /^instant\/\s*\S/i.test(duration);
+}
+
+/**
+ * Extract the persistent-effect data for an Instant/X spell from its
+ * metadata duration. Returns null when the spell is not Instant/X or when
+ * no parseable persistent duration exists.
+ *
+ * Duration parsing (verified against all 38 Instant/X spells of the
+ * sw25-library compendium, T5.7-C):
+ *   - "Instant/3 rounds" / "Instant/2 turns" → counted combat scale.
+ *   - "Instant/10 seconds (1 round)" → the parenthetical is the authoritative
+ *     rounds conversion; the scale is combat ("rounds").
+ *   - "Instant/3 minutes (18 rounds)", "Instant/1 Day" → manual scale
+ *     (minutes/hours/days, DEC-23): no counter is declared, because a combat
+ *     counter on a manual scale would make the duration engine purge the
+ *     effect at combat end, violating DEC-40 (the persistent part outlives
+ *     the combat).
+ *   - Bare seconds without a parenthetical conversion and unclassifiable
+ *     values ("Instant/Various") → scale "other" (DEC-32): GM-managed.
+ *
+ * The returned `durationScale` is always an approved SW25_DURATION_SCALES id;
+ * `initialDuration`/`remainingDuration` are positive integers only for the
+ * counted combat scales and null otherwise (never invented, DEC-23).
+ *
+ * @param {object} spell - Spell Item document.
+ * @returns {{durationScale: string, initialDuration: number|null,
+ *   remainingDuration: number|null}|null}
+ */
+export function getInstantXSpellData(spell) {
+  const duration = getSpellDuration(spell);
+  if (!duration) return null;
+  const match = duration.match(/^instant\/\s*(.+)$/i);
+  if (!match) return null;
+  const part = match[1].trim();
+  // Direct combat-scale counter: "Instant/3 rounds", "Instant/2 turns".
+  let m = part.match(/^(\d+)\s*(rounds?|turns?)$/i);
+  if (m) {
+    const count = Number(m[1]);
+    if (!Number.isInteger(count) || count < 1) return null;
+    const durationScale = m[2].toLowerCase().startsWith("turn") ? "turns" : "rounds";
+    return { durationScale, initialDuration: count, remainingDuration: count };
+  }
+  // Seconds with an explicit parenthetical rounds conversion.
+  m = part.match(/^(\d+)\s*seconds?\s*\(\s*(\d+)\s*rounds?\s*\)$/i);
+  if (m) {
+    const count = Number(m[2]);
+    if (!Number.isInteger(count) || count < 1) return null;
+    return { durationScale: "rounds", initialDuration: count, remainingDuration: count };
+  }
+  // Manual scales (DEC-23): no counters, no combat anchor.
+  m = part.match(/^(\d+)\s*(minutes?|hours?|days?)\b/i);
+  if (m) {
+    const unit = m[2].toLowerCase();
+    const durationScale = unit.startsWith("hour") ? "hours" : unit.startsWith("day") ? "days" : "minutes";
+    return { durationScale, initialDuration: null, remainingDuration: null };
+  }
+  // Bare seconds and unclassifiable values ("Various"): GM-managed "other".
+  return { durationScale: "other", initialDuration: null, remainingDuration: null };
+}
+
+// ── Instant/X identity (T5.7-C: DEC-1/DEC-16) ──────────────────────────────
+
+/** Approved rank → Roman numeral table (DEC-16, ranks 1..10). */
+const INSTANT_X_RANK_ROMAN = new Map([
+  ["I", 1], ["II", 2], ["III", 3], ["IV", 4], ["V", 5],
+  ["VI", 6], ["VII", 7], ["VIII", 8], ["IX", 9], ["X", 10]
+]);
+
+/** Full-width Roman numerals (attached form, e.g. "保護Ⅳ"). */
+const INSTANT_X_FULLWIDTH_ROMAN = new Map([
+  ["Ⅰ", 1], ["Ⅱ", 2], ["Ⅲ", 3], ["Ⅳ", 4], ["Ⅴ", 5],
+  ["Ⅵ", 6], ["Ⅶ", 7], ["Ⅷ", 8], ["Ⅸ", 9], ["Ⅹ", 10]
+]);
+
+/**
+ * Resolve the stacking identity (DEC-1) of an Instant/X spell from its
+ * authored name, following DEC-16: `family` is the canonical base name as
+ * authored (authoring markers like ⏩/‡/†/△ stay in the family; DEC-1
+ * comparison normalizes case at comparison time, never at storage), and
+ * `rank` is the parsed version numeral (0 = no numeral).
+ *
+ * There is no canonical identity field in the spell schema (`system.school`
+ * stores the CASTING CLASS, not a magical school — verified in
+ * sw25-importer.mjs), so the authored name is the only available source.
+ * The rank is never taken from the spell level.
+ *
+ * Parsing rules (validated against all 656 compendium spells: 22 ranked
+ * names parse correctly, 0 false positives):
+ *   - A trailing attached full-width numeral (Ⅰ..Ⅹ) is a rank.
+ *   - A trailing SPACE-SEPARATED ASCII Roman numeral in UPPERCASE
+ *     (case-sensitive: "Mana Max" never matches) is a rank.
+ *   - Everything else: the full authored name is the family, rank 0.
+ *
+ * @param {object} spell - Spell Item document.
+ * @returns {{family: string, rank: number}}
+ */
+export function getInstantXSpellIdentity(spell) {
+  const name = String(spell?.name || "").trim();
+  if (!name) return { family: "", rank: 0 };
+  const fullwidth = name.match(/[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]$/u);
+  if (fullwidth) {
+    return { family: name.slice(0, -1).trim(), rank: INSTANT_X_FULLWIDTH_ROMAN.get(fullwidth[0]) };
+  }
+  // Case-SENSITIVE uppercase (no `i` flag): the numeral must be authored as
+  // an uppercase Roman numeral separated by whitespace.
+  const ascii = name.match(/\s(X|IX|VIII|VII|VI|IV|V|III|II|I)$/);
+  if (ascii) {
+    return { family: name.slice(0, ascii.index).trim(), rank: INSTANT_X_RANK_ROMAN.get(ascii[1]) };
+  }
+  return { family: name, rank: 0 };
+}
+
+/**
+ * Parse the typed damage attribute of a spell from its metadata "Type:"
+ * line (e.g. "Type: Poison" → "Poison", "Type: Psychic (Weak)" →
+ * "Psychic"). Only the first token is kept: parenthetical qualifiers are
+ * weakness annotations, not the damage attribute (DEC-9 `damageType`).
+ * @param {object} spell - Spell Item document.
+ * @returns {string|null} The attribute name, or null when absent.
+ */
+export function parseSw25SpellDamageAttribute(spell) {
+  const metadata = String(spell?.system?.metadata || "");
+  const match = metadata.match(/^type:\s*(.+)$/im);
+  if (!match) return null;
+  const token = match[1].trim().split(/[\s(]/)[0].trim();
+  return token || null;
+}
+
+/**
+ * Resolve the combat anchor (D4/T5.2) of the caster of an Instant/X spell:
+ * the combatant of the ACTIVE encounter whose actor matches the caster
+ * UUID. The approved default regime for round-scale spells is
+ * `casterTurn` with edge `begin` (T5.0-R D5); `targetTurn` exceptions need
+ * per-spell rule data that the current spell schema does not carry, so no
+ * targetTurn anchor is ever invented here (documented limitation).
+ *
+ * The caster must be a combatant of the active encounter: an out-of-combat
+ * casting has no turn order, so no anchor is fabricated (missing mandatory
+ * data → no persistent component, D4 philosophy).
+ *
+ * @param {string|null} casterUuid - UUID of the caster Actor ("Actor.<id>").
+ * @returns {object|null} `{ regime, edge, combatantId, tokenId? }`, or null
+ *   when there is no active combat or the caster is not a combatant.
+ */
+export function resolveSw25CasterAnchor(casterUuid) {
+  const combat = game?.combat ?? null;
+  const collection = combat?.combatants ?? null;
+  if (!casterUuid || !collection) return null;
+  const list = typeof collection.values === "function" ? [...collection.values()] : [...collection];
+  const combatant = list.find(entry => entry?.actorUuid === casterUuid
+    || entry?.actor?.uuid === casterUuid
+    || (entry?.actor?.id && casterUuid === `Actor.${entry.actor.id}`));
+  if (!combatant?.id) return null;
+  return {
+    regime: "casterTurn",
+    edge: "begin",
+    state: "resolved",
+    combatantId: combatant.id,
+    ...(combatant.tokenId ? { tokenId: combatant.tokenId } : {})
+  };
+}
+
 export function initializeSpellEffects() {
   Hooks.on("renderChatMessageHTML", (message, html) => {
     html.querySelectorAll("[data-sw25-chat-action='end-regeneration']").forEach(button => {

@@ -261,10 +261,16 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
         + abilityBonus(actor.system, "intelligence")
         + sw25EffectModifier(actor, "combat.magicPower");
       const total = tableValue + magicPower;
+      // DEC-6: the Success Value is the result of the CASTING roll (this 2d6
+      // + Magic Power), never the damage total. A natural 12 (double 6s) is
+      // an automatic success and adds the +5 critical rule (Core Rulebook I
+      // pp. 91/167). The spell's own critical threshold affects damage only,
+      // not the SV. Critical failure (double 1s) already returned above.
+      const spellSuccessValue = diceTotal + (diceTotal === 12 ? 5 : 0) + magicPower;
       const critical = Number(spell.system.critical ?? 0);
       await ChatMessage.create({
         speaker: ChatMessage.getSpeaker({ actor }),
-        content: `<div class="sw25-chat-card sw25-spell-power-result"><h3>${foundry.utils.escapeHTML(spell.name)} Damage</h3><p><strong>Power roll:</strong> ${diceTotal} â†’ ${tableValue}</p><p><strong>Magic Power:</strong> ${magicPower}</p><p class="sw25-weapon-total"><strong>Total:</strong> ${total}</p>${damageApplicationButton(total, "magical")}${critical && diceTotal >= critical ? '<p class="sw25-critical">CRITICAL</p>' : ""}</div>`
+        content: `<div class="sw25-chat-card sw25-spell-power-result"><h3>${foundry.utils.escapeHTML(spell.name)} Damage</h3><p><strong>Power roll:</strong> ${diceTotal} â†’ ${tableValue}</p><p><strong>Magic Power:</strong> ${magicPower}</p><p class="sw25-weapon-total"><strong>Total:</strong> ${total}</p>${damageApplicationButton(total, "magical", true, null, null, spell.uuid, { successValue: spellSuccessValue, casterUuid: actor.uuid })}${critical && diceTotal >= critical ? '<p class="sw25-critical">CRITICAL</p>' : ""}</div>`
       });
     });
   });
