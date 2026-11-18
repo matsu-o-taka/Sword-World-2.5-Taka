@@ -1,5 +1,6 @@
 import { classEditorSkillOptions } from "../rules/skill-resolution.mjs";
 import { castSpellAsMajor } from "../rules/spell-cast.mjs";
+import { openRollModifiersDialog } from "../rules/roll-modifiers.mjs";
 
 export class SW25ItemSheet extends foundry.appv1.sheets.ItemSheet {
   static get defaultOptions() {
@@ -52,7 +53,10 @@ export class SW25ItemSheet extends foundry.appv1.sheets.ItemSheet {
     // Spellcasting flow as the character sheet's Cast button: Major Action
     // with its Spellcasting check (validation, MP deduction before the roll,
     // SV, per-target resistances, cast-time effects, Power Table damage).
-    // This handler owns NO casting logic of its own.
-    await castSpellAsMajor({ actor, spell, applyCost: this.isEditable });
+    // This handler owns NO casting logic of its own. Shift+click opens the
+    // SHARED temporary-modifier dialog (rules/roll-modifiers.mjs); the
+    // enabled modifiers join the effective Magic Power of the cast's SV.
+    const promptModifiers = event.shiftKey ? openRollModifiersDialog : null;
+    await castSpellAsMajor({ actor, spell, applyCost: this.isEditable, promptModifiers });
   }
 }

@@ -374,9 +374,14 @@ const zeroed = ledger => {
   const flavor = globalThis.Roll.messages[0].flavor;
   // total = table 9 + class 3 + strength bonus 1 (effective) + weapon extra 1
   //         + situational 2 (base) + effect extra 3 (ledger) = 19
-  assert.ok(flavor.includes('<span class="sw25-damage-total">19</span>'), `expected effective total 19 in:\n${flavor}`);
-  assert.ok(flavor.includes("Strength bonus:</strong> +1"), "effective strength bonus shown in the breakdown");
-  assert.ok(flavor.includes("Additional damage:</strong> +5"), "situational base + effect ledger shown");
+  assert.ok(flavor.includes("sw25-damage-breakdown-final\"><strong>Final damage:</strong> 19"), `expected effective total 19 in expanded breakdown:\n${flavor}`);
+  assert.ok(flavor.includes("Extra Damage:</strong> +10"), "class, ability and extra damage modifiers are included in the expanded breakdown");
+  assert.ok(flavor.includes("sw25-damage-result-value\">19"), "final damage is the primary visible value");
+  assert.ok(flavor.includes("Power Table"), "the pure roll and Power Table output are visible");
+  assert.ok(flavor.includes('data-target="weapon-damage-'), "weapon damage details use a card-specific target");
+  assert.ok(flavor.includes("sw25-damage-stat-detail"), "expandable weapon damage details remain available");
+  assert.ok(flavor.includes('data-sw25-chat-action="apply-damage"'), "targetless weapon result still offers application controls");
+  assert.ok(!flavor.includes('data-actor-id="'), "targetless weapon card does not capture a global target");
   record("weapon damage roll consumes effective strength bonus and Extra Damage ledger");
 }
 

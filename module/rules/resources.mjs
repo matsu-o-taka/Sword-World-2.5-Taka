@@ -47,6 +47,57 @@ export function characterMPMaximum(system = {}, items = []) {
 }
 
 /**
+ * Normalize a persisted current-resource value to one finite number. Older
+ * character sheets could submit several same-named MP inputs as an array;
+ * accept that legacy shape on read, using its first populated finite entry,
+ * without ever exposing the array to calculations or numeric indicators.
+ *
+ * @param {unknown} raw Persisted scalar or legacy array value.
+ * @returns {number} A finite number, defaulting to 0 for missing/invalid data.
+ */
+function finiteResourceValue(raw) {
+  const candidates = Array.isArray(raw) ? raw : [raw];
+  for (const candidate of candidates) {
+    if (candidate == null || (typeof candidate === "string" && candidate.trim() === "")) continue;
+    const value = Number(candidate);
+    if (Number.isFinite(value)) return value;
+  }
+  return 0;
+}
+
+/**
+ * Unified current-value accessor for character HP/MP. Every display and rule
+ * consumer reads the same persisted `system.<resource>.value` property through
+ * this normalization boundary; no secondary current-value state is created.
+ *
+ * @param {object} actor Actor document (or stub) with `system` data.
+ * @param {"hp"|"mp"} resource Resource to read.
+ * @returns {number} The normalized current value.
+ */
+export function characterResourceValue(actor, resource) {
+  if (actor == null || (resource !== "hp" && resource !== "mp")) return 0;
+  return finiteResourceValue(actor.system?.[resource]?.value);
+}
+
+/**
+ * Write one character HP/MP current value back to its canonical persisted
+ * property. Numeric normalization happens before the document update so a
+ * form submission can never persist an array, numeric string or NaN.
+ *
+ * @param {object} actor Actor document to update.
+ * @param {"hp"|"mp"} resource Resource to write.
+ * @param {unknown} value Proposed scalar (or legacy array) value.
+ * @param {object} [options] Document update options.
+ * @returns {Promise<object>} The Actor update result.
+ */
+export async function updateCharacterResourceValue(actor, resource, value, options = {}) {
+  if (!actor || typeof actor.update !== "function" || (resource !== "hp" && resource !== "mp")) {
+    throw new Error("A character resource update requires an Actor and either hp or mp.");
+  }
+  return actor.update({ [`system.${resource}.value`]: finiteResourceValue(value) }, options);
+}
+
+/**
  * Unified resource-maximum accessor for consumers (rest, recovery items,
  * token-adjacent displays, gauges): reads the persisted base maximum
  * (`system.hp.max` / `system.mp.max`) and falls back to the formula for

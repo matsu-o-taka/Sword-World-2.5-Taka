@@ -12,14 +12,18 @@
 //      never refunds the MP (CR1 p. 159: the cost is paid to attempt the
 //      casting).
 //   4. Spellcasting check: a plain 2d6 (CR1 p. 159). The roll carries NO
-//      modifier; the modifiers enter the Success Value.
+//      modifier; the modifiers enter the Success Value. Optional temporary
+//      per-roll modifiers are prompted through the SHARED dialog of
+//      rules/roll-modifiers.mjs (never a parallel one) and join the
+//      effective Magic Power of the SV.
 //   5. Natural result and Spellcasting Value (SV): ordinary SV = natural
 //      2d6 + effective Magic Power; natural double 6 = automatic success and
 //      +5 SV; natural double 1 = AUTOMATIC FAILURE (the spell fizzles, MP
 //      spent). Natural detection uses the shared utilities of
 //      rules/critical-failure.mjs and is NEVER derived from a modified total.
 //   6. Resistances are resolved INDIVIDUALLY for each target (CR1 p. 168):
-//      one shared Spellcasting check, one Willpower check per target. The
+//      one shared Spellcasting check, one Willpower or Fortitude check per
+//      target according to the spell's structured usesFortitude field. The
 //      caster's SV must STRICTLY exceed the target's to take full effect; a
 //      tie means the target wins. Resistance TYPES (Can't/None/Optional/
 //      Neg/Half/Temporary), their difficulties and their rolls live ONLY
@@ -50,6 +54,7 @@
 // ---------------------------------------------------------------------------
 
 import { abilityBonus } from "./weapon-damage.mjs";
+import { characterResourceValue, updateCharacterResourceValue } from "./resources.mjs";
 import { sw25EffectModifier } from "../effects/effective-values.mjs";
 import {
   isDoubleStomp,
@@ -74,6 +79,7 @@ import {
   resolveSw25CasterAnchor
 } from "./spell-effects.mjs";
 import { requestSw25EffectOperation } from "../effects/effect-relay.mjs";
+import { getSpellResistance, spellDamageNature as spellDataNature } from "./spell-data.mjs";
 import {
   automaticFailureButton,
   criticalFailureHTML,
@@ -81,6 +87,8 @@ import {
   isNaturalDouble,
   naturalDiceTotal
 } from "./critical-failure.mjs";
+import { enabledModifiersTotal, normalizeModifier, signedValue } from "./roll-modifiers.mjs";
+import { resolveMonsterRollMode } from "../combat/attack-resolution.mjs";
 
 const FLAG_SCOPE = "sw25-taka";
 
@@ -102,58 +110,52 @@ export const RESISTANCE_LABELS = {
   temporary: "Temporary"
 };
 
-/**
- * Read the Resistance type of a spell from its imported metadata
- * ("Resistance: Neg", "Resistance: Can't", "Resistance: Negates", ...).
- * Wiki spell pages author "Negates" and "Can't"; both normalize to the
- * approved ids. An absent or unrecognized field returns null: the spell is
- * then treated as unresistable (Can't behavior) and the raw text is shown
- * on the cast card — nothing is invented for it.
- * @param {object} spell - Spell Item document.
- * @returns {string|null} An approved resistance id, or null.
- */
-export function getSpellResistance(spell) {
-  const metadata = String(spell?.system?.metadata || "");
-  const match = metadata.match(/^resistance:\s*(.+)$/im);
-  if (!match) return null;
-  const raw = match[1].trim().toLowerCase().replace(/[’‘]/g, "'");
-  if (/^(can'?t|cannot)$/.test(raw)) return "cant";
-  if (/^optional$/.test(raw)) return "optional";
-  if (/^none$/.test(raw)) return "none";
-  if (/^neg(ated|ates)?$/.test(raw)) return "neg";
-  if (/^half$/.test(raw)) return "half";
-  if (/^temporar(y|ily)$/.test(raw)) return "temporary";
-  return null;
-}
+// The resistance ID lives in the structured `system.resistance` field
+// (vocabulary + parsing in rules/spell-data.mjs). Re-exported so the
+// existing consumers keep importing it from here.
+export { getSpellResistance } from "./spell-data.mjs";
 
 /**
- * Human label for a spell's Resistance, for chat cards. An unrecognized raw
- * value is shown verbatim (never silently renamed).
+ * Human label for a spell's Resistance, for chat cards. When the spell has
+ * no recognized structured resistance, the raw metadata text is shown
+ * verbatim (metadata is retained as reference/presentation data; rule
+ * logic never reads it) — never silently renamed.
  * @param {object} spell - Spell Item document.
  * @returns {string}
  */
 export function spellResistanceLabel(spell) {
-  const metadata = String(spell?.system?.metadata || "");
-  const match = metadata.match(/^resistance:\s*(.+)$/im);
   const id = getSpellResistance(spell);
   if (id) return RESISTANCE_LABELS[id];
+  const match = String(spell?.system?.metadata || "").match(/^resistance:\s*(.+)$/im);
   return match ? match[1].trim() : "—";
 }
 
-// ── Casting modality detection (CR1 pp. 174-175) ───────────────────────────
+// ── Casting modality (CR1 pp. 174-175) ──────────────────────────────────────
 //
-// The importer keeps the ⏩/△ authoring markers IN the spell name (verified
-// against the compendium; DEC-1 keeps them in the family), so the name is
-// the source of modality capability.
+// Modality capability lives in the structured boolean fields
+// `system.minorAction` (⏩) and `system.combatPreparation` (△), populated by
+// the importer from the authored name markers. The markers stay in the
+// spell names (DEC-1); the RULES read the booleans, never the names.
 
-/** Whether the spell can be cast with a Minor Action (⏩ marker). */
+/** Whether the spell can be cast with a Minor Action (⏩). */
 export function isMinorActionSpell(spell) {
-  return /⏩/.test(String(spell?.name || ""));
+  return spell?.system?.minorAction === true;
 }
 
-/** Whether the spell can be cast during Combat Preparation (△ marker). */
+/** Whether the spell can be cast during Combat Preparation (△). */
 export function isCombatPreparationSpell(spell) {
-  return /△/.test(String(spell?.name || ""));
+  return spell?.system?.combatPreparation === true;
+}
+
+/** Whether the current world is in Combat Preparation phase (combat created but not started). */
+export function isInCombatPreparationPhase() {
+  const combat = game?.combat;
+  return !!(combat && !combat.started);
+}
+
+/** Whether the strict Combat Preparation rules are enforced by the GM setting. */
+export function isStrictCombatPreparationEnabled() {
+  return game?.settings?.get("sw25-taka", "enforceStrictCombatPreparationRules") ?? false;
 }
 
 // ── Spellcasting check and Success Value (CR1 pp. 159/167-168) ─────────────
@@ -186,21 +188,52 @@ export function computeSpellcastingValue({ natural, magicPower, automaticSuccess
  *
  * @param {Actor} actor - Casting actor.
  * @param {Item} castingClass - The casting class Item.
+ * @param {number|null} [magicPower=null] - Effective Magic Power override.
+ *   Null (the default) uses the PERMANENT composition
+ *   (spellDamageMagicPower). When the SHARED temporary-modifier dialog ran,
+ *   its enabled total IS the effective Magic Power: the dialog already
+ *   contains the permanent parts, so they are never added twice.
  * @returns {Promise<{roll: Roll, natural: number, automaticFailure: boolean,
  *   automaticSuccess: boolean, magicPower: number, successValue: number}>}
  */
-export async function rollSpellcastingCheck({ actor, castingClass }) {
+export async function rollSpellcastingCheck({ actor, castingClass, magicPower = null } = {}) {
   const roll = await new Roll("2d6").evaluate();
   const automaticFailure = isCriticalFailure(roll);
   const automaticSuccess = !automaticFailure && isNaturalDouble(roll, 6);
-  const magicPower = spellDamageMagicPower(actor, castingClass);
+  // Without a dialog override the PERMANENT composition is the authority;
+  // with one, the dialog's enabled total IS the effective Magic Power (the
+  // permanent parts were already seeded into it — never added twice).
+  const effectiveMagicPower = magicPower === null || magicPower === undefined
+    ? spellDamageMagicPower(actor, castingClass)
+    : Number(magicPower) || 0;
   const natural = naturalDiceTotal(roll);
   // On automatic failure the SV is meaningless (the spell fizzles); it is
   // reported as 0 and never used for resolution.
   const value = automaticFailure
     ? 0
-    : computeSpellcastingValue({ natural, magicPower, automaticSuccess }).successValue;
-  return { roll, natural, automaticFailure, automaticSuccess, magicPower, successValue: value };
+    : computeSpellcastingValue({ natural, magicPower: effectiveMagicPower, automaticSuccess }).successValue;
+  return { roll, natural, automaticFailure, automaticSuccess, magicPower: effectiveMagicPower, successValue: value };
+}
+
+/**
+ * Permanent Magic Power parts of a caster, seeded into the SHARED temporary
+ * modifier dialog (rules/roll-modifiers.mjs). The Spellcasting check is a
+ * plain 2d6 (CR1 p. 159): every modifier — permanent or temporary — enters
+ * the Success Value through the effective Magic Power, never the dice.
+ * The composition mirrors spellDamageMagicPower (rules/spell-damage.mjs):
+ * casting class level + Intelligence bonus + the prepared effect ledger's
+ * combat.magicPower entry.
+ * @param {Actor} actor - Casting actor.
+ * @param {Item} castingClass - The casting class Item.
+ * @returns {Array<{label: string, value: number, enabled: boolean, temporary: boolean}>}
+ */
+export function spellcastingMagicPowerParts(actor, castingClass) {
+  const effects = sw25EffectModifier(actor, "combat.magicPower");
+  return [
+    { label: `${castingClass?.name ?? "Class"} level`, value: Number(castingClass?.system?.level ?? 0), enabled: true, temporary: false },
+    { label: "Intelligence bonus", value: abilityBonus(actor?.system, "intelligence"), enabled: true, temporary: false },
+    { label: "Effects", value: Number(effects) || 0, enabled: Number(effects) !== 0, temporary: false }
+  ];
 }
 
 // Ordinary opposed comparison (CR1 p. 168): the caster's SV must STRICTLY
@@ -224,6 +257,21 @@ export function characterWillpower(actor) {
     .filter(item => item.type === "class")
     .reduce((highest, item) => Math.max(highest, Number(item.system?.level ?? 0)), 0);
   return level + abilityBonus(actor?.system, "spirit") + sw25EffectModifier(actor, "resistance.willpower");
+}
+
+/**
+ * Effective Fortitude of a character target: highest class level + Vitality
+ * bonus + the prepared effect ledger's resistance.fortitude entry. This
+ * mirrors the sheet calculation exactly, as characterWillpower does for
+ * Spirit and Willpower.
+ * @param {Actor} actor - Character actor.
+ * @returns {number}
+ */
+export function characterFortitude(actor) {
+  const level = [...(actor?.items || [])]
+    .filter(item => item.type === "class")
+    .reduce((highest, item) => Math.max(highest, Number(item.system?.level ?? 0)), 0);
+  return level + abilityBonus(actor?.system, "vitality") + sw25EffectModifier(actor, "resistance.fortitude");
 }
 
 /**
@@ -256,7 +304,8 @@ export function parseMonsterResistance(value) {
  *   - optional: `decision` is the target's will to resist; a resisting
  *     target AUTOMATICALLY succeeds (the spell does not affect them).
  *   - neg / half: the caster's SV is compared with the target's resistance:
- *     * character: `roll` is the target's Willpower check (2d6 + Willpower);
+ *     * character: `roll` is the target's Willpower or Fortitude check
+ *       (2d6 + the characteristic selected by the spell);
  *       natural double 1 is the resistance's automatic failure (the spell
  *       takes effect), natural double 6 its automatic success (resisted).
  *     * monster passive: `passiveDifficulty` is Y; the caster's SV must
@@ -330,7 +379,7 @@ export function resolveTargetResistance({ type, successValue = 0, roll = null, p
   const automaticFailure = isCriticalFailure(roll);
   const automaticSuccess = !automaticFailure && isNaturalDouble(roll, 6);
   // The resistance total is the roll's FULL total (natural dice + the
-  // character's Willpower or the monster's X modifier); the natural dice
+  // character's Willpower/Fortitude or the monster's X modifier); the natural dice
   // alone are read only for the automatic results.
   const targetTotal = Number.isFinite(Number(roll?.total)) ? Number(roll.total) : naturalDiceTotal(roll);
   outcome.automaticFailure = automaticFailure;
@@ -391,31 +440,8 @@ async function defaultAskOptional(target, spell) {
   return answer === "reject";
 }
 
-// Default monster resistance mode dialog (GM authority): passive uses the
-// X(Y) difficulty Y; active rolls 2d6 + X. When only one mode has data, it
-// is used without asking. Closing keeps the passive default.
-async function defaultAskMonsterMode(monster, check) {
-  const parsed = parseMonsterResistance(monster?.system?.[check]);
-  if (!parsed) return "active";
-  if (parsed.passive === null) return "active";
-  if (parsed.active === null) return "passive";
-  const DialogV2 = foundry?.applications?.api?.DialogV2;
-  if (typeof DialogV2?.wait !== "function") return "passive";
-  const answer = await DialogV2.wait({
-    window: { title: `${monster.name} — ${check === "fortitude" ? "Fortitude" : "Willpower"} X(${parsed.passive})` },
-    modal: true,
-    content: `<p>How does <strong>${escape(monster.name)}</strong> resist?</p><p class="notes">Passive: the caster's SV must strictly exceed ${parsed.passive}. Active: the monster rolls 2d6 + ${parsed.active}.</p>`,
-    buttons: [
-      { action: "passive", label: `Passive (${parsed.passive})`, default: true },
-      { action: "active", label: `Active (2d6 + ${parsed.active})` }
-    ]
-  });
-  return answer === "passive" ? "passive" : answer === "active" ? "active" : "passive";
-}
-
 const DEFAULT_DIALOGS = {
-  askOptional: defaultAskOptional,
-  askMonsterMode: defaultAskMonsterMode
+  askOptional: defaultAskOptional
 };
 
 /**
@@ -428,7 +454,9 @@ const DEFAULT_DIALOGS = {
  * @param {string|null} input.resistanceType - Approved resistance id.
  * @param {number} input.successValue - The cast's SV.
  * @param {Actor[]} input.targets - Resolved target actors.
- * @param {object} [input.dialogs] - Dialog overrides (tests).
+ * @param {object} [input.dialogs] - Optional-resistance dialog overrides (tests).
+ *   Monster defense needs no dialog: each monster's activeCombatRolls
+ *   configuration is resolved through the shared combat mode resolver.
  * @returns {Promise<Array<{target: Actor, type: string|null, resisted: boolean,
  *   pending: boolean, automaticFailure: boolean, automaticSuccess: boolean,
  *   targetTotal: number|null, halfDamage: boolean, effectsNullified: boolean,
@@ -436,7 +464,10 @@ const DEFAULT_DIALOGS = {
  */
 export async function resolveCastTargets({ caster, spell, resistanceType, successValue, targets, dialogs = {} } = {}) {
   const askOptional = dialogs.askOptional || DEFAULT_DIALOGS.askOptional;
-  const askMonsterMode = dialogs.askMonsterMode || DEFAULT_DIALOGS.askMonsterMode;
+  // The structured spell field is the sole source of truth: false or absent
+  // preserves the established Willpower default; true selects Fortitude.
+  const defenseKey = spell?.system?.usesFortitude === true ? "fortitude" : "willpower";
+  const defenseCharacteristic = defenseKey === "fortitude" ? "Fortitude" : "Willpower";
   const results = [];
   for (const target of targets) {
     if (!target) continue;
@@ -451,74 +482,96 @@ export async function resolveCastTargets({ caster, spell, resistanceType, succes
       results.push({ target, ...outcome, summary: plainSummary(target, outcome, resistanceType) });
       continue;
     }
-    // neg / half: the target's own resistance.
+    // neg / half: the target's own resistance. Each monster uses its own
+    // activeCombatRolls configuration through the SAME resolver as combat.
+    // A missing configuration follows combat's established passive default.
     if (target.type === "monster") {
-      const mode = await askMonsterMode(target, "willpower");
-      const parsed = parseMonsterResistance(target.system?.willpower);
+      const mode = resolveMonsterRollMode(undefined, target);
+      const parsed = parseMonsterResistance(target.system?.[defenseKey]);
       if (mode === "passive" && parsed?.passive !== null && parsed?.passive !== undefined) {
         const outcome = resolveTargetResistance({ type: resistanceType, successValue, passiveDifficulty: parsed.passive });
-        results.push({ target, mode, ...outcome, summary: passiveMonsterSummary(target, outcome, resistanceType) });
+        results.push({ target, mode, ...outcome, summary: passiveMonsterSummary(target, outcome, resistanceType, defenseCharacteristic) });
         continue;
       }
+      // Existing resistance-data fallback: when no passive Y is available,
+      // the active X roll remains the only usable resistance resolution.
       const modifier = parsed?.active ?? 0;
       const roll = await new Roll(`2d6 + ${modifier}`).evaluate();
       const outcome = resolveTargetResistance({ type: resistanceType, successValue, roll });
       await roll.toMessage({
         speaker: ChatMessage.getSpeaker({ actor: target }),
-        flavor: `${escape(target.name)} — Willpower (active resistance, 2d6 + ${modifier})`
+        flavor: `${escape(target.name)} — ${defenseCharacteristic} (active resistance, 2d6 + ${modifier})`
       });
-      results.push({ target, mode: "active", ...outcome, summary: activeSummary(target, outcome, resistanceType) });
+      results.push({ target, mode: "active", ...outcome, summary: activeSummary(target, outcome, resistanceType, defenseCharacteristic) });
       continue;
     }
-    const roll = await new Roll(`2d6 + ${characterWillpower(target)}`).evaluate();
+    const modifier = defenseKey === "fortitude" ? characterFortitude(target) : characterWillpower(target);
+    const roll = await new Roll(`2d6 + ${modifier}`).evaluate();
     const outcome = resolveTargetResistance({ type: resistanceType, successValue, roll });
     await roll.toMessage({
       speaker: ChatMessage.getSpeaker({ actor: target }),
-      flavor: `${escape(target.name)} — Willpower (resistance, 2d6 + ${characterWillpower(target)})`
+      flavor: `${escape(target.name)} — ${defenseCharacteristic} (resistance, 2d6 + ${modifier})`
     });
-    results.push({ target, mode: "active", ...outcome, summary: activeSummary(target, outcome, resistanceType) });
+    results.push({ target, mode: "active", ...outcome, summary: activeSummary(target, outcome, resistanceType, defenseCharacteristic) });
   }
   return results;
 }
 
-function resistanceWord(outcome, resistanceType) {
-  if (outcome.pending) return "pending (GM decides)";
-  if (outcome.resisted) return resistanceType === "half" ? "resisted — half damage, extra effects nullified" : "resisted";
-  return "affected";
+// Concise, target-specific presentation of the ALREADY RESOLVED outcome.
+// Active defense displays its actual roll total; passive defense displays
+// the fixed difficulty used. The characteristic is supplied by the branch
+// that performed the resolution, never inferred from the spell's metadata.
+function targetResolutionSummary(target, outcome, resistanceType, defenseCharacteristic = null) {
+  if (outcome.pending) {
+    return `<strong>${escape(target.name)}:</strong> resistance pending (GM decides).`;
+  }
+  const defenseValue = outcome.passiveDifficulty ?? outcome.targetTotal;
+  const defense = defenseCharacteristic && defenseValue !== null && defenseValue !== undefined
+    ? ` (${escape(defenseCharacteristic)} ${escape(defenseValue)})`
+    : "";
+  const result = outcome.resisted ? "resisted" : "affected";
+  const consequences = [];
+  if (outcome.halfDamage) {
+    consequences.push("The target takes half damage.");
+  } else if (!outcome.resisted && resistanceType === "half") {
+    consequences.push("The target takes full damage.");
+  } else if (outcome.resisted) {
+    consequences.push("The spell has no effect.");
+  }
+  if (outcome.effectsNullified) consequences.push("Additional effects are nullified.");
+  if (outcome.automaticSuccess) consequences.push("The resistance was an automatic success (natural double 6).");
+  if (outcome.automaticFailure) consequences.push("The resistance was an automatic failure (natural double 1).");
+  return `<strong>${escape(target.name)}${defense} ${result}!</strong>${consequences.length ? ` ${consequences.join(" ")}` : ""}`;
 }
 
 function optionalSummary(target, outcome) {
-  return `<strong>${escape(target.name)}:</strong> ${resistanceWord(outcome, "optional")} — ${escape(outcome.resistedReason)}`;
+  return targetResolutionSummary(target, outcome, "optional");
 }
 
 function plainSummary(target, outcome, resistanceType) {
-  return `<strong>${escape(target.name)}:</strong> ${resistanceWord(outcome, resistanceType)} — ${escape(outcome.resistedReason)}`;
+  return targetResolutionSummary(target, outcome, resistanceType);
 }
 
-function passiveMonsterSummary(target, outcome, resistanceType) {
-  return `<strong>${escape(target.name)}:</strong> ${resistanceWord(outcome, resistanceType)} — ${escape(outcome.resistedReason)}`;
+function passiveMonsterSummary(target, outcome, resistanceType, defenseCharacteristic) {
+  return targetResolutionSummary(target, outcome, resistanceType, defenseCharacteristic);
 }
 
-function activeSummary(target, outcome, resistanceType) {
-  return `<strong>${escape(target.name)}:</strong> ${resistanceWord(outcome, resistanceType)} — Willpower ${outcome.targetTotal ?? "—"}; ${escape(outcome.resistedReason)}`;
+function activeSummary(target, outcome, resistanceType, defenseCharacteristic) {
+  return targetResolutionSummary(target, outcome, resistanceType, defenseCharacteristic);
 }
 
 // ── Instant/X persistent components at CAST time ───────────────────────────
 
 /**
- * Nature of a spell's damage channel for the DEC-9 damageType. Derived from
- * the spell's own data only: special-damage bands (uniform type) or the
- * shared Power Table (magical). Unknown → null.
+ * Nature of a spell's damage channel for the DEC-9 damageType. The decision
+ * logic lives in rules/spell-data.mjs (`spellDamageNature`); this wrapper
+ * supplies the spell's own special-damage bands (including the legacy
+ * name/source fallbacks of spell-damage.mjs).
  * @param {object} spell - Spell Item document.
- * @returns {string|null}
+ * @returns {string|null} "physical"|"magical"|null.
  */
 export function spellDamageNature(spell) {
-  const bands = specialDamageBands(spell);
-  if (bands.length) {
-    const types = new Set(bands.map(band => String(band.damageType || "").toLowerCase()));
-    return types.size === 1 ? (types.has("magical") ? "magical" : "physical") : null;
-  }
-  return spell?.system?.hasPowerTable ? "magical" : null;
+  return spellDataNature(specialDamageBands(spell), spell?.system?.hasPowerTable);
 }
 
 /**
@@ -655,8 +708,9 @@ export async function createCastEffects({ spell, caster, targetResults, successV
 // ── Shared cast preparation (validation BEFORE any MP cost) ────────────────
 
 /**
- * Resolve the casting class of a spell: the assigned class Item, a class
- * matching the spell's class/school name, or the actor's default magic class.
+ * Resolve the casting class of a spell: the assigned class Item (by
+ * `classId`), a class matching the spell's `className`, or the actor's
+ * default magic class.
  * @param {Actor} actor - Casting actor.
  * @param {object} spell - Spell Item document.
  * @returns {Item|null}
@@ -665,7 +719,7 @@ export function resolveCastingClass(actor, spell) {
   return actor?.items?.get(spell?.system?.classId)
     || [...(actor?.items || [])].find(item =>
       item.type === "class"
-      && item.name.toLowerCase() === String(spell?.system?.className || spell?.system?.school || "").toLowerCase()
+      && item.name.toLowerCase() === String(spell?.system?.className || "").toLowerCase()
     )
     || actor?.items?.get(actor.system?.combat?.magicClassId)
     || null;
@@ -721,7 +775,7 @@ export function prepareSpellCast({ actor, spell } = {}) {
   }
 
   const cost = Math.max(0, Number(spell.system.mpCost ?? 0));
-  const currentMP = Number(actor.system.mp?.value ?? 0);
+  const currentMP = characterResourceValue(actor, "mp");
   if (currentMP < cost) return { blocked: true, reason: `${actor.name} does not have enough MP to cast ${spell.name}.` };
 
   return {
@@ -744,8 +798,8 @@ export function prepareSpellCast({ actor, spell } = {}) {
  * @returns {Promise<void>}
  */
 export async function deductCastMP(actor, cost, spell) {
-  const currentMP = Number(actor.system.mp?.value ?? 0);
-  await actor.update({ "system.mp.value": currentMP - Math.max(0, Number(cost) || 0) });
+  const currentMP = characterResourceValue(actor, "mp");
+  await updateCharacterResourceValue(actor, "mp", currentMP - Math.max(0, Number(cost) || 0));
   await trackNaturalPowerSpending(actor, cost, spell);
 }
 
@@ -782,48 +836,125 @@ async function recordCombatPreparationCast(actor, spell) {
 
 // ── Chat cards ─────────────────────────────────────────────────────────────
 
-function spellCheckLine(check) {
-  const parts = [`natural ${check.natural}`, `Magic Power ${check.magicPower}`];
-  if (check.automaticSuccess) parts.push("<strong>+5 (automatic success)</strong>");
-  return `<p><strong>Spellcasting check:</strong> ${parts.join(" + ")} — <strong>SV ${check.successValue}</strong></p>`;
+// Per-card unique suffix for the collapsible detail anchors: chat messages
+// accumulate in the log, so a fixed id would always resolve to the FIRST
+// message carrying it (sw25.mjs toggles details through getElementById).
+let spellCardCounter = 0;
+
+function spellCardId() {
+  spellCardCounter += 1;
+  return `spell-card-${spellCardCounter}`;
 }
 
-function rollDamageButton(actor, spell, castingClass, successValue) {
+function spellModalityBadge(modality) {
+  if (modality === "minor") return '<span class="sw25-spell-modality"><img src="systems/sw25-taka/assets/quickspell.svg" class="sw25-icon-quickspell" alt="Minor Action"> Minor Action</span>';
+  if (modality === "preparation") return '<span class="sw25-spell-modality"><i class="fas fa-flag"></i> Combat Preparation △</span>';
+  return '<span class="sw25-spell-modality"><i class="fas fa-bolt"></i> Major Action</span>';
+}
+
+// The Spellcasting check block: the principal result (natural + Magic Power
+// = SV) stays always visible; the Magic Power composition (permanent parts
+// and any temporary modifiers of this cast) collapses into a secondary
+// detail, mirroring the attack card's breakdown.
+function spellCheckBlock(check, magicPowerParts = [], detailId) {
+  const parts = [`natural ${check.natural}`, `Magic Power ${check.magicPower}`];
+  if (check.automaticSuccess) parts.push("<strong>+5 (automatic success)</strong>");
+  // Permanent parts print as plain numbers (the sheet shows the same
+  // composition); the user-added temporary modifiers keep an explicit sign.
+  const partValue = part => part.temporary ? escape(signedValue(part.value)) : escape(String(Number(part.value) || 0));
+  const detail = magicPowerParts.length ? `
+      <div class="sw25-spell-stat-detail" id="${detailId}" style="display:none;">
+        <ul class="sw25-roll-breakdown">
+          ${magicPowerParts.map(part => `<li>${escape(part.label)}: ${partValue(part)}</li>`).join("")}
+        </ul>
+      </div>` : "";
+  return `
+    <div class="sw25-spell-stat" data-target="${detailId}">
+      <p class="sw25-spell-stat-summary" role="button" tabindex="0"><strong>Spellcasting check:</strong> ${parts.join(" + ")} — <strong>SV ${check.successValue}</strong></p>
+      ${detail}
+    </div>`;
+}
+
+function rollDamageButton(actor, spell, castingClass, successValue, targetUuid = "") {
   // The AUTHENTIC cast SV travels to the damage procedure (DEC-6): the Power
   // Table never derives it. "0" is legitimate; the attribute is only absent
   // when there is genuinely no SV (impossible in a resolved cast).
-  return `<button type="button" data-sw25-chat-action="roll-spell-damage" data-actor-id="${escape(actor.id)}" data-item-id="${escape(spell.id)}" data-class-id="${escape(castingClass.id)}" data-success-value="${Number(successValue)}"><i class="fas fa-dice-d6"></i> Roll Damage</button>`;
+  return `<button type="button" data-sw25-chat-action="roll-spell-damage" data-actor-id="${escape(actor.id)}" data-item-id="${escape(spell.id)}" data-class-id="${escape(castingClass.id)}" data-target-id="${escape(targetUuid)}" data-success-value="${Number(successValue)}"><i class="fas fa-dice-d6"></i> Roll Damage</button>`;
 }
 
-async function postAutomaticFailureCard({ actor, spell, cost, check }) {
+function spellCastMetadata({ actor, spell, castingClass, cost }) {
+  return `<div class="sw25-spell-cast-meta"><span><strong>${escape(castingClass.name)} Magic Power:</strong> ${spellDamageMagicPower(actor, castingClass)}</span><span><strong>MP:</strong> ${cost}</span><span><strong>Resistance:</strong> ${escape(spellResistanceLabel(spell))}</span></div>`;
+}
+
+// The badge describes the spell's outcome, never its numeric SV. For multiple
+// targets, a fully affected target makes the overall result SUCCESS; if every
+// target resists, any Half result makes it RESISTED (partial effect), otherwise
+// it is FAILED (no effect). Individual lines retain every target's outcome.
+function spellOutcomeBadge(automaticSuccess, targetResults) {
+  let label = "SUCCESS";
+  let className = "sw25-spell-outcome-success";
+  if (automaticSuccess) {
+    label = "AUTOMATIC SUCCESS";
+    className = "sw25-spell-outcome-automatic";
+  } else if (targetResults.length && targetResults.every(result => result.resisted)) {
+    if (targetResults.some(result => result.halfDamage)) {
+      label = "RESISTED";
+      className = "sw25-spell-outcome-resisted";
+    } else {
+      label = "FAILED";
+      className = "sw25-spell-outcome-failure";
+    }
+  }
+  return `<div class="sw25-spell-outcome"><span class="sw25-spell-outcome-badge ${className}">${label}</span></div>`;
+}
+
+async function postAutomaticFailureCard({ actor, spell, castingClass, cost, check, magicPowerParts = [] }) {
+  const detailId = spellCardId();
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
-    content: `<div class="sw25-chat-card spell-card"><h3>${escape(spell.name)}</h3>${criticalFailureHTML()}<p><strong>Spellcasting check:</strong> natural ${check.natural} — <strong>automatic failure</strong>. The spell fizzles; its effects are not produced.</p><p><em>${escape(actor.name)} still spends ${cost} MP.</em></p>${automaticFailureButton(actor)}</div>`
+    content: `<div class="sw25-chat-card sw25-spell-card sw25-spell-failure"><h3>${escape(spell.name)}</h3>${spellModalityBadge("major")}<div class="sw25-spell-outcome"><span class="sw25-spell-outcome-badge sw25-spell-outcome-failure">FAILED</span></div>${spellCheckBlock(check, magicPowerParts, detailId)}${criticalFailureHTML()}<p class="sw25-spell-failure-note">The spell fizzles; its effects are not produced.</p>${spellCastMetadata({ actor, spell, castingClass, cost })}<p class="sw25-spell-mp-note"><em>${escape(actor.name)} still spends ${cost} MP.</em></p>${automaticFailureButton(actor)}</div>`
   });
 }
 
-async function postCastCard({ actor, spell, castingClass, cost, modality, check = null, targetResults = [] }) {
+// The cast card: name and modality, the PRINCIPAL result (outcome badge +
+// the Spellcasting check block), per-target resistance outcomes, secondary
+// cast data (Magic Power, MP cost, Resistance), and the damage action. The
+// spell's metadata/description stay on the item sheet — the card keeps only
+// the mechanical result of this cast.
+async function postCastCard({ actor, spell, castingClass, cost, modality, check = null, targetResults = [], magicPowerParts = [] }) {
+  const detailId = spellCardId();
+  const automaticSuccess = modality === "major" && check?.automaticSuccess === true;
+  const successValue = modality === "major" ? Number(check?.successValue ?? 0) : 0;
+  const outcomeBadge = spellOutcomeBadge(automaticSuccess, targetResults);
+
   const lines = [];
   if (modality === "major") {
-    lines.push(spellCheckLine(check));
+    lines.push(spellCheckBlock(check, magicPowerParts, detailId));
   } else if (modality === "minor") {
-    lines.push('<p><strong>Minor Action (⏩):</strong> no Spellcasting check is made — <strong>SV 0</strong>.</p>');
+    lines.push('<p class="sw25-spell-no-check">Minor Action <img src="systems/sw25-taka/assets/quickspell.svg" class="sw25-icon-quickspell" alt="Minor Action">: no Spellcasting check is made — <strong>SV 0</strong>.</p>');
   } else {
-    lines.push('<p><strong>Combat Preparation (△):</strong> no Spellcasting check is made — <strong>SV 0</strong>.</p>');
+    lines.push('<p class="sw25-spell-no-check">Combat Preparation (△): no Spellcasting check is made — <strong>SV 0</strong>.</p>');
   }
-  lines.push(`<p><strong>${escape(castingClass.name)} Magic Power:</strong> ${spellDamageMagicPower(actor, castingClass)} &nbsp; <strong>MP:</strong> ${cost}</p>`);
-  lines.push(`<p><strong>Resistance:</strong> ${escape(spellResistanceLabel(spell))}</p>`);
-  for (const result of targetResults) lines.push(`<p class="sw25-resistance-line">${result.summary}</p>`);
-  if (spell.system.metadata) lines.push(`<p>${escape(spell.system.metadata)}</p>`);
-  if (spell.system.description) lines.push(`<p>${escape(spell.system.description)}</p>`);
+  if (targetResults.length) {
+    lines.push(`<ul class="sw25-resistance-results">${targetResults.map(result => {
+      const statusClass = result.pending
+        ? "sw25-resistance-pending"
+        : result.resisted
+          ? result.halfDamage ? "sw25-resistance-partial" : "sw25-resistance-resisted"
+          : "sw25-resistance-affected";
+      return `<li class="sw25-resistance-line ${statusClass}">${result.summary}</li>`;
+    }).join("")}</ul>`);
+  }
+  lines.push(spellCastMetadata({ actor, spell, castingClass, cost }));
+  lines.push(`<p class="sw25-spell-mp-note"><em>${escape(actor.name)} spends ${cost} MP.</em></p>`);
+  const originalDamageTarget = targetResults.length === 1 ? targetResults[0].target?.uuid ?? "" : "";
   const powerRoll = spell.system.hasPowerTable && !isNaturalPower(spell)
-    ? `<p>${rollDamageButton(actor, spell, castingClass, modality === "major" ? check.successValue : 0)}</p>`
+    ? `<p class="sw25-spell-damage-action">${rollDamageButton(actor, spell, castingClass, successValue, originalDamageTarget)}</p>`
     : "";
   lines.push(powerRoll);
-  lines.push(`<p><em>${escape(actor.name)} spends ${cost} MP.</em></p>`);
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
-    content: `<div class="sw25-chat-card spell-card"><h3>${escape(spell.name)}</h3>${lines.join("")}</div>`
+    content: `<div class="sw25-chat-card sw25-spell-card"><h3>${escape(spell.name)}</h3>${spellModalityBadge(modality)}${outcomeBadge}${lines.join("")}</div>`
   });
 }
 
@@ -875,25 +1006,63 @@ async function dispatchSpellConsequences({ actor, spell, castingClass, targetRes
  * @param {boolean} [input.applyCost=true] - Deduct the MP (sheets pass their
  *   editability; observers never write the actor).
  * @param {object} [input.dialogs] - Dialog overrides (tests).
+ * @param {Function|null} [input.promptModifiers=null] - Optional prompt for
+ *   temporary modifiers: the SHARED dialog of rules/roll-modifiers.mjs
+ *   (openRollModifiersDialog), injected by the sheets on Shift+click. The
+ *   enabled modifiers join the effective Magic Power of this cast's SV —
+ *   the roll itself stays a plain 2d6 (CR1 p. 159). Cancellation aborts the
+ *   cast BEFORE the MP cost (no side effects). Null skips the prompt.
  * @returns {Promise<{cast: boolean, automaticFailure?: boolean, check?: object,
  *   targetResults?: Array, mpSpent: number}>}
  */
-export async function castSpellAsMajor({ actor, spell, applyCost = true, dialogs = {} } = {}) {
+export async function castSpellAsMajor({ actor, spell, applyCost = true, dialogs = {}, promptModifiers = null } = {}) {
   const prepared = prepareSpellCast({ actor, spell });
   if (prepared.blocked) { warn(prepared.reason); return { cast: false, mpSpent: 0 }; }
+
+  // Combat Preparation restrictions
+  if (isInCombatPreparationPhase() && isStrictCombatPreparationEnabled()) {
+    warn(`Major Action casting is not allowed during Combat Preparation when strict rules are enforced. Use the Combat Preparation (△) modality for spells marked △.`);
+    return { cast: false, mpSpent: 0 };
+  }
+
+  // Optional temporary-modifier prompt: the SHARED dialog of
+  // rules/roll-modifiers.mjs, seeded with the caster's permanent Magic Power
+  // parts (never a parallel modifier system). It opens BEFORE the MP cost so
+  // a cancellation aborts the cast without side effects. The dialog's
+  // enabled total IS the effective Magic Power of this cast's SV (the
+  // permanent parts are seeded into it, so they are never added twice); the
+  // roll itself stays a plain 2d6.
+  const permanentMagicPowerParts = spellcastingMagicPowerParts(actor, prepared.castingClass);
+  let effectiveMagicPower = null;
+  let magicPowerParts = permanentMagicPowerParts;
+  if (typeof promptModifiers === "function") {
+    const modifiers = await promptModifiers({
+      title: `${spell.name} — Spellcasting Modifiers`,
+      diceFormula: "2d6",
+      hint: "Temporary modifiers apply only to this cast: they join the effective Magic Power of the Success Value (the roll itself stays 2d6). Actor data and the sheet are not changed.",
+      submitLabel: "Cast Spell",
+      parts: permanentMagicPowerParts
+    });
+    if (!modifiers) return { cast: false, cancelled: true, mpSpent: 0 };
+    const chosen = modifiers.map(normalizeModifier);
+    effectiveMagicPower = enabledModifiersTotal(chosen);
+    // The card's breakdown shows the permanent composition plus only the
+    // temporary rows the user added (the permanent ones are already listed).
+    magicPowerParts = [...permanentMagicPowerParts, ...chosen.filter(part => part.temporary)];
+  }
 
   // (3) MP deduction happens immediately BEFORE the roll; a fizzle below
   // never refunds it.
   if (applyCost) await deductCastMP(actor, prepared.cost, spell);
 
   // (4)+(5) The Spellcasting check and the ONE authoritative SV.
-  const check = await rollSpellcastingCheck({ actor, castingClass: prepared.castingClass });
+  const check = await rollSpellcastingCheck({ actor, castingClass: prepared.castingClass, magicPower: effectiveMagicPower });
 
   // Natural double 1: the spell fails outright. No resistances are needed
   // (CR1 p. 168), no effects are created, no damage is rolled. The MP stay
   // spent and the player may voluntarily register the Automatic Failure.
   if (check.automaticFailure) {
-    await postAutomaticFailureCard({ actor, spell, cost: prepared.cost, check });
+    await postAutomaticFailureCard({ actor, spell, castingClass: prepared.castingClass, cost: prepared.cost, check, magicPowerParts });
     return { cast: false, automaticFailure: true, mpSpent: prepared.cost, check };
   }
 
@@ -915,7 +1084,7 @@ export async function castSpellAsMajor({ actor, spell, applyCost = true, dialogs
 
   // (8) The cast card (with the check, the resistance results and the damage
   // button carrying the authentic SV) and the spell's own consequences.
-  await postCastCard({ actor, spell, castingClass: prepared.castingClass, cost: prepared.cost, modality: "major", check, targetResults });
+  await postCastCard({ actor, spell, castingClass: prepared.castingClass, cost: prepared.cost, modality: "major", check, targetResults, magicPowerParts });
   await dispatchSpellConsequences({ actor, spell, castingClass: prepared.castingClass, targetResults });
 
   return { cast: true, check, targetResults, mpSpent: prepared.cost };
@@ -948,6 +1117,10 @@ export async function castSpellAsMinor({ actor, spell, applyCost = true, dialogs
  * @returns {Promise<{cast: boolean, successValue: number, targetResults?: Array, mpSpent: number}>}
  */
 export async function castSpellInCombatPreparation({ actor, spell, applyCost = true, dialogs = {} } = {}) {
+  if (!isInCombatPreparationPhase()) {
+    warn(`Combat Preparation casting is only allowed during Combat Preparation phase.`);
+    return { cast: false, mpSpent: 0 };
+  }
   if (!isCombatPreparationSpell(spell)) {
     warn(`${spell.name} cannot be cast during Combat Preparation (no △ marker).`);
     return { cast: false, mpSpent: 0 };

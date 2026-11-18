@@ -5,13 +5,14 @@ import { rememberMagicPowerRoll } from "../rules/spell-damage.mjs";
 import { rollDeathCheck } from "../rules/death-check.mjs";
 import { automaticFailureButton, criticalFailureHTML, isCriticalFailure } from "../rules/critical-failure.mjs";
 import { recoveryPowerTableHTML } from "../rules/recovery-items.mjs";
-import { characterHPMaximum, characterMPMaximum } from "../rules/resources.mjs";
+import { characterHPMaximum, characterMPMaximum, characterResourceValue, updateCharacterResourceValue } from "../rules/resources.mjs";
 import { featureDefenseModifier } from "../rules/feature-defense.mjs";
 import { SKILL_DEFINITION_MAP, SKILL_DEFINITIONS } from "../rules/skill-definitions.mjs";
 import { AUTO_SELECTION, resolveClassAssignment, resolveSkillClass } from "../rules/skill-resolution.mjs";
 import { openRollModifiersDialog } from "../rules/roll-modifiers.mjs";
 import { castSpellAsMajor, castSpellAsMinor, castSpellInCombatPreparation, isCombatPreparationSpell, isMinorActionSpell } from "../rules/spell-cast.mjs";
-import { characterWeaponAttackFlow, resolveAttackTarget, describeTargetFailure } from "../combat/attack-resolution.mjs";
+import { normalizeSpellData, schoolForClassName, SPELL_SCHOOL_ORDER } from "../rules/spell-data.mjs";
+import { characterWeaponAttackFlow, resolveOptionalMonsterAttackTarget } from "../combat/attack-resolution.mjs";
 import { readMonsterActorCombatStyles } from "./monster-sheet-data.mjs";
 import { rollMonsterKnowledge } from "../combat/monster-knowledge.mjs";
 import { prepareSw25EffectsTab } from "../effects/effects-tab.mjs";
@@ -143,27 +144,20 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
         .sort(([a], [b]) => a - b)
         .map(([level, items]) => ({ level, label:`Level ${level}`, items }));
     };
-    const classToSchool = {
-      "sorcerer": "Truespeech Magic",
-      "conjurer": "Spiritualism",
-      "fairy tamer": "Fairy Magic",
-      "priest": "Divine Magic"
-    };
-    const schoolOrder = ["Truespeech Magic", "Spiritualism", "Fairy Magic", "Divine Magic"];
+    // Spell grouping: the magical school is derived from the casting class
+    // name through the centralized class→school mapping (rules/
+    // spell-data.mjs). There is no persisted school field.
     const schoolSpells = new Map();
     for (const spell of context.favouriteSpells) {
-      const schoolKey = String(spell.system.school ?? "").trim() || "General";
-      const school = classToSchool[schoolKey.toLowerCase()] || schoolKey;
-      if (!schoolSpells.has(school)) schoolSpells.set(school, { spells: [], schoolKey });
+      const school = schoolForClassName(spell.system.className) ?? "General";
+      if (!schoolSpells.has(school)) schoolSpells.set(school, { spells: [] });
       schoolSpells.get(school).spells.push(spell);
     }
     const favouriteSpellLevels = [];
     for (const [school, data] of schoolSpells) {
       const spells = data.spells;
-      const schoolKey = data.schoolKey;
-      const classNames = context.classes
-        .filter(c => String(c.system.school ?? "").toLowerCase() === schoolKey.toLowerCase() ||
-                     String(c.name ?? "").toLowerCase() === schoolKey.toLowerCase())
+      const classNames = school === "General" ? [] : context.classes
+        .filter(c => schoolForClassName(String(c.name ?? "")) === school)
         .map(c => String(c.name ?? ""));
       const levels = new Map();
       for (const spell of spells) {
@@ -179,8 +173,8 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       });
     }
     favouriteSpellLevels.sort((a, b) => {
-      const ai = schoolOrder.indexOf(a.school);
-      const bi = schoolOrder.indexOf(b.school);
+      const ai = SPELL_SCHOOL_ORDER.indexOf(a.school);
+      const bi = SPELL_SCHOOL_ORDER.indexOf(b.school);
       if (ai !== -1 && bi !== -1) return ai - bi;
       if (ai !== -1) return -1;
       if (bi !== -1) return 1;
@@ -203,7 +197,7 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
         update.name = correctedClassName(item.name);
         changed = true;
       }
-      for (const field of ["className", "school"]) {
+      for (const field of ["className"]) {
         const current = String(item.system?.[field] ?? "");
         const corrected = correctedClassName(current);
         if (corrected !== current) {
@@ -289,12 +283,15 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
           className: displayName,
           items: importedFeatures.filter(item =>
             (String(item.system.classId || "") === classItem.id ||
-              (!item.system.classId && String(item.system.className || item.system.school || "").toLowerCase() === nameKey)) &&
-            String(item.system.featureType || (item.type === "spell" ? "spell" : "ability")).toLowerCase() === section.key
+              (!item.system.classId && String(item.system.className || "").toLowerCase() === nameKey)) &&
+            String(item.type === "spell" ? "spell" : item.system.featureType || "ability").toLowerCase() === section.key
           ).map(item => {
-            const featureType = String(item.system.featureType || "").toLowerCase();
+            const featureType = String(item.type === "spell" ? "spell" : item.system.featureType || "ability").toLowerCase();
             const edgeCost = String(item.system.metadata || "").match(/(?:^|\n)Edge Cost:\s*([^\n]+)/i)?.[1]?.trim();
-            item.classFeatureCost = ["stratagem", "maneuver"].includes(featureType) ? (edgeCost || item.system.cost || "None") : item.system.cost;
+            // Spell Items have no `cost` field; the template falls back to mpCost.
+            item.classFeatureCost = ["stratagem", "maneuver"].includes(featureType)
+              ? (edgeCost || item.system.cost || "None")
+              : (item.type === "spell" ? undefined : item.system.cost);
             return item;
           })
         }))
@@ -385,9 +382,7 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     context.calculated.hpMax = formulaHP;
     const formulaMP = characterMPMaximum(system, context.classes);
     context.calculated.mpMax = formulaMP;
-    const rawMpValue = system.mp?.value;
-    const mpArray = Array.isArray(rawMpValue) ? rawMpValue : [rawMpValue];
-    context.calculated.mpCurrent = mpArray.find(v => v != null && Number.isFinite(Number(v))) ?? 0;
+    context.calculated.mpCurrent = characterResourceValue(this.actor, "mp");
     context.calculated.sageLevel = context.classLevels.sage;
     context.calculated.riderLevel = context.classLevels.rider;
     // Monster Knowledge resolves through the same production resolver as the
@@ -646,6 +641,23 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     return context;
   }
 
+  /**
+   * Route repeated resource inputs through one scalar document write instead
+   * of FormApplication serialization. The Combat Data and Wizard-class MP
+   * inputs deliberately have no `name`: allowing several same-named inputs in
+   * one form makes Foundry submit an array, corrupting system.mp.value.
+   */
+  async _onChangeInput(event) {
+    const input = event.target;
+    const resource = input?.dataset?.resourceValue;
+    if (resource === "hp" || resource === "mp") {
+      event.preventDefault();
+      if (!this.isEditable) return;
+      return updateCharacterResourceValue(this.actor, resource, input.value);
+    }
+    return super._onChangeInput(event);
+  }
+
   activateListeners(html) {
     super.activateListeners(html);
     html.find('[data-action="delete-weapon"]').on("click", this._onDeleteWeapon.bind(this));
@@ -691,7 +703,7 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       const hpMax = sw25EffectiveResourceMaximum(this.actor, "hp");
       const mpMax = sw25EffectiveResourceMaximum(this.actor, "mp");
       const currentHP = Number(this.actor.system.hp?.value ?? 0);
-      const currentMP = Number(this.actor.system.mp?.value ?? 0);
+      const currentMP = characterResourceValue(this.actor, "mp");
       const hpRecovered = Math.ceil(hpMax * (hours === 3 ? 0.1 : 0.2));
       const mpRecovered = hours === 3 ? Math.ceil(mpMax / 2) : mpMax;
       const nextHP = Math.min(hpMax, currentHP + hpRecovered);
@@ -1095,7 +1107,11 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       // Spellcasting check, the Success Value, per-target resistances, cast-
       // time effect creation and the independent Power Table damage. Sheets
       // never reimplement it.
-      await castSpellAsMajor({ actor: this.actor, spell, applyCost: this.isEditable });
+      // Shift+click opens the SHARED temporary-modifier dialog (rules/roll-
+      // modifiers.mjs): the enabled modifiers join the effective Magic Power
+      // of the cast's Success Value. The roll itself stays a plain 2d6.
+      const promptModifiers = event.shiftKey ? openRollModifiersDialog : null;
+      await castSpellAsMajor({ actor: this.actor, spell, applyCost: this.isEditable, promptModifiers });
     });
 
     html.find("[data-action='cast-spell-minor']").on("click", async event => {
@@ -1123,7 +1139,8 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       // the SAME centralized Major Action flow: no duplicated casting logic.
       const spell = this.actor.items.get(event.currentTarget.closest("[data-item-id]")?.dataset.itemId);
       if (!spell) return;
-      await castSpellAsMajor({ actor: this.actor, spell, applyCost: this.isEditable });
+      const promptModifiers = event.shiftKey ? openRollModifiersDialog : null;
+      await castSpellAsMajor({ actor: this.actor, spell, applyCost: this.isEditable, promptModifiers });
     });
 
     if (!this.isEditable) return;
@@ -1243,7 +1260,10 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
   async _openManualClassFeatureDialog(options = {}) {
     const label = options.featureLabel || "Class Feature";
     const isSpell = options.featureType === "spell";
-    const content = `<form><div class="form-group"><label>Name</label><input name="name" autofocus></div><div class="form-group"><label>Requirement</label><input name="requirement"></div><div class="form-group"><label>Cost</label><input name="cost" placeholder="${isSpell ? "MP 0" : "None"}"></div>${isSpell ? '<div class="form-group"><label>MP Cost</label><input type="number" name="mpCost" value="0" min="0"></div>' : ""}<div class="form-group"><label>Imported Details / Statistics</label><textarea name="metadata"></textarea></div><div class="form-group"><label>Effect</label><textarea name="description"></textarea></div></form>`;
+    const costField = isSpell
+      ? ""
+      : '<div class="form-group"><label>Cost</label><input name="cost" placeholder="None"></div>';
+    const content = `<form><div class="form-group"><label>Name</label><input name="name" autofocus></div><div class="form-group"><label>Requirement</label><input name="requirement"></div>${costField}${isSpell ? '<div class="form-group"><label>MP Cost</label><input type="number" name="mpCost" value="0" min="0"></div>' : ""}<div class="form-group"><label>Imported Details / Statistics</label><textarea name="metadata"></textarea></div><div class="form-group"><label>Effect</label><textarea name="description"></textarea></div></form>`;
     return new Promise(resolve => new Dialog({
       title: `Add ${label}`,
       content,
@@ -1252,14 +1272,22 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
           label: `Add ${label}`,
           callback: async html => {
             const name = String(html.find('[name="name"]').val() || `New ${label}`).trim();
-            const cost = String(html.find('[name="cost"]').val() || "").trim();
+            // Spell Items use the new schema: classId/className only (no
+            // school, no featureType); structured fields take their
+            // template defaults and can be edited on the Item sheet.
+            // Ability Items keep their established fields.
             const system = {
               source: "class", classId: options.classId || "", className: options.className || "",
-              featureType: options.featureType || "ability", requirement: String(html.find('[name="requirement"]').val() || ""),
-              cost, mpCost: isSpell ? Number(html.find('[name="mpCost"]').val() || 0) : 0,
-              school: options.className || "", metadata: String(html.find('[name="metadata"]').val() || ""),
+              requirement: String(html.find('[name="requirement"]').val() || ""),
+              mpCost: isSpell ? Number(html.find('[name="mpCost"]').val() || 0) : 0,
+              metadata: String(html.find('[name="metadata"]').val() || ""),
               description: String(html.find('[name="description"]').val() || ""), sourceUrl: ""
             };
+            if (!isSpell) {
+              system.featureType = options.featureType || "ability";
+              system.cost = String(html.find('[name="cost"]').val() || "").trim();
+              system.school = options.className || "";
+            }
             const [item] = await this.actor.createEmbeddedDocuments("Item", [{ name, type: isSpell ? "spell" : "ability", system }]);
             resolve(item);
           }
@@ -1370,7 +1398,7 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     }
 
     if (featureType === "technique") {
-      const currentMP = Number(this.actor.system.mp?.value ?? 0);
+      const currentMP = characterResourceValue(this.actor, "mp");
       if (currentMP < 3) return ui.notifications.warn(`Not enough MP to use ${item.name}.`);
       updates["system.mp.value"] = currentMP - 3;
       notices.push("3 MP spent");
@@ -1412,22 +1440,12 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       return;
     }
 
-    // Resolver target usando el sistema de attack-resolution (usa game.user.targets)
-    const targetResult = resolveAttackTarget({
+    // Target selection is optional context for the opposed check. An absent,
+    // ambiguous, or inapplicable target must never prevent rolling Accuracy.
+    const targetMonster = resolveOptionalMonsterAttackTarget({
       targets: game.user?.targets ?? [],
       controlled: [...(canvas?.tokens?.controlled || [])]
     });
-
-    if (targetResult.status !== "ok") {
-      ui.notifications.warn(describeTargetFailure(targetResult.status, "monster"));
-      return;
-    }
-
-    const targetMonster = targetResult.actor;
-    if (targetMonster.type !== "monster") {
-      ui.notifications.warn("The attack target must be a monster.");
-      return;
-    }
 
     // Construir partes de Accuracy desde los valores del personaje
     const baseAccuracy = this._sheetCalculated?.accuracy ?? 0;
@@ -1560,8 +1578,11 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
    * initializes languages, racial abilities, ability corrections, and
    * background via the importer.
    * Spell Items additionally require a destination class association
-   * (system.classId, system.className, system.school) so they appear on
-   * the correct class spellcasting page.
+   * (system.classId, system.className) so they appear on the correct class
+   * spellcasting page. Every copied Spell is normalized to the current
+   * schema (rules/spell-data.mjs `normalizeSpellData`) — including
+   * unmigrated compendium documents — so old-schema fields never reach an
+   * actor.
    */
   async _onDropItem(event, data) {
     const fromDropData = Item.implementation?.fromDropData ?? Item.fromDropData;
@@ -1579,9 +1600,13 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       const itemData = source.toObject();
       delete itemData._id;
       itemData.system = itemData.system || {};
+      const normalized = normalizeSpellData(itemData.system, { name: source.name });
+      itemData.system = normalized.system;
+      if (normalized.warnings.length) {
+        console.warn(`sw25-taka | Spell "${source.name}" has unrecognized source values (stored as null):`, normalized.warnings);
+      }
       itemData.system.classId = destClass.id;
       itemData.system.className = destClass.name;
-      itemData.system.school = destClass.name;
 
       // Duplicate check: same spell name already associated with this class.
       const existing = this.actor.items.find(item =>

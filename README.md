@@ -6,7 +6,7 @@ This is a fork of [Sword-World-2.5-Foundry](https://github.com/DaedaIus/Sword-Wo
 
 A note from me: I am not a programmer. I am building and maintaining this fork as a hobby, with the help of AI, purely as a fan of Sword World 2.5. I test everything as I go hoping it works, but expect rough edges.
 
-![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sw25--taka%200.19.2%2B-blue)
+![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sw25--taka%200.20.0%2B-blue)
 
 ## Features at a glance
 
@@ -20,6 +20,18 @@ A note from me: I am not a programmer. I am building and maintaining this fork a
 - **Skill checks** — reorganized catalogue with per-check class lists and automatic highest-level selection.
 - **Spell drag & drop** — spells dropped on a character go straight to the viewed class page or open a wizard-type picker.
 - **Standard combat maps** — Combat A, Combat B and Coliseum scenes auto-created in a Simplified Combat Battlefields folder.
+
+## v0.20.0 - Spell data and rules, Power Tables, recovery and combat improvements
+
+- **Structured spell data** — imported spells now store their rank, resistance, target, range, area, duration, damage type and casting modalities as dedicated fields. Spellcasting uses this data rather than inferring rules from display text; unrecognized source values are reported instead of assigned invented meanings. Spell resistance can use Fortitude where specified, and spellcasting shares the temporary-modifier dialog.
+- **Combat Preparation rule option** — GMs can enable strict enforcement from Configure Settings → Sword World 2.5 → Game Rules, restricting Combat Preparation casting to spells marked △.
+- **Shared Power Table and critical-damage resolution** — weapons, spells and recovery items use common Power Table lookup and critical-chain logic, with a catalog-backed table selector and dedicated critical-damage controls. Existing automatic critical behavior and each item's critical threshold remain in effect.
+- **Recovery items** — Power Table recovery rolls now show the result and offer explicit HP/MP application, respecting resource maxima.
+- **Unified HP/MP values** — character gauges, recovery and resource handling share normalization and update helpers, including compatibility with legacy array-shaped MP values.
+- **Attacks without a selected target** — weapon attacks can be rolled without selecting a target; the card shows the numeric result without labeling it a hit or miss and still offers Roll Damage. When a valid target and defense exist, the opposed result and target context are retained. Attack-card detail controls are isolated per card.
+- **Spell damage context** — damage and application cards retain the target from their originating spell card when present, without capturing an unrelated target when no target was selected.
+- **Minor Action presentation** — added a dedicated quickspell icon and refreshed spell/item controls for the structured spell workflow.
+- **Automated coverage** — expanded checks for structured spell imports/casting, Power Tables, critical damage, recovery, resource handling, targetless attacks and explicit damage-application context.
 
 ## v0.19.2 - Wizard class pages: Casting + MP header redesign, spell button order, escuadras in Light theme
 

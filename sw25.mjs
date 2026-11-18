@@ -21,6 +21,7 @@ import { initializeStandardScenes } from "./module/scenes/standard-scenes.mjs";
 import { initializeMonsterKnowledgeRegistry, getOrCreateMkRegistryFolder, getOrCreateSessionFolder, getOrCreateCampaignFolder } from "./module/knowledge/monster-knowledge-registry.mjs";
 import { initializeMonsterKnowledgeRelay } from "./module/knowledge/mk-relay.mjs";
 import { MKRegistryManagerApp } from "./module/ui/mk-registry-manager.mjs";
+import { GameRulesApp } from "./module/ui/game-rules.mjs";
 import { SW25EffectModel } from "./module/effects/effect-model.mjs";
 import { initializeEffectService, registerSw25StackingResolver } from "./module/effects/effect-service.mjs";
 import { initializeEffectRelay } from "./module/effects/effect-relay.mjs";
@@ -29,11 +30,13 @@ import { installSw25EffectiveValues } from "./module/effects/effective-values.mj
 import { initializeDefeatedStatusSync } from "./module/actor/defeated-status.mjs";
 import { initializePortraitGauges } from "./module/actor/portrait-gauges.mjs";
 import { initializeResourceMaxima } from "./module/actor/resource-maxima.mjs";
+import { initializePowerTableCatalog } from "./module/rules/power-table-catalog.mjs";
 
 
 Hooks.once("init", () => {
   game.sw25 = { importer: SW25Importer, mkRegistry: MKRegistryManagerApp };
   console.log("Sword World 2.5 | Initializing");
+  initializePowerTableCatalog();
 
   // Register the system's ActiveEffect subtype data model (T1.2). The subtype
   // "sw25Effect" is declared in system.json documentTypes; this registration
@@ -125,6 +128,35 @@ Hooks.once("init", () => {
     config:false,
     type:Object,
     default:{}
+  });
+
+  // Game Rules: Enforce Strict Combat Preparation Rules
+  //
+  // Foundry V14 has no native settings "group" (no registerGroup API and the
+  // SettingConfig `group` property is ignored), so this setting is surfaced
+  // under a dedicated "Game Rules" submenu via registerMenu below instead of
+  // an invalid `group` key.
+  game.settings.register("sw25-taka", "enforceStrictCombatPreparationRules", {
+    name: "Enforce Strict Combat Preparation Rules",
+    hint: "When enabled, during Combat Preparation only spells marked △ can be cast via the special Combat Preparation modality, and Major Action is blocked.",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false,
+    restricted: true
+  });
+
+  // Game Rules submenu: dedicated section in Configure Settings →
+  // Sword World 2.5 → "Game Rules". Foundry V14 does not group settings
+  // under arbitrary headings, so a registerMenu submenu is the supported way
+  // to give game-rule toggles their own heading.
+  game.settings.registerMenu("sw25-taka", "gameRules", {
+    name: "Game Rules",
+    label: "Game Rules",
+    hint: "Configure global game rules such as strict Combat Preparation enforcement.",
+    icon: "fa-solid fa-gavel",
+    type: GameRulesApp,
+    restricted: true
   });
 
   // Monster Knowledge Manager menu (F3): opens the GM-only registry
@@ -267,6 +299,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
         actor,
         spell,
         castingClass,
+        targetActorUuid: button.dataset.targetId || null,
         successValue: rawSuccessValue !== undefined && rawSuccessValue !== "" ? Number(rawSuccessValue) : null
       });
     });
@@ -289,6 +322,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
           spell: item,
           castingClass: actor.items.get(button.dataset.classId),
           accumulatedPower: Number(button.dataset.accumulatedPower ?? 0),
+          targetActorUuid: button.dataset.targetId || null,
           successValue: rawSuccessValue !== undefined && rawSuccessValue !== "" ? Number(rawSuccessValue) : null
         });
         return;

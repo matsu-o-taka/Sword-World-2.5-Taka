@@ -92,4 +92,31 @@ console.log("4. the item sheet Cast button uses the same centralized Major flow"
 assert.ok(actorSheet.includes('import { castSpellAsMajor, castSpellAsMinor, castSpellInCombatPreparation'), "The actor sheet imports all three modality entry points");
 console.log("5. the sheets import the centralized Spellcasting module");
 
+// ── 6. Combat Preparation validation and settings ───────────────────────────
+
+const spellCast = await read("module/rules/spell-cast.mjs");
+const sw25 = await read("sw25.mjs");
+
+assert.ok(spellCast.includes("export function isInCombatPreparationPhase"), "isInCombatPreparationPhase helper exists");
+assert.ok(spellCast.includes("export function isStrictCombatPreparationEnabled"), "isStrictCombatPreparationEnabled helper exists");
+assert.ok(spellCast.includes('isInCombatPreparationPhase() && isStrictCombatPreparationEnabled()'), "castSpellAsMajor blocks Major Action during Combat Preparation when strict");
+assert.ok(spellCast.includes("if (!isInCombatPreparationPhase())"), "castSpellInCombatPreparation rejects when not in Combat Preparation phase");
+assert.ok(sw25.includes('enforceStrictCombatPreparationRules'), "Setting enforceStrictCombatPreparationRules is registered");
+assert.ok(sw25.includes('registerMenu("sw25-taka", "gameRules"'), "Game Rules settings submenu is registered");
+assert.ok(sw25.includes("GameRulesApp"), "Game Rules submenu application is wired");
+console.log("6. Combat Preparation phase detection, strict mode validation and Game Rules submenu are present");
+
+// ── 7. Spellcasting reuses the SHARED temporary-modifier dialog ────────────
+
+assert.ok(spellCast.includes('import { enabledModifiersTotal, normalizeModifier, signedValue } from "./roll-modifiers.mjs";'), "spell-cast.mjs consumes the shared modifier helpers");
+assert.ok(spellCast.includes("export function spellcastingMagicPowerParts"), "spell-cast.mjs seeds the caster's permanent Magic Power parts");
+assert.ok(spellCast.includes("promptModifiers = null"), "castSpellAsMajor accepts an injectable modifier prompt (tests)");
+const actorSheetFull = await read("module/actor/actor-sheet.mjs");
+assert.ok(actorSheetFull.includes("const promptModifiers = event.shiftKey ? openRollModifiersDialog : null;"), "the actor sheet opens the shared dialog on Shift+click");
+const itemBlockFull = await read("module/item/item-sheet.mjs");
+assert.ok(itemBlockFull.includes("openRollModifiersDialog"), "the item sheet opens the shared dialog on Shift+click too");
+// No parallel implementation: the dialog app is the single registration.
+assert.ok(spellCast.includes("submitLabel: \"Cast Spell\""), "the spellcasting prompt reuses the shared dialog contract (title/dice/submit)");
+console.log("7. Spellcasting reuses the shared temporary-modifier dialog (no parallel system)");
+
 console.log("Spellcasting UI connection: all checks passed.");

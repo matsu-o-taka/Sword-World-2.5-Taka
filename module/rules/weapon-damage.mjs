@@ -1,3 +1,5 @@
+import { resolvePowerTableResult } from "./power-table.mjs";
+
 const WARRIOR_CLASS_NAMES = new Set([
   "battle dancer", "fencer", "fighter", "grappler",
   "marksman", "martial artist", "shooter",
@@ -41,8 +43,7 @@ export function abilityBonus(system, ability) {
 
 export function weaponDamageParts({ weapon, actorSystem, attackingClass, diceTotal }) {
   const gun = isGunWeapon(weapon);
-  const lookup = Math.min(12, Math.max(3, Number(diceTotal) || 0));
-  const tableValue = Number(weapon?.system?.powerTable?.[String(lookup)] ?? 0);
+  const { lookup, result:tableValue } = resolvePowerTableResult(weapon, diceTotal);
   const classLevel = Number(attackingClass?.system?.level ?? 0);
   const ability = gun ? "intelligence" : "strength";
   const bonus = abilityBonus(actorSystem, ability);

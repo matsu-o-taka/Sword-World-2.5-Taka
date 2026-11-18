@@ -1,7 +1,11 @@
 import { damageApplicationButton } from "../combat/damage-application.mjs";
 import { abilityBonus } from "./weapon-damage.mjs";
+import { resolvePowerTableResult } from "./power-table.mjs";
+import { resolveCriticalDamageChain } from "./critical-damage.mjs";
+import { characterResourceValue, updateCharacterResourceValue } from "./resources.mjs";
 import { sw25EffectModifier } from "../effects/effective-values.mjs";
 import { automaticFailureButton, criticalFailureHTML, isCriticalFailure, isPowerTableCritical, naturalDiceTotal } from "./critical-failure.mjs";
+import { signedValue } from "./roll-modifiers.mjs";
 
 const WOLFS_BITE_BANDS = [
   { min:2, max:6, bonus:0, damageType:"physical", text:"Magic Power points as physical damage." },
@@ -73,7 +77,7 @@ export function isNaturalPower(spell) {
 }
 
 export function isNatureMagic(spell) {
-  const details = [spell?.system?.requirement, spell?.system?.metadata, spell?.system?.school, spell?.system?.className].join(" ");
+  const details = [spell?.system?.requirement, spell?.system?.metadata, spell?.system?.className].join(" ");
   return /\bnature\b|\bdruid\b/i.test(details);
 }
 
@@ -92,8 +96,8 @@ export async function addNaturalPowerMP(actor, amount) {
   const gained = Math.max(0, Number(amount) || 0);
   if (!gained) return;
   const state = actor.getFlag("sw25-taka", "naturalPower") ?? { added: 0, spent: 0 };
-  const currentMP = Number(actor.system.mp?.value ?? 0);
-  await actor.update({ "system.mp.value":currentMP + gained });
+  const currentMP = characterResourceValue(actor, "mp");
+  await updateCharacterResourceValue(actor, "mp", currentMP + gained);
   await actor.setFlag("sw25-taka", "naturalPower", {
     added:(Number(state.added) || 0) + gained,
     spent:Number(state.spent) || 0,
@@ -107,8 +111,8 @@ export async function expireNaturalPower(actor) {
   if (!state) return 0;
   const remainder = naturalPowerRemainder(state);
   if (remainder) {
-    const currentMP = Number(actor.system.mp?.value ?? 0);
-    await actor.update({ "system.mp.value":Math.max(0, currentMP - remainder) });
+    const currentMP = characterResourceValue(actor, "mp");
+    await updateCharacterResourceValue(actor, "mp", Math.max(0, currentMP - remainder));
   }
   await actor.unsetFlag("sw25-taka", "naturalPower");
   return remainder;
@@ -117,8 +121,8 @@ export async function expireNaturalPower(actor) {
 export async function rollNaturalPower({ actor, spell }) {
   const roll = await new Roll("2d6").evaluate();
   const diceTotal = Number(roll.total) || 0;
-  const lookup = String(Math.min(12, Math.max(3, diceTotal)));
-  const gained = Math.max(0, Number(spell.system.powerTable?.[lookup] ?? 0));
+  const { result:tableValue } = resolvePowerTableResult(spell, diceTotal);
+  const gained = Math.max(0, tableValue);
   const escape = value => foundry.utils.escapeHTML(String(value || ""));
   await roll.toMessage({
     speaker:ChatMessage.getSpeaker({ actor }),
@@ -165,20 +169,29 @@ export function spellDamageMagicPower(actor, castingClass) {
 // flow stamps it on the chat card); it is preserved across critical rolls
 // and never re-derived here. When the caller has no casting SV (a damage
 // roll posted outside a cast), NO SV travels: null is never fabricated.
-export async function rollSpellPowerTableDamage({ actor, spell, castingClass, accumulatedPower = 0, successValue = null }) {
-  const roll = await new Roll("2d6").evaluate();
-  // Detection only: the double 1 never writes the counter; the card offers
-  // the registration button so the player decides (characters only).
-  const criticalFailure = isCriticalFailure(roll);
-  if (criticalFailure) {
-    await roll.toMessage({ speaker:ChatMessage.getSpeaker({ actor }), flavor:`<div class="sw25-chat-card"><h3>${foundry.utils.escapeHTML(spell.name)} Damage</h3>${criticalFailureHTML()}${automaticFailureButton(actor)}<p>No damage is dealt.</p></div>` });
+
+// Per-card unique suffix for the collapsible detail anchors: chat messages
+// accumulate in the log and survive reloads, so a module-local counter would
+// eventually reuse an id already present in an older message.
+const spellDamageCardId = () => `spell-damage-card-${foundry.utils.randomID()}`;
+
+export async function rollSpellPowerTableDamage({ actor, spell, castingClass, successValue = null, targetActorUuid = null }) {
+  const chain = await resolveCriticalDamageChain({
+    rollDamage: () => new Roll("2d6").evaluate(),
+    resolveRoll: roll => {
+      const diceTotal = naturalDiceTotal(roll);
+      if (isCriticalFailure(roll)) return { automaticFailure:true, diceTotal };
+      const { result:tableValue } = resolvePowerTableResult(spell, diceTotal);
+      return { diceTotal, tableValue, critical:isPowerTableCritical(roll, spell.system.critical) };
+    }
+  });
+  if (chain.automaticFailure) {
+    const roll = chain.rolls.at(-1).roll;
+    await roll.toMessage({ speaker:ChatMessage.getSpeaker({ actor }), flavor:`<div class="sw25-chat-card sw25-damage-card sw25-spell-damage"><h3>${foundry.utils.escapeHTML(spell.name)} Damage</h3><div class="sw25-damage-outcome"><span class="sw25-spell-outcome-badge sw25-spell-outcome-failure">CRITICAL FAILURE</span></div><p class="sw25-damage-failure-note">Damage is 0. The critical chain ends here.</p>${automaticFailureButton(actor)}</div>` });
     return { criticalFailure:true, total:0 };
   }
-  const diceTotal = naturalDiceTotal(roll);
-  const lookup = String(Math.min(12, Math.max(3, diceTotal)));
-  const tableValue = Number(spell.system.powerTable?.[lookup] ?? 0);
   const magicPower = spellDamageMagicPower(actor, castingClass);
-  const powerTotal = (Number(accumulatedPower) || 0) + tableValue;
+  const powerTotal = chain.accumulated;
   const total = powerTotal + magicPower;
   // DEC-6: ONLY an authentic casting SV supplied by the caller is
   // transported. A damage roll posted outside a cast carries no SV — no
@@ -189,19 +202,24 @@ export async function rollSpellPowerTableDamage({ actor, spell, castingClass, ac
     : null;
   // Power Table critical (damage-roll rule): the spell's own critical value
   // against the natural roll; never the attack or Spellcasting rule.
-  const critical = isPowerTableCritical(roll, spell.system.critical);
+  const critical = chain.rolls.some(entry => entry.critical);
   const escape = value => foundry.utils.escapeHTML(String(value ?? ""));
-  const successValueAttr = spellSuccessValue === null ? "" : ` data-success-value="${spellSuccessValue}"`;
-  const criticalControl = critical ? `
-    <div class="sw25-critical-prompt">
-      <strong>CRITICAL</strong>
-      <button type="button" data-sw25-chat-action="roll-critical-damage" data-actor-id="${escape(actor.id)}" data-item-id="${escape(spell.id)}" data-class-id="${escape(castingClass?.id ?? "")}" data-accumulated-power="${powerTotal}"${successValueAttr}><i class="fas fa-dice-d6"></i> Roll Damage Again</button>
-    </div>` : "";
+  const chainRows = chain.rolls.map((entry, index) =>
+    `<li><span class="sw25-damage-breakdown-roll">${index === 0 ? "Initial roll" : `Critical continuation ${index}`}: ${entry.diceTotal} → ${entry.tableValue}</span><span class="sw25-damage-breakdown-running">Accumulated table damage: ${chain.rolls.slice(0, index + 1).reduce((sum, rollEntry) => sum + Number(rollEntry.tableValue ?? 0), 0)}</span>${entry.critical ? '<span class="sw25-damage-breakdown-critical">Critical — continuation rolled</span>' : ""}</li>`
+  ).join("");
+  const rollSteps = chain.rolls.map((entry, index) =>
+    `<div class="sw25-damage-roll-step"><span class="sw25-damage-roll-kind">${index === 0 ? "Power Table" : `Critical roll ${index}`}</span><span class="sw25-damage-roll">${entry.diceTotal}</span><span class="sw25-damage-arrow">→</span><span class="sw25-damage-table-value">${entry.tableValue}</span>${entry.critical ? '<span class="sw25-damage-roll-critical">critical → continued</span>' : ""}</div>`
+  ).join("");
+  const detailId = spellDamageCardId();
+  const totalId = `${detailId}-total`;
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
-    content: `<div class="sw25-chat-card sw25-spell-power-result"><h3>${escape(spell.name)} Damage</h3><p><strong>Power roll:</strong> ${diceTotal} → ${tableValue}</p>${Number(accumulatedPower) ? `<p><strong>Accumulated power-table damage:</strong> ${Number(accumulatedPower)}</p>` : ""}<p><strong>Magic Power:</strong> ${magicPower}</p><p class="sw25-weapon-total"><strong>Total:</strong> ${total}</p>${damageApplicationButton(total, "magical", true)}${criticalControl}</div>`
+    content: `<div class="sw25-chat-card sw25-damage-card sw25-spell-damage"><h3>${escape(spell.name)} Damage</h3>${critical ? '<div class="sw25-damage-outcome"><span class="sw25-attack-outcome-badge sw25-attack-critical">CRITICAL DAMAGE</span></div>' : ""}<div class="sw25-damage-roll-sequence">${rollSteps}</div><div class="sw25-damage-stat sw25-damage-result" data-target="${totalId}"><div class="sw25-damage-stat-summary sw25-damage-result-summary" role="button" tabindex="0"><span class="sw25-damage-result-label">Damage</span><span class="sw25-damage-result-value">${total}</span><span class="sw25-damage-result-hint">breakdown</span></div><div class="sw25-damage-stat-detail" id="${totalId}" style="display:none;"><ul class="sw25-roll-breakdown">${chainRows}<li><strong>Accumulated table damage:</strong> ${powerTotal}</li><li><strong>Magic Power:</strong> ${signedValue(magicPower)}</li><li class="sw25-damage-breakdown-final"><strong>Final damage:</strong> ${total}</li></ul></div></div>${damageApplicationButton(total, "magical", true, null, targetActorUuid)}</div>`
   });
-  return { criticalFailure:false, total, spellSuccessValue, critical, diceTotal, tableValue, magicPower };
+  return {
+    criticalFailure:false, total, spellSuccessValue, critical, chain:chain.rolls, magicPower,
+    diceTotal:chain.rolls[0].diceTotal, tableValue:chain.rolls[0].tableValue
+  };
 }
 
 export async function rollSpecialSpellDamage({ actor, spell, castingClass }) {
@@ -228,9 +246,10 @@ export async function rollSpecialSpellDamage({ actor, spell, castingClass }) {
   if (!resolved) return false;
   const type = String(resolved.band.damageType || "physical").toLowerCase() === "magical" ? "magical" : "physical";
   const escape = value => foundry.utils.escapeHTML(String(value || ""));
+  const detailId = spellDamageCardId();
   await roll.toMessage({
     speaker:ChatMessage.getSpeaker({ actor }),
-    flavor:`<div class="sw25-chat-card sw25-spell-power-result"><h3>${escape(spell.name)} Damage</h3><p><strong>Damage-table roll:</strong> ${Number(roll.total)} (${Number(resolved.band.min)}–${Number(resolved.band.max)})</p><p>${escape(resolved.band.text)}</p><p><strong>Previous Magic Power roll:</strong> ${Number(previous.total)}</p>${resolved.bonus ? `<p><strong>Table bonus:</strong> +${resolved.bonus}</p>` : ""}<p class="sw25-weapon-total"><strong>Total: ${resolved.total}</strong></p>${damageApplicationButton(resolved.total, type)}</div>`
+    flavor:`<div class="sw25-chat-card sw25-damage-card sw25-spell-damage"><h3>${escape(spell.name)} Damage</h3><div class="sw25-damage-stat" data-target="${detailId}-band"><div class="sw25-damage-stat-summary" role="button" tabindex="0"><span class="sw25-damage-roll">${Number(roll.total)}</span><span class="sw25-damage-arrow">→</span><span class="sw25-damage-total">${resolved.total}</span></div><div class="sw25-damage-stat-detail" id="${detailId}-band" style="display:none;"><ul class="sw25-roll-breakdown"><li><strong>Damage-table roll:</strong> ${Number(roll.total)} (${Number(resolved.band.min)}–${Number(resolved.band.max)})</li><li>${escape(resolved.band.text)}</li><li><strong>Previous Magic Power roll:</strong> ${Number(previous.total)}</li>${resolved.bonus ? `<li><strong>Table bonus:</strong> +${resolved.bonus}</li>` : ""}</ul></div></div><p class="sw25-weapon-total"><strong>Total:</strong> ${resolved.total}</p>${damageApplicationButton(resolved.total, type)}</div>`
   });
   return true;
 }
@@ -253,9 +272,10 @@ export async function rollDoubleStompDamage({ actor, spell, castingClass, target
     }
     const resolved = resolveSpecialSpellDamage(bands, roll.total, previous.total);
     if (!target || !resolved) continue;
+    const detailId = spellDamageCardId();
     await roll.toMessage({
       speaker:ChatMessage.getSpeaker({ actor }),
-      flavor:`<div class="sw25-chat-card sw25-spell-power-result"><h3>${foundry.utils.escapeHTML(spell.name)} — ${foundry.utils.escapeHTML(target.name)}</h3><p><strong>Damage-table roll:</strong> ${Number(roll.total)} (${Number(resolved.band.min)}–${Number(resolved.band.max)})</p><p><strong>Previous Magic Power roll:</strong> ${Number(previous.total)}</p><p><strong>Table bonus:</strong> +${resolved.bonus}</p><p class="sw25-weapon-total"><strong>Total: ${resolved.total} physical damage</strong></p><p><em>Select ${foundry.utils.escapeHTML(target.name)} before applying this result.</em></p>${damageApplicationButton(resolved.total, "physical", false)}</div>`
+      flavor:`<div class="sw25-chat-card sw25-damage-card sw25-spell-damage"><h3>${foundry.utils.escapeHTML(spell.name)} — ${foundry.utils.escapeHTML(target.name)}</h3><div class="sw25-damage-stat" data-target="${detailId}-band"><div class="sw25-damage-stat-summary" role="button" tabindex="0"><span class="sw25-damage-roll">${Number(roll.total)}</span><span class="sw25-damage-arrow">→</span><span class="sw25-damage-total">${resolved.total}</span></div><div class="sw25-damage-stat-detail" id="${detailId}-band" style="display:none;"><ul class="sw25-roll-breakdown"><li><strong>Damage-table roll:</strong> ${Number(roll.total)} (${Number(resolved.band.min)}–${Number(resolved.band.max)})</li><li><strong>Previous Magic Power roll:</strong> ${Number(previous.total)}</li><li><strong>Table bonus:</strong> +${resolved.bonus}</li></ul></div></div><p class="sw25-weapon-total"><strong>Total: ${resolved.total} physical damage</strong></p><p><em>Select ${foundry.utils.escapeHTML(target.name)} before applying this result.</em></p>${damageApplicationButton(resolved.total, "physical", false)}</div>`
     });
   }
   return true;

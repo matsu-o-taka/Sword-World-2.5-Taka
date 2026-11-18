@@ -32,4 +32,15 @@ assert.equal(
   13
 );
 
+const customWeapon = { name: "Custom Blade", system: { powerTable: { "3": 2, "12": 9 }, additionalDamage: 0 } };
+assert.equal(Object.hasOwn(customWeapon.system, "power"), false, "a custom table does not need a Power value");
+assert.equal(weaponDamageParts({ weapon: customWeapon, actorSystem, attackingClass: classItem("Fighter", "Warrior", 1), diceTotal: 2 }).lookup, 3);
+assert.equal(weaponDamageParts({ weapon: customWeapon, actorSystem, attackingClass: classItem("Fighter", "Warrior", 1), diceTotal: 2 }).tableValue, 2);
+assert.equal(weaponDamageParts({ weapon: customWeapon, actorSystem, attackingClass: classItem("Fighter", "Warrior", 1), diceTotal: 13 }).tableValue, 9);
+assert.equal(
+  weaponDamageParts({ weapon: { system: { powerTable: {} } }, actorSystem, attackingClass: classItem("Fighter", "Warrior"), diceTotal: 7 }).tableValue,
+  0,
+  "a missing local table row retains the zero fallback"
+);
+
 console.log("Weapon damage rules passed.");

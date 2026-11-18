@@ -1,4 +1,6 @@
 import { automaticFailureButton, criticalFailureHTML, isCriticalFailure } from "./critical-failure.mjs";
+import { resolvePowerTableResult } from "./power-table.mjs";
+import { characterResourceValue, updateCharacterResourceValue } from "./resources.mjs";
 import { sw25EffectiveResourceMaximum } from "../effects/effective-values.mjs";
 
 const FLAG_SCOPE = "sw25-taka";
@@ -9,10 +11,9 @@ export function recoveryResource(item = {}) {
   return /(?:restore|recover)[^.!\n]*\bMP\b/i.test(text) ? "mp" : "hp";
 }
 
-export function recoveryPowerResult(system = {}, diceTotal = 0) {
-  const lookup = String(Math.min(12, Math.max(3, Number(diceTotal) || 0)));
-  const tableResult = Number(system.powerTable?.[lookup] ?? 0);
-  const additional = Number(system.additionalDamage ?? 0);
+export function recoveryPowerResult(item = {}, diceTotal = 0) {
+  const { lookup, result:tableResult } = resolvePowerTableResult(item, diceTotal);
+  const additional = Number(item.system?.additionalDamage ?? 0);
   return { lookup:Number(lookup), tableResult, additional, total:Math.max(0, tableResult + additional) };
 }
 
@@ -33,7 +34,8 @@ export function recoveryPowerTableHTML(item, actor) {
   if (item?.type !== "equipment" || !item.system?.hasPowerTable) return "";
   const cells = Array.from({ length:10 }, (_, index) => {
     const roll = index + 3;
-    return `<span><strong>${roll}</strong><br>${Number(item.system.powerTable?.[String(roll)] ?? 0)}</span>`;
+    const { result } = resolvePowerTableResult(item, roll);
+    return `<span><strong>${roll}</strong><br>${result}</span>`;
   }).join("");
   return `<div class="sw25-recovery-power-table">${cells}</div><button type="button" data-sw25-chat-action="roll-recovery-item" data-actor-id="${escape(actor.id)}" data-item-id="${escape(item.id)}"><i class="fas fa-dice-d6"></i> Roll Recovery</button>`;
 }
@@ -56,11 +58,11 @@ async function applyRecovery(button) {
   if (!actor) return ui.notifications.warn("Assign a character to your user, or select exactly one owned character token.");
   const resource = button.dataset.resource === "mp" ? "mp" : "hp";
   const amount = Math.max(0, Number(button.dataset.amount ?? 0));
-  const current = Number(actor.system[resource]?.value ?? 0);
+  const current = characterResourceValue(actor, resource);
   const maximum = Math.max(0, resourceMaximum(actor, resource));
   const next = maximum > 0 ? Math.min(maximum, current + amount) : current + amount;
   const recovered = next - current;
-  await actor.update({ [`system.${resource}.value`]:next });
+  await updateCharacterResourceValue(actor, resource, next);
   await ChatMessage.create({
     speaker:ChatMessage.getSpeaker({ actor }),
     content:`<div class="sw25-chat-card"><h3>${escape(actor.name)} Recovers</h3><p><strong>${recovered} ${resource.toUpperCase()}</strong> recovered. (${next}${maximum > 0 ? `/${maximum}` : ""})</p></div>`
@@ -80,7 +82,7 @@ async function rollRecoveryItem(button) {
     });
     return;
   }
-  const resolved = recoveryPowerResult(item.system, roll.total);
+  const resolved = recoveryPowerResult(item, roll.total);
   const resource = recoveryResource(item);
   await roll.toMessage({
     speaker:ChatMessage.getSpeaker({ actor }),

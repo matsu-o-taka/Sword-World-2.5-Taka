@@ -128,14 +128,29 @@
     {{#if isSpell}}
       <button type="button" class="wide-field item-cast-spell" data-action="cast-spell-from-item"><i class="fas fa-wand-magic-sparkles"></i> Cast Spell</button>
       <label class="checkbox-label"><input type="checkbox" name="system.favourite" {{checked system.favourite}}> Favourite</label>
-      <label>School <input type="text" name="system.school" value="{{system.school}}"></label>
+      <label>Class Name <input type="text" name="system.className" value="{{system.className}}"></label>
       <label>Level <input type="number" name="system.level" value="{{system.level}}" min="0"></label>
       <label>MP Cost <input type="number" name="system.mpCost" value="{{system.mpCost}}" min="0"></label>
+      <label>Power <input type="number" name="system.power" value="{{system.power}}" min="0" max="100"></label>
+      <label>Resistance
+        <select name="system.resistance">
+          <option value="">—</option>
+          <option value="cant" {{#if (eq system.resistance "cant")}}selected{{/if}}>Can't</option>
+          <option value="none" {{#if (eq system.resistance "none")}}selected{{/if}}>None</option>
+          <option value="neg" {{#if (eq system.resistance "neg")}}selected{{/if}}>Neg</option>
+          <option value="half" {{#if (eq system.resistance "half")}}selected{{/if}}>Half</option>
+          <option value="optional" {{#if (eq system.resistance "optional")}}selected{{/if}}>Optional</option>
+          <option value="temporary" {{#if (eq system.resistance "temporary")}}selected{{/if}}>Temporary</option>
+        </select>
+      </label>
+      <label class="checkbox-label"><input type="checkbox" name="system.usesFortitude" {{checked system.usesFortitude}}> Uses Fortitude (instead of Willpower)</label>
+      <label>Duration <input type="text" name="system.duration" value="{{system.duration}}" placeholder="Instant / Instant/3 rounds"></label>
+      <label class="checkbox-label"><input type="checkbox" name="system.minorAction" {{checked system.minorAction}}> Minor Action <img src="systems/sw25-taka/assets/quickspell.svg" class="sw25-icon-quickspell" alt="Minor Action"></label>
+      <label class="checkbox-label"><input type="checkbox" name="system.combatPreparation" {{checked system.combatPreparation}}> Combat Preparation (△)</label>
       <label class="checkbox-label"><input type="checkbox" name="system.hasPowerTable" {{checked system.hasPowerTable}}> Uses Power Table</label>
-      <label>Power <input type="number" name="system.power" value="{{system.power}}"></label>
       <label>Critical <input type="number" name="system.critical" value="{{system.critical}}"></label>
+      <label>Critical Modifier <input type="number" name="system.criticalModifier" value="{{system.criticalModifier}}"></label>
       <label>Requirement <input type="text" name="system.requirement" value="{{system.requirement}}"></label>
-      <label>Cost <input type="text" name="system.cost" value="{{system.cost}}"></label>
       <label class="wide-field">Source URL <input type="url" name="system.sourceUrl" value="{{system.sourceUrl}}"></label>
       <label class="wide-field">Imported Details <textarea name="system.metadata">{{system.metadata}}</textarea></label>
       {{#if system.hasPowerTable}}<div class="wide-field weapon-power-table"><strong>Power Table</strong><div class="weapon-power-grid"><label>3<input type="number" name="system.powerTable.3" value="{{lookup system.powerTable "3"}}"></label><label>4<input type="number" name="system.powerTable.4" value="{{lookup system.powerTable "4"}}"></label><label>5<input type="number" name="system.powerTable.5" value="{{lookup system.powerTable "5"}}"></label><label>6<input type="number" name="system.powerTable.6" value="{{lookup system.powerTable "6"}}"></label><label>7<input type="number" name="system.powerTable.7" value="{{lookup system.powerTable "7"}}"></label><label>8<input type="number" name="system.powerTable.8" value="{{lookup system.powerTable "8"}}"></label><label>9<input type="number" name="system.powerTable.9" value="{{lookup system.powerTable "9"}}"></label><label>10<input type="number" name="system.powerTable.10" value="{{lookup system.powerTable "10"}}"></label><label>11<input type="number" name="system.powerTable.11" value="{{lookup system.powerTable "11"}}"></label><label>12<input type="number" name="system.powerTable.12" value="{{lookup system.powerTable "12"}}"></label></div></div>{{/if}}

@@ -17,6 +17,7 @@ import {
   parseBaseValue,
   passiveValue,
   resolveAttackTarget,
+  resolveOptionalMonsterAttackTarget,
   resolveMonsterDefense
 } from "../module/combat/attack-resolution.mjs";
 import { assembleRollFormula, signedValue } from "../module/rules/roll-modifiers.mjs";
@@ -111,6 +112,7 @@ const queueRolls = (...results) => { rollQueue = [...results]; };
 
 const monsterActor = (styles, extraSystem = {}) => ({
   id: "monster-1",
+  uuid: "Actor.monster-1",
   name: "Cursed Artist",
   type: "monster",
   system: { species: "Cursed Artist", combatStyles: styles, ...extraSystem }
@@ -190,6 +192,11 @@ assert.equal(resolveAttackTarget({ targets: [heroToken, heroToken], controlled: 
 const okTarget = resolveAttackTarget({ targets: [heroToken], controlled: [heroToken] });
 assert.equal(okTarget.status, "ok");
 assert.equal(okTarget.actor, heroToken.actor);
+assert.equal(resolveOptionalMonsterAttackTarget({ targets: [], controlled: [] }), null, "no target still permits an unopposed attack roll");
+assert.equal(resolveOptionalMonsterAttackTarget({ targets: [heroToken], controlled: [] }), null, "a non-monster is not used as a weapon defense");
+assert.equal(resolveOptionalMonsterAttackTarget({ targets: [heroToken, heroToken], controlled: [] }), null, "ambiguous targets do not block a roll or select one automatically");
+const optionalMonster = monsterActor([{ style: "Claw", accuracy: "10 (17)", evasion: "8 (15)" }]);
+assert.equal(resolveOptionalMonsterAttackTarget({ targets: [{ actor: optionalMonster }] }), optionalMonster, "one monster supplies the opposed defense");
 assert.ok(describeTargetFailure("not-targeted").includes("not targeted"));
 assert.ok(describeTargetFailure("no-defense").includes("Evasion"));
 
@@ -264,6 +271,10 @@ assert.equal(chatFlavors[chatFlavors.length - 1].via, "roll");
 const lastFlavor = chatFlavors[chatFlavors.length - 1].flavor;
 assert.ok(lastFlavor.includes("MISS"), "Card says MISS on failed comparison");
 assert.ok(lastFlavor.includes("sw25-attack-compare"));
+assert.ok(lastFlavor.includes("sw25-attack-roll-label\">Roll</span><span class=\"sw25-attack-roll\">10"), "attack roll is labeled and visible");
+assert.ok(lastFlavor.includes("sw25-attack-total-label\">Total</span><span class=\"sw25-attack-total\">+12"), "Accuracy total is explicit and prominent");
+assert.ok(!lastFlavor.includes("sw25-attack-bonus") && !lastFlavor.includes("sw25-attack-equals"), "the inline display omits the intermediate bonus formula");
+assert.ok(lastFlavor.includes("sw25-attack-vs\">vs</div>"), "the opposed comparison keeps its VS separator");
 assert.ok(!lastFlavor.includes("Roll Damage"), "No damage button on MISS");
 assert.equal(character.updates.length, 0, "Modifier dialog never persists to the actor");
 
@@ -293,6 +304,7 @@ assert.ok(hitFlavor.includes("sw25-attack-critical"), "Card shows the CRITICAL o
 assert.ok(!hitFlavor.includes("CRITICAL FAILURE"), "An automatic critical is not a critical failure");
 assert.ok(hitFlavor.includes("roll-critical-damage"), "Damage button present on automatic critical");
 assert.ok(hitFlavor.includes("data-class-id"), "Damage button carries the attacking class id");
+assert.ok(hitFlavor.includes('data-target-id="Actor.monster-1"'), "targeted weapon attack keeps its explicit target for damage resolution");
 
 console.log("=== Automatic critical beats Evasion regardless of totals ===");
 // Natural 12 with NO modifiers: total 12 does not exceed Evasion 22, but the
@@ -655,6 +667,52 @@ const summaryCard = attackCardHtml({
 });
 assert.ok(summaryCard.includes("Accuracy on Monster"));
 assert.ok(summaryCard.includes("Base Evasion: +8"));
+assert.ok(summaryCard.includes("sw25-attack-summary-heading\">Accuracy</span>"));
+assert.ok(summaryCard.includes("sw25-attack-roll\">7</span>"));
+assert.ok(summaryCard.includes("sw25-attack-total\">+10</span>"));
 assert.ok(!summaryCard.includes("2d6 roll") || summaryCard.split("2d6 roll").length === 2, "Only the attacking side has dice");
+const secondSummaryCard = attackCardHtml({
+  attackerTitle: "Longsword", attackerName: "Hero", attackStatLabel: "Accuracy", attackOrigin: "2d6 + 3",
+  attackNatural: 8, attackParts: [{ label: "Class", value: 3 }], attackTotal: 11, attackCriticalFailure: false,
+  defenderName: "Monster", defenseStatLabel: "Evasion", defenseOrigin: "passive", defenseNatural: null,
+  defenseParts: [{ label: "Base Evasion", value: 8 }], defenseTotal: 15, defenseCriticalFailure: false
+});
+const cardDetailIds = [summaryCard, secondSummaryCard].flatMap(card => [...card.matchAll(/id="(attack-(?:accuracy|evasion)-[^"]+)"/g)].map(match => match[1]));
+const cardTargetIds = [summaryCard, secondSummaryCard].flatMap(card => [...card.matchAll(/data-target="(attack-(?:accuracy|evasion)-[^"]+)"/g)].map(match => match[1]));
+assert.equal(new Set(cardDetailIds).size, 4, "each attack card has unique attacker and defender detail anchors");
+assert.deepEqual(cardTargetIds, cardDetailIds, "each attack card's expand controls point to its own details");
+
+console.log("=== Character attack without target ===");
+queueRolls([[4, 3]]);
+const targetlessAttack = await characterWeaponAttackFlow({
+  actor:character,
+  weapon:weaponItem,
+  attackingClass:classItem("cls-atk", "Fighter", 5),
+  accuracyParts:[{ label:"Fighter level", value:5 }],
+  targetMonster:null,
+  promptModifiers:() => [{ label:"Fighter level", value:5, enabled:true }]
+});
+assert.equal(targetlessAttack.status, "resolved");
+assert.equal(targetlessAttack.hit, null, "no hit/miss is calculated without a defender");
+const targetlessCard = chatFlavors.at(-1).flavor;
+assert.ok(targetlessCard.includes("Roll Damage"), "targetless attack card still offers manual damage");
+assert.ok(targetlessCard.includes('data-target-id=""'), "targetless weapon damage roll carries no ambient target");
+assert.ok(!/sw25-attack-outcome-badge|>HIT<|>MISS</.test(targetlessCard), "targetless result has no colored hit/miss outcome");
+
+console.log("=== Character attack against target without usable Evasion ===");
+queueRolls([[4, 3]]);
+const noDefenseAttack = await characterWeaponAttackFlow({
+  actor:character,
+  weapon:weaponItem,
+  attackingClass:classItem("cls-atk", "Fighter", 5),
+  accuracyParts:[{ label:"Fighter level", value:5 }],
+  targetMonster:monsterActor([{ style:"Unlisted Evasion", accuracy:"10 (17)", evasion:"-" }]),
+  promptModifiers:() => [{ label:"Fighter level", value:5, enabled:true }]
+});
+assert.equal(noDefenseAttack.status, "resolved", "missing defense cannot block the numerical attack roll");
+assert.equal(noDefenseAttack.hit, null, "without a usable defense the attack is not classified");
+const noDefenseCard = chatFlavors.at(-1).flavor;
+assert.ok(noDefenseCard.includes("Roll Damage"), "the unopposed roll retains its damage action");
+assert.ok(!/sw25-attack-outcome-badge|>HIT<|>MISS</.test(noDefenseCard), "no unavailable defense is fabricated");
 
 console.log("All attack-resolution assertions passed.");

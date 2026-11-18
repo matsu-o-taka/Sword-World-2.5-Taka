@@ -35,7 +35,7 @@
  * `module/actor/defeated-status.mjs`).
  */
 
-import { characterHPMaximum, characterMPMaximum } from "../rules/resources.mjs";
+import { characterHPMaximum, characterMPMaximum, characterResourceValue } from "../rules/resources.mjs";
 import { sw25EffectModifier } from "../effects/effective-values.mjs";
 
 /**
@@ -160,8 +160,8 @@ export async function syncActorMaxima(actor) {
        maximum; a value that still fits is conserved. Persistent increase
        never modifies the current value. */
     if (stored > target) {
-      const current = Number(actor.system?.[resource]?.value);
-      if (Number.isFinite(current) && current > target) {
+      const current = characterResourceValue(actor, resource);
+      if (current > target) {
         const cap = effectiveMaximumFromBase(actor, resource, target);
         if (current > cap) updates[`system.${resource}.value`] = cap;
       }

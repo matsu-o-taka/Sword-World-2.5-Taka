@@ -17,7 +17,7 @@
  * without re-rendering the sheet.
  */
 
-import { characterResourceMaximum } from "../rules/resources.mjs";
+import { characterResourceMaximum, characterResourceValue, updateCharacterResourceValue } from "../rules/resources.mjs";
 import { sw25EffectiveResourceMaximum } from "../effects/effective-values.mjs";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -354,11 +354,11 @@ function applyShape(column, frame, style, attempt) {
  * @param {object} actor The actor document.
  * @returns {{hp: number, hpMax: number, mp: number, mpMax: number}}
  */
-function readGaugeValues(actor) {
+export function readGaugeValues(actor) {
   const hpMax = Math.max(0, characterResourceMaximum(actor, "hp"));
   const mpMax = Math.max(0, characterResourceMaximum(actor, "mp"));
-  const hp = Math.max(0, Number(actor.system?.hp?.value ?? 0));
-  const mp = Math.max(0, Number(actor.system?.mp?.value ?? 0));
+  const hp = Math.max(0, characterResourceValue(actor, "hp"));
+  const mp = Math.max(0, characterResourceValue(actor, "mp"));
   return { hp, hpMax, mp, mpMax };
 }
 
@@ -758,9 +758,7 @@ function bindGaugeWheel(svg, actorId) {
     }
 
     const delta = event.deltaY > 0 ? -1 : 1;
-    const current = gauge === "hp"
-      ? Number(actor.system?.hp?.value ?? 0)
-      : Number(actor.system?.mp?.value ?? 0);
+    const current = characterResourceValue(actor, gauge);
     /* Clamp to the effective maximum (persisted base + effect modifiers)
        from the unified accessor — the same source used by rest and recovery.
        When the current value already exceeds the effective maximum (e.g.
@@ -771,7 +769,7 @@ function bindGaugeWheel(svg, actorId) {
     const next = Math.max(0, Math.min(cap, current + delta * WHEEL_STEP));
     if (next === current) return;
     try {
-      await actor.update({ [`system.${gauge}.value`]: next });
+      await updateCharacterResourceValue(actor, gauge, next);
     } catch (error) {
       console.warn("Sword World 2.5 | Could not update gauge value", error);
     }

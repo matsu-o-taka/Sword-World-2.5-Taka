@@ -578,6 +578,17 @@
 .class-feature-actions { display:flex; justify-content:flex-end; gap:2px; padding:2px !important; }
 .class-feature-actions button { width:28px; height:26px; padding:0; flex-shrink:0; }
 .class-feature-actions .spell-favourite.active { color:#a87500; }
+
+/* Minor Action quick-spell icon (replaces the ⏩ symbol). Inherits currentColor
+   so it matches the surrounding text/button colour in any theme. */
+.sw25-icon-quickspell {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
 .sw25-official-sheet .magic-box { display:flex; flex-direction:column; min-height:0; }
 .sw25-official-sheet .magic-box .magic-list { flex:1 1 auto; min-height:0; overflow-y:auto; }
 .sw25-official-sheet .spell-level-heading { margin:0; padding:3px 6px; border-top:1px solid #777; border-bottom:1px solid #aaa; background:rgba(70,55,40,.1); font-size:10px; text-align:left; text-transform:uppercase; }
@@ -588,7 +599,6 @@
 .sw25-npc-sheet .portrait-column .sheet-appearance-control,
 .sw25-fellow-sheet .portrait-column .sheet-appearance-control { margin:3px auto 1px; }
 .sw25-official-sheet .class-feature-list { max-height:520px; overflow-y:auto; }
-.sw25-spell-power-result { border-top:1px solid #777; margin-top:6px; padding-top:4px; }
 .class-resource-summary,.alchemist-card-summary { grid-column:1 / -1; padding-top:30px; position:relative; }
 .class-resource-summary { min-height:92px; display:flex; align-items:center; justify-content:center; gap:14px; }
 .class-resource-summary h2,.alchemist-card-summary h2 { position:absolute; top:0; left:0; right:0; }
@@ -2443,44 +2453,63 @@ form.sw25-official-sheet .weapon-table .combat-weapon-row .weapon-mods-toggle in
 .sw25-attack-card .sw25-attack-outcome {
   display: flex;
   justify-content: center;
-  margin: 8px 0 4px;
+  margin: 8px 0 6px;
 }
 .sw25-attack-card .sw25-attack-outcome-badge {
   display: inline-block;
   padding: 5px 14px;
   border-radius: 4px;
   font-weight: 700;
-  font-size: 1.3em;
+  font-size: 1.25em;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   border: 1px solid currentColor;
 }
-.sw25-attack-card .sw25-attack-outcome-badge.sw25-attack-hit   { color: #28813b; border-color: #28813b; background: rgba(40,129,59,.15); }
-.sw25-attack-card .sw25-attack-outcome-badge.sw25-attack-miss  { color: #b3261e; border-color: #b3261e; background: rgba(179,38,30,.15); }
-.sw25-attack-card .sw25-attack-outcome-badge.sw25-attack-critical { color: #28a745; border-color: #28a745; background: rgba(40,167,69,.15); }
+.sw25-attack-card .sw25-attack-outcome-badge.sw25-attack-hit,
+.sw25-spell-card .sw25-spell-outcome-badge.sw25-spell-outcome-success { color: #28813b; border-color: #28813b; background: rgba(40,129,59,.15); }
+.sw25-attack-card .sw25-attack-outcome-badge.sw25-attack-miss,
+.sw25-spell-card .sw25-spell-outcome-badge.sw25-spell-outcome-failure { color: #b3261e; border-color: #b3261e; background: rgba(179,38,30,.15); }
+.sw25-attack-card .sw25-attack-outcome-badge.sw25-attack-critical,
+.sw25-spell-card .sw25-spell-outcome-badge.sw25-spell-outcome-automatic { color: #28a745; border-color: #28a745; background: rgba(40,167,69,.15); }
 .sw25-attack-card .sw25-attack-outcome-badge.sw25-attack-fumble { color: #8a1e1e; border-color: #8a1e1e; background: rgba(138,30,30,.15); }
+.sw25-spell-card .sw25-spell-outcome-badge.sw25-spell-outcome-resisted { color: #a87d3d; border-color: #a87d3d; background: rgba(168,125,61,.18); }
 
 .sw25-attack-card .sw25-attack-comparison {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin: 8px 0 4px;
-  padding: 8px 10px;
-  border: 1px solid #5b4936;
-  background: rgba(240,226,191,.35);
+  justify-content: center;
+  gap: 10px;
+  margin: 6px 0 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.sw25-attack-card .sw25-attack-comparison.sw25-attack-compare {
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 .sw25-attack-card .sw25-attack-stat {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 3px;
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 6px 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 .sw25-attack-card .sw25-attack-stat-summary {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
-  font-size: 1.15em;
-  font-weight: 600;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: end;
+  justify-items: center;
+  gap: 2px 12px;
+  margin: 0;
+  text-align: center;
   cursor: pointer;
 }
 .sw25-attack-card .sw25-attack-stat-summary:hover { opacity: 0.85; }
@@ -2488,17 +2517,40 @@ form.sw25-official-sheet .weapon-table .combat-weapon-row .weapon-mods-toggle in
   content: " ▾";
   font-size: 0.65em;
   opacity: 0.5;
-  margin-left: 4px;
+  grid-column: 1 / -1;
+  justify-self: center;
 }
-.sw25-attack-card .sw25-attack-roll   { font-size: 1.5em; }
-.sw25-attack-card .sw25-attack-bonus  { font-size: 1.1em; }
-.sw25-attack-card .sw25-attack-equals { margin: 0 3px; opacity: 0.55; }
-.sw25-attack-card .sw25-attack-total  { font-size: 1.4em; font-weight: 700; }
+.sw25-attack-card .sw25-attack-summary-heading {
+  grid-column: 1 / -1;
+  color: #4a3b2c;
+  font-size: .85em;
+  font-weight: 700;
+}
+.sw25-attack-card .sw25-attack-roll-group,
+.sw25-attack-card .sw25-attack-total-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.sw25-attack-card .sw25-attack-roll-label,
+.sw25-attack-card .sw25-attack-total-label {
+  color: #5b4936;
+  font-size: .75em;
+  font-weight: 500;
+}
+.sw25-attack-card .sw25-attack-roll { font-size: 1.35em; font-weight: 700; }
+.sw25-attack-card .sw25-attack-total { font-size: 2em; font-weight: 800; line-height: 1; }
+.sw25-attack-card .sw25-attack-side-evasion .sw25-attack-stat-summary {
+  display: block;
+  font-size: 1.6em;
+  font-weight: 700;
+}
 .sw25-attack-card .sw25-attack-vs {
   font-size: 1.25em;
   font-weight: 700;
   opacity: 0.6;
-  padding: 0 6px;
+  padding: 0 2px;
 }
 .sw25-attack-card .sw25-attack-stat-detail {
   margin-top: 5px;
@@ -2541,15 +2593,65 @@ form.sw25-official-sheet .weapon-table .combat-weapon-row .weapon-mods-toggle in
   cursor: pointer;
 }
 .sw25-damage-card .sw25-damage-stat-summary:hover { opacity: 0.85; }
+.sw25-damage-card .sw25-damage-outcome {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0 6px;
+}
+.sw25-damage-card .sw25-damage-outcome .sw25-attack-outcome-badge,
+.sw25-damage-card .sw25-damage-outcome .sw25-spell-outcome-badge {
+  display: inline-block;
+  padding: 5px 14px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font-size: 1.3em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.sw25-damage-card .sw25-damage-outcome .sw25-attack-critical { color: #28a745; background: rgba(40,167,69,.15); }
+.sw25-damage-card .sw25-damage-outcome .sw25-spell-outcome-failure { color: #b3261e; background: rgba(179,38,30,.15); }
+.sw25-damage-card .sw25-damage-failure-note { margin: 6px 0; color: #8a1e1e; text-align: center; }
+.sw25-damage-card .sw25-damage-roll-sequence {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 8px 0;
+}
+.sw25-damage-card .sw25-damage-roll-step {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 7px;
+}
+.sw25-damage-card .sw25-damage-roll-kind { color: #5b4936; font-size: .8em; }
+.sw25-damage-card .sw25-damage-roll { font-size: 1.35em; font-weight: 700; }
+.sw25-damage-card .sw25-damage-table-value { font-size: 1.35em; font-weight: 700; }
+.sw25-damage-card .sw25-damage-roll-critical { color: #28813b; font-size: .8em; font-weight: 700; }
+.sw25-damage-card .sw25-damage-result { margin: 8px 0; padding: 7px 8px; border: 1px solid #806d55; background: rgba(255,255,255,.4); }
+.sw25-damage-card .sw25-damage-result-summary {
+  width: 100%;
+  justify-content: center;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 1em;
+}
+.sw25-damage-card .sw25-damage-result-label { font-size: 1.15em; font-weight: 700; }
+.sw25-damage-card .sw25-damage-result-value { font-size: 2.25em; font-weight: 800; line-height: 1; }
+.sw25-damage-card .sw25-damage-result-hint { color: #5b4936; font-size: .75em; font-weight: 500; }
+.sw25-damage-card .sw25-damage-breakdown-roll,
+.sw25-damage-card .sw25-damage-breakdown-running,
+.sw25-damage-card .sw25-damage-breakdown-critical { display: block; }
+.sw25-damage-card .sw25-damage-breakdown-running { color: #5b4936; font-size: .9em; }
+.sw25-damage-card .sw25-damage-breakdown-critical { color: #28813b; font-size: .9em; font-weight: 700; }
+.sw25-damage-card .sw25-damage-breakdown-final { margin-top: 5px !important; padding-top: 5px; border-top: 1px solid #806d55; font-size: 1em !important; font-weight: 700; }
 .sw25-damage-card .sw25-damage-stat-summary::after {
   content: " ▾";
   font-size: 0.65em;
   opacity: 0.5;
   margin-left: 4px;
 }
-.sw25-damage-card .sw25-damage-roll       { font-size: 1.5em; }
 .sw25-damage-card .sw25-damage-arrow      { opacity: 0.6; margin: 0 2px; }
-.sw25-damage-card .sw25-damage-table-value { font-size: 1.5em; font-weight: 700; }
 .sw25-damage-card .sw25-damage-plus       { opacity: 0.55; }
 .sw25-damage-card .sw25-damage-bonus      { font-size: 1.1em; }
 .sw25-damage-card .sw25-damage-equals     { margin: 0 3px; opacity: 0.55; }
@@ -2580,6 +2682,218 @@ form.sw25-official-sheet .weapon-table .combat-weapon-row .weapon-mods-toggle in
 .sw25-damage-card .sw25-damage-actions button.sw25-apply-damage {
   width: 100%;
 }
+
+/* ── Spellcasting cast cards (same visual family as attack/damage) ──────── */
+/* Principal result first: modality + outcome badge, then the Spellcasting
+   check block, per-target outcomes, secondary cast data (Magic Power, MP,
+   Resistance), and finally the damage action. */
+
+.sw25-spell-card .sw25-spell-modality {
+  display: inline-block;
+  margin: 2px 0 4px;
+  padding: 2px 8px;
+  border: 1px solid #806d55;
+  border-radius: 3px;
+  background: rgba(255,255,255,.35);
+  font-size: 0.8em;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #4a3b2c;
+}
+.sw25-spell-card .sw25-spell-modality i { margin-right: 4px; }
+
+.sw25-spell-card .sw25-spell-outcome {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0 6px;
+}
+.sw25-spell-card .sw25-spell-outcome-badge {
+  display: inline-block;
+  padding: 5px 14px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 1.25em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+}
+
+.sw25-spell-card .sw25-spell-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin: 6px 0;
+  padding: 7px 10px;
+  border: 1px solid #5b4936;
+  background: rgba(240,226,191,.35);
+}
+.sw25-spell-card .sw25-spell-stat-summary {
+  margin: 0;
+  font-size: 1.12em;
+  text-align: center;
+  cursor: pointer;
+}
+.sw25-spell-card .sw25-spell-stat-summary:hover { opacity: 0.85; }
+.sw25-spell-card .sw25-spell-stat-summary strong:first-child { text-transform: none; }
+.sw25-spell-card .sw25-spell-stat-summary::after {
+  content: " ▾";
+  font-size: 0.65em;
+  opacity: 0.5;
+  margin-left: 4px;
+}
+.sw25-spell-card .sw25-spell-stat:empty { display: none; }
+.sw25-spell-card .sw25-spell-stat-detail {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #806d55;
+  background: rgba(255,255,255,.45);
+  font-size: 0.9em;
+}
+.sw25-spell-card .sw25-roll-breakdown {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sw25-spell-card .sw25-roll-breakdown li {
+  margin: 2px 0;
+}
+
+.sw25-spell-card .sw25-spell-no-check {
+  margin: 8px 0 4px;
+  padding: 7px 10px;
+  border: 1px solid #5b4936;
+  background: rgba(240,226,191,.35);
+  text-align: center;
+}
+
+.sw25-spell-card .sw25-spell-cast-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 16px;
+  margin: 6px 0 2px;
+  padding: 5px 8px;
+  border-top: 1px dashed #806d55;
+  border-bottom: 1px dashed #806d55;
+  font-size: 0.92em;
+}
+
+.sw25-spell-card .sw25-resistance-results {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+.sw25-spell-card .sw25-resistance-line {
+  margin: 3px 0;
+  padding: 3px 8px;
+  border-left: 3px solid #806d55;
+  background: rgba(255,255,255,.3);
+  font-size: 0.92em;
+}
+.sw25-spell-card .sw25-resistance-line.sw25-resistance-affected { border-left-color: #28813b; }
+.sw25-spell-card .sw25-resistance-line.sw25-resistance-resisted { border-left-color: #b3261e; }
+.sw25-spell-card .sw25-resistance-line.sw25-resistance-partial  { border-left-color: #a87d3d; }
+.sw25-spell-card .sw25-resistance-line.sw25-resistance-pending  { border-left-color: #a87d3d; }
+
+.sw25-spell-card .sw25-spell-damage-action { margin: 8px 0 0; }
+.sw25-spell-card .sw25-spell-mp-note {
+  margin: 8px 0 0;
+  text-align: center;
+  font-size: 0.9em;
+}
+
+/* Automatic failure card: same family, failure accent */
+.sw25-spell-card.sw25-spell-failure .sw25-spell-failure-note {
+  margin: 8px 0 0;
+  text-align: center;
+}
+.sw25-spell-card.sw25-spell-failure .sw25-automatic-failure-register {
+  margin-top: 8px;
+}
+
+/* ── Temporary modifiers dialog (shared, rules/roll-modifiers.mjs) ──────── */
+/* Same parchment family as the chat cards and the Light sheets. */
+
+.sw25-roll-modifiers .window-content {
+  background: #f0e2bf;
+  color: #28231e;
+  padding: 10px 12px;
+}
+.sw25-roll-modifiers .window-header {
+  background: linear-gradient(#3b3226, #2e2719);
+  color: #f0e7d1;
+}
+.sw25-roll-modifiers-body { display: flex; flex-direction: column; gap: 8px; }
+.sw25-roll-modifiers-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #4a3b2c;
+}
+.sw25-roll-modifiers-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #5b4936;
+  background: rgba(255,255,255,.35);
+}
+.sw25-modifier-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+}
+.sw25-modifier-row + .sw25-modifier-row { border-top: 1px solid rgba(128,109,85,.35); }
+.sw25-modifier-row.sw25-modifier-disabled { opacity: 0.5; }
+.sw25-modifier-toggle { display: inline-flex; align-items: center; }
+.sw25-modifier-label { flex: 1 1 auto; min-width: 0; }
+.sw25-modifier-value { width: 58px; text-align: center; }
+.sw25-modifier-static {
+  width: 58px;
+  text-align: center;
+  font-weight: 600;
+  color: #6f6455;
+}
+.sw25-modifier-remove {
+  width: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: 1px solid #5b4936;
+  background: transparent;
+  color: #b3261e;
+  cursor: pointer;
+}
+.sw25-modifier-empty {
+  padding: 8px;
+  text-align: center;
+  font-style: italic;
+  color: #6f6455;
+}
+.sw25-roll-modifiers-add { display: flex; gap: 6px; align-items: center; }
+.sw25-roll-modifiers-add input[name="add-modifier-label"] { flex: 1 1 auto; }
+.sw25-roll-modifiers-add input[name="add-modifier-value"] { width: 64px; text-align: center; }
+.sw25-roll-modifiers-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px solid #806d55;
+}
+.sw25-roll-modifiers-total { margin-right: auto; font-size: 1.05em; }
+.sw25-roll-modifiers button {
+  min-height: 30px;
+  padding: 3px 10px;
+  border: 1px solid #5b4936;
+  border-radius: 2px;
+  background: linear-gradient(#695642,#493b2f);
+  color: #fff7df;
+  font-weight: bold;
+  cursor: pointer;
+}
+.sw25-roll-modifiers button:hover { box-shadow: 0 0 6px rgba(161,120,63,.4); }
+.sw25-roll-modifiers button.sw25-modifiers-submit { background: linear-gradient(#574737,#3f3329); }
 
 /* ── Monster Knowledge Registry Manager (F3) ───────────────────────────── */
 .sw25-mk-manager {

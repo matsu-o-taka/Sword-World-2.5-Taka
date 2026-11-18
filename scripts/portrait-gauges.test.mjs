@@ -16,6 +16,7 @@ import {
   contourPoint,
   contourPath,
   dashOffsetFor,
+  readGaugeValues,
   resolveSpans
 } from "../module/actor/portrait-gauges.mjs";
 
@@ -136,9 +137,39 @@ assert.equal(dashOffsetFor(0.5, "end"), -500, "half arc fills from the end");
 assert.equal(dashOffsetFor(-0.2), 1000, "fractions below 0 clamp to empty");
 assert.equal(dashOffsetFor(1.4), 0, "fractions above 1 clamp to full");
 
+console.log("=== finite values from legacy persisted resources ===");
+
+const legacyGaugeActor = {
+  system: {
+    hp: { value: "12", max: 20 },
+    mp: { value: [null, 30, null, null], max: 40 }
+  },
+  items: []
+};
+const legacyGaugeValues = readGaugeValues(legacyGaugeActor);
+assert.deepEqual(legacyGaugeValues, { hp: 12, hpMax: 20, mp: 30, mpMax: 40 }, "the gauge reads the same normalized scalar as the sheets");
+assert.ok(Object.values(legacyGaugeValues).every(Number.isFinite), "legacy arrays and numeric strings never produce NaN gauge values");
+const legacyFraction = Math.max(0, Math.min(1, legacyGaugeValues.mp / legacyGaugeValues.mpMax));
+assert.ok(Number.isFinite(dashOffsetFor(legacyFraction, "start")), "the legacy MP arc offset is finite");
+assert.deepEqual(
+  readGaugeValues({ system: { hp: { value: [NaN, "bad"] }, mp: { value: [null, "", "bad"] } }, items: [] }),
+  { hp: 0, hpMax: 0, mp: 0, mpMax: 0 },
+  "malformed resources fall back to finite zero values"
+);
+
 console.log("=== template / entry point / stylesheet wiring ===");
 
 const characterSheet = await read("templates/actor/character-sheet.hbs");
+assert.equal(
+  (characterSheet.match(/name="system\.mp\.value"/g) ?? []).length,
+  0,
+  "same-named MP inputs cannot be serialized into an array by FormApplication"
+);
+assert.equal(
+  (characterSheet.match(/data-resource-value="mp"/g) ?? []).length,
+  2,
+  "Combat Data and every Wizard class page keep their editable shared-MP controls"
+);
 assert.ok(
   characterSheet.includes('class="logo-box" data-action="cycle-portrait-gauge"'),
   "character sheet logo box carries the discrete gauge toggle action"

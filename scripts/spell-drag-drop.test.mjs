@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { normalizeSpellData } from "../module/rules/spell-data.mjs";
 
 // Global Foundry mocks
 let mockDropSource = null;
@@ -103,12 +104,12 @@ function makeMockClassItem(id, name, level = 1) {
   };
 }
 
-function makeMockSpellItem(id, name, classId = "", className = "", school = "") {
+function makeMockSpellItem(id, name, classId = "", className = "", system = {}) {
   return {
     id,
     name,
     type: "spell",
-    system: { classId, className, school, level: 1, mpCost: 0 },
+    system: { classId, className, level: 1, mpCost: 0, ...system },
     // Foundry's Item#toObject is synchronous; an async mock would return a
     // Promise and `{ ...doc }` inside createEmbeddedDocuments would copy
     // nothing, breaking the drag & drop copy assertions.
@@ -171,9 +172,10 @@ class MockSheet {
       const itemData = source.toObject();
       delete itemData._id;
       itemData.system = itemData.system || {};
+      const normalized = normalizeSpellData(itemData.system, { name: source.name });
+      itemData.system = normalized.system;
       itemData.system.classId = destClass.id;
       itemData.system.className = destClass.name;
-      itemData.system.school = destClass.name;
 
       const existing = this.actor.items.find(item =>
         item.type === "spell" &&
@@ -256,7 +258,7 @@ console.log("=== Test: Cross-actor spell drag & drop ===");
 
 // Test 1: Dragging a spell from one character to another creates a copy on the destination
 {
-  const sourceSpell = makeMockSpellItem("spell-fireball", "Fireball", "class-wizard", "Wizard", "Wizard");
+  const sourceSpell = makeMockSpellItem("spell-fireball", "Fireball", "class-wizard", "Wizard");
   const sourceActor = makeMockActor([sourceSpell]);
   const wizard = makeMockClassItem("class-wizard", "Wizard", 5);
   const destActor = makeMockActor([wizard]);
@@ -272,14 +274,13 @@ console.log("=== Test: Cross-actor spell drag & drop ===");
   assert.strictEqual(destSpells.length, 1, "Destination actor has Fireball copy");
   assert.strictEqual(destSpells[0].system.classId, "class-wizard", "Copied spell has correct classId");
   assert.strictEqual(destSpells[0].system.className, "Wizard", "Copied spell has correct className");
-  assert.strictEqual(destSpells[0].system.school, "Wizard", "Copied spell has correct school");
 
   console.log("  PASS: Cross-actor spell drag creates copy on destination");
 }
 
 // Test 2: The original spell remains on the source character after a successful drop
 {
-  const sourceSpell = makeMockSpellItem("spell-magic-missile", "Magic Missile", "class-wizard", "Wizard", "Wizard");
+  const sourceSpell = makeMockSpellItem("spell-magic-missile", "Magic Missile", "class-wizard", "Wizard");
   const sourceActor = makeMockActor([sourceSpell]);
   const wizard = makeMockClassItem("class-wizard", "Wizard", 5);
   const destActor = makeMockActor([wizard]);
@@ -293,15 +294,50 @@ console.log("=== Test: Cross-actor spell drag & drop ===");
   assert.strictEqual(sourceSpells[0].id, sourceSpell.id, "Source spell ID unchanged");
   assert.strictEqual(sourceSpells[0].system.classId, "class-wizard", "Source spell classId unchanged");
   assert.strictEqual(sourceSpells[0].system.className, "Wizard", "Source spell className unchanged");
-  assert.strictEqual(sourceSpells[0].system.school, "Wizard", "Source spell school unchanged");
 
   console.log("  PASS: Original spell remains on source character after drop");
 }
 
+// Test 3: A dropped OLD-SCHEMA spell (compendium not migrated) is normalized on copy
+{
+  const sourceSpell = makeMockSpellItem("spell-frost-bolt", "Frost Bolt", "", "Sorcerer", {
+    school: "Sorcerer", cost: "MP 6", power: 8, featureType: "spell", resourceData: { hpCost: "" },
+    metadata: "Target: 1 enemy\nRange/Area: 2 (30m) / Shot\nDuration: Instant/2 rounds\nResistance: Half"
+  });
+  const sourceActor = makeMockActor([sourceSpell]);
+  const wizard = makeMockClassItem("class-wizard", "Wizard", 5);
+  const destActor = makeMockActor([wizard]);
+  const sheet = new MockSheet(destActor);
+
+  mockDropSource = sourceSpell;
+  await sheet._onDropItem({}, {});
+
+  const destSpells = destActor.items.filter(i => i.type === "spell" && i.name === "Frost Bolt");
+  assert.strictEqual(destSpells.length, 1, "Destination actor has Frost Bolt copy");
+  const system = destSpells[0].system;
+  assert.strictEqual(system.school, undefined, "Obsolete school field removed");
+  assert.strictEqual(system.cost, undefined, "Obsolete cost field removed");
+  assert.strictEqual(system.power, 8, "Power is retained as the catalog row selector");
+  assert.strictEqual(system.featureType, undefined, "Obsolete featureType field removed");
+  assert.strictEqual(system.resourceData, undefined, "Obsolete resourceData field removed");
+  assert.strictEqual(system.resistance, "half", "Resistance derived from metadata");
+  assert.strictEqual(system.usesFortitude, false, "Willpower by default");
+  assert.deepEqual(system.range, { areas: 2, distance: 30 }, "Range derived from metadata");
+  assert.strictEqual(system.area, "shot", "Propagation derived from metadata");
+  assert.strictEqual(system.duration, "Instant/2 rounds", "Duration derived from metadata");
+  assert.strictEqual(system.target, "character", "Target derived from metadata");
+  assert.strictEqual(system.rank, 0, "Rank parsed from the name (no numeral)");
+  assert.strictEqual(system.minorAction, false, "Minor Action marker absent");
+  assert.strictEqual(system.combatPreparation, false, "Combat Preparation marker absent");
+  assert.strictEqual(system.classId, "class-wizard", "Destination class association applied");
+
+  console.log("  PASS: Old-schema spell normalized to the new schema on drop");
+}
+
 // Test 3: The original spell remains unchanged after a duplicate is detected on the destination
 {
-  const sourceSpell = makeMockSpellItem("spell-fireball", "Fireball", "class-wizard", "Wizard", "Wizard");
-  const existingSpell = makeMockSpellItem("spell-existing", "Fireball", "class-wizard", "Wizard", "Wizard");
+  const sourceSpell = makeMockSpellItem("spell-fireball", "Fireball", "class-wizard", "Wizard");
+  const existingSpell = makeMockSpellItem("spell-existing", "Fireball", "class-wizard", "Wizard");
   const sourceActor = makeMockActor([sourceSpell]);
   const wizard = makeMockClassItem("class-wizard", "Wizard", 5);
   const destActor = makeMockActor([wizard, existingSpell]);
@@ -321,7 +357,7 @@ console.log("=== Test: Cross-actor spell drag & drop ===");
 
 // Test 4: The original spell remains unchanged when destination has no classes
 {
-  const sourceSpell = makeMockSpellItem("spell-fireball", "Fireball", "class-wizard", "Wizard", "Wizard");
+  const sourceSpell = makeMockSpellItem("spell-fireball", "Fireball", "class-wizard", "Wizard");
   const sourceActor = makeMockActor([sourceSpell]);
   const destActor = makeMockActor([]);
   const sheet = new MockSheet(destActor);
@@ -339,7 +375,7 @@ console.log("=== Test: Cross-actor spell drag & drop ===");
 
 // Test 5: The original spell remains unchanged if creation on the destination fails
 {
-  const sourceSpell = makeMockSpellItem("spell-fireball", "Fireball", "class-wizard", "Wizard", "Wizard");
+  const sourceSpell = makeMockSpellItem("spell-fireball", "Fireball", "class-wizard", "Wizard");
   const sourceActor = makeMockActor([sourceSpell]);
   const wizard = makeMockClassItem("class-wizard", "Wizard", 5);
   const destActor = makeMockActor([wizard]);
@@ -371,7 +407,7 @@ console.log("=== Test: Cross-actor spell drag & drop ===");
 
 // Test 6: Dialog cancellation - source spell unchanged
 {
-  const sourceSpell = makeMockSpellItem("spell-fireball", "Fireball", "class-wizard", "Wizard", "Wizard");
+  const sourceSpell = makeMockSpellItem("spell-fireball", "Fireball", "class-wizard", "Wizard");
   const sourceActor = makeMockActor([sourceSpell]);
   const fighter = makeMockClassItem("class-fighter", "Fighter", 3);
   const wizard = makeMockClassItem("class-wizard", "Wizard", 5);
@@ -391,7 +427,7 @@ console.log("=== Test: Cross-actor spell drag & drop ===");
 
 // Test 7: Compendium spell drag retains existing behavior
 {
-  const compendiumSpell = makeMockSpellItem("spell-compendium", "Compendium Fireball", "class-wizard", "Wizard", "Wizard");
+  const compendiumSpell = makeMockSpellItem("spell-compendium", "Compendium Fireball", "class-wizard", "Wizard");
   const sourceActor = makeMockActor([compendiumSpell]);
   const wizard = makeMockClassItem("class-wizard", "Wizard", 5);
   const destActor = makeMockActor([wizard]);

@@ -1,0 +1,20 @@
+<div class="sw25-game-rules">
+  <p class="sw25-game-rules-intro">Game rules for Sword World 2.5: Taka Edition. Changes apply to the current world.</p>
+
+  <fieldset class="sw25-game-rules-fieldset">
+    <legend>Combat Preparation</legend>
+
+    <div class="form-group">
+      <label class="sw25-game-rules-label">
+        <input type="checkbox" data-action="toggle-strict-prep" {{#if strictCombatPreparation}}checked{{/if}}>
+        Enforce Strict Combat Preparation Rules
+      </label>
+      <p class="sw25-game-rules-hint">When enabled, during Combat Preparation only spells marked &ldquo;&triangle;&rdquo; can be cast via the Combat Preparation modality, and Major Action casting is blocked.</p>
+    </div>
+
+  </fieldset>
+
+  <footer class="sw25-game-rules-footer">
+    <button type="button" class="sw25-game-rules-close" data-action="close"><i class="fas fa-times"></i> Close</button>
+  </footer>
+</div>

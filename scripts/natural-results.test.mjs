@@ -24,7 +24,7 @@ import {
   rollDiceResults
 } from "../module/rules/critical-failure.mjs";
 import { attackCardHtml, resolveAttackHit } from "../module/combat/attack-resolution.mjs";
-import { rollSpellPowerTableDamage, spellDamageMagicPower } from "../module/rules/spell-damage.mjs";
+import { rollNaturalPower, rollSpellPowerTableDamage, spellDamageMagicPower } from "../module/rules/spell-damage.mjs";
 
 // ---------------------------------------------------------------------------
 // Foundry mocks
@@ -66,9 +66,11 @@ globalThis.foundry = {
     escapeHTML(value) {
       return String(value ?? "")
         .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-    }
+    },
+    randomID() { return `r${Math.random().toString(36).slice(2, 12)}`; }
   }
 };
+globalThis.game = { combat:null };
 
 // A plain roll object for the pure detection utilities. `total` may differ
 // from the natural dice sum to prove detection ignores modified totals.
@@ -199,7 +201,7 @@ console.log("=== Spell Power Table roll (shared weapon mechanism) ===");
 //     Success Value supplied by the caller, NO SV is derived from the damage
 //     roll: the provisional derivation is gone (DEC-6 — the SV is the result
 //     of the casting roll, transported by the cast flow only).
-rollQueue = [[6, 6]];
+rollQueue = [[6, 6], [4, 5]];
 const critResult = await rollSpellPowerTableDamage({ actor: characterActor(), spell: spellItem, castingClass });
 assert.equal(critResult.criticalFailure, false);
 assert.equal(critResult.diceTotal, 12);
@@ -209,27 +211,50 @@ assert.equal(critResult.total, 24, "Total = table 20 + Magic Power 4");
 assert.equal(critResult.spellSuccessValue, null, "No casting SV supplied → no SV is derived or fabricated");
 assert.equal(critResult.critical, true, "Spell critical 10 triggered by natural 12");
 const critCard = chatCreations[chatCreations.length - 1].content;
-assert.ok(critCard.includes("CRITICAL"), "Card marks the Power Table critical");
-assert.ok(critCard.includes("Roll Damage Again"), "Card offers the additional Power Table roll");
-assert.ok(critCard.includes('data-accumulated-power="20"'), "Additional roll carries the accumulated table damage");
+assert.ok(critCard.includes("Critical continuation"), "Card explains each critical continuation");
+assert.ok(critCard.includes("Accumulated table damage"), "expanded breakdown distinguishes accumulated table damage");
+assert.ok(critCard.includes("sw25-damage-result-value"), "card gives the final Damage value visual priority");
+assert.ok(critCard.includes("Power Table"), "card shows each pure roll and its Power Table result");
+assert.ok(critCard.includes("CRITICAL DAMAGE"), "critical damage is clearly badged");
+assert.ok(!critCard.includes("Roll Damage Again"), "Critical continuation is automatic");
+assert.ok(critCard.includes("Apply Magical Damage"), "targetless spell damage still provides application controls");
+assert.ok(!critCard.includes('data-actor-id="'), "targetless spell damage carries no arbitrary target");
 assert.ok(!critCard.includes("data-success-value"), "No SV attribute without an authentic casting SV");
 
 // 7b. Additional roll: accumulated table damage grows, the AUTHENTIC SV is
 //     preserved (it belongs to the casting roll, supplied by the cast flow
 //     through data-success-value, never re-derived from the damage roll).
-rollQueue = [[6, 6]];
+rollQueue = [[6, 6], [6, 6], [4, 5]];
 const extraResult = await rollSpellPowerTableDamage({
-  actor: characterActor(), spell: spellItem, castingClass,
-  accumulatedPower: 20, successValue: 21
+  actor: characterActor(), spell: spellItem, castingClass, successValue: 21
 });
 assert.equal(extraResult.tableValue, 20);
-assert.equal(extraResult.total, 44, "Total = accumulated 20 + table 20 + Magic Power 4");
+assert.equal(extraResult.chain.length, 3, "Two consecutive criticals automatically continue until a noncritical result");
+assert.equal(extraResult.total, 44, "Total = two critical table results + final table result + Magic Power");
 assert.equal(extraResult.spellSuccessValue, 21, "The caller-supplied casting SV is preserved across the additional roll");
 assert.equal(extraResult.critical, true, "Natural 12 meets the critical threshold 10 again");
 const extraCard = chatCreations[chatCreations.length - 1].content;
-assert.ok(extraCard.includes("Accumulated power-table damage:</strong> 20"), "Card shows the accumulated table damage");
-assert.ok(extraCard.includes('data-accumulated-power="40"'), "The further roll accumulates 20 + 20");
-assert.ok(extraCard.includes('data-success-value="21"'), "The further roll button keeps the authentic casting SV");
+assert.ok(extraCard.includes("Magic Power"), "expanded spell breakdown includes Magic Power");
+assert.ok(!extraCard.includes("<p><strong>Magic Power:"), "Magic Power is not duplicated as a standalone line");
+assert.ok(!extraCard.includes("Roll Damage Again"), "The full chain needs no further button clicks");
+
+// Missing local table entries still resolve to zero for spell damage; a
+// custom table remains valid without a system.power field.
+rollQueue = [[4, 5]];
+const customSpell = { ...spellItem, system: { powerTable: { "7": 9 }, critical: 10 } };
+assert.equal(Object.hasOwn(customSpell.system, "power"), false);
+const missingSpellRow = await rollSpellPowerTableDamage({ actor: characterActor(), spell: customSpell, castingClass });
+assert.equal(missingSpellRow.diceTotal, 9);
+assert.equal(missingSpellRow.tableValue, 0);
+assert.equal(missingSpellRow.total, 4, "missing Power Table result does not change the existing Magic Power formula");
+
+// Natural Power uses the same local-table resolver and keeps its nonnegative
+// MP clamp, independently of system.power.
+rollQueue = [[3, 4]];
+const naturalPowerSpell = { name: "Natural Power", system: { powerTable: { "7": 5 } } };
+assert.equal(Object.hasOwn(naturalPowerSpell.system, "power"), false);
+assert.equal(await rollNaturalPower({ actor: characterActor(), spell: naturalPowerSpell }), 5);
+assert.ok(MockRoll.messages.at(-1).flavor.includes("7 → 5 MP"));
 
 // 7c. Fumble on the Power Table roll: no damage; the counter is NOT written
 //     automatically — the card offers the registration button and the

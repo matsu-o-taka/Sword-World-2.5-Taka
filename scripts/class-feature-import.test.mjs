@@ -50,10 +50,24 @@ Power ③ ④ ⑤ ⑥ ⑦ ⑧ ⑨ ⑩ ⑪ ⑫ Crit
 });
 assert.equal(damagingSpell.mpCost, 5);
 assert.equal(damagingSpell.hasPowerTable, true);
-assert.equal(damagingSpell.power, 10);
 assert.equal(damagingSpell.powerTable["3"], 1);
 assert.equal(damagingSpell.powerTable["12"], 7);
 assert.equal(damagingSpell.critical, 10);
+assert.equal(damagingSpell.power, 10, "Spell Items retain Power so their local table can be synchronized from the catalog");
+assert.equal(damagingSpell.cost, undefined, "Spell Items no longer carry the redundant `cost` field");
+assert.equal(damagingSpell.featureType, undefined, "Spell Items no longer carry `featureType`");
+assert.equal(damagingSpell.resourceData, undefined, "Spell Items no longer carry `resourceData`");
+assert.equal(damagingSpell.rank, 0, "Base spell: rank 0 (shared identity parser)");
+assert.equal(damagingSpell.minorAction, false);
+assert.equal(damagingSpell.combatPreparation, false);
+
+// Structured target/range/area/duration/resistance derivation (spell-data.mjs).
+assert.equal(spell.target, "character");
+assert.deepEqual(spell.range, { areas: 2, distance: 30 });
+assert.equal(spell.area, "target");
+assert.equal(spell.duration, "3 minutes (18 rounds)");
+assert.equal(spell.resistance, "neg");
+assert.equal(spell.usesFortitude, false);
 
 const bulletSpell = SW25Importer.parseClassFeature(`
 # Solid Bullet
@@ -66,21 +80,27 @@ Power ③ ④ ⑤ ⑥ ⑦ ⑧ ⑨ ⑩ ⑪ ⑫ Crit
   classId: "artificer-id", className: "Artificer", featureType: "spell"
 });
 assert.equal(bulletSpell.hasPowerTable, true);
-assert.equal(bulletSpell.power, 20);
 assert.equal(bulletSpell.powerTable["3"], 1);
 assert.equal(bulletSpell.powerTable["12"], 10);
 assert.equal(bulletSpell.criticalModifier, 0);
 
 const criticalBullet = SW25Importer.parseClassFeature(`
-# Critical Bullet
+Title: ⏩Critical Bullet - Sword World 2.5 Reference Wiki
+Markdown Content:
+# ⏩Critical Bullet
 Magitech, Level 2
 Power ③ ④ ⑤ ⑥ ⑦ ⑧ ⑨ ⑩ ⑪ ⑫ Crit
 20 1 2 3 4 5 6 7 8 9 10-1
 `, "https://sw25.wikidot.com/spell:critical-bullet", {
   classId: "artificer-id", className: "Artificer", featureType: "spell"
 });
+assert.equal(criticalBullet.name, "⏩Critical Bullet");
 assert.equal(criticalBullet.hasPowerTable, true);
 assert.equal(criticalBullet.criticalModifier, -1);
+assert.equal(criticalBullet.critical, 0, "A signed modifier is not an absolute threshold");
+// ⏩Critical Bullet carries the Minor Action marker (kept in the name).
+assert.equal(criticalBullet.minorAction, true);
+assert.equal(criticalBullet.rank, 0);
 
 const evocation = SW25Importer.parseClassFeature(`
 # Barkmail

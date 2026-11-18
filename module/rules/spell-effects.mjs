@@ -1,4 +1,5 @@
 import { damageApplicationButton } from "../combat/damage-application.mjs";
+import { getSpellDuration, parseSpellNameIdentity, parseSw25SpellDamageAttribute } from "./spell-data.mjs";
 
 const FLAG_SCOPE = "sw25-taka";
 const FLAG_KEY = "timedRegeneration";
@@ -30,6 +31,10 @@ export function isExhaustiveSucking(spell) {
 
 export const exhaustiveSuckingTotal = magicPowerRoll => 18 + (Number(magicPowerRoll) || 0);
 
+// Unique collapsible-detail anchor per card (chat messages accumulate, so a
+// fixed id would always resolve to the FIRST message carrying it).
+let exhaustiveCardCounter = 0;
+
 export async function resolveExhaustiveSucking({ actor, spell, castingClass }) {
   const previous = actor.getFlag(FLAG_SCOPE, "lastMagicPowerRoll");
   if (!previous || previous.criticalFailure || !Number.isFinite(Number(previous.total)) || (previous.classId && String(previous.classId) !== String(castingClass.id))) {
@@ -37,9 +42,11 @@ export async function resolveExhaustiveSucking({ actor, spell, castingClass }) {
     return false;
   }
   const total = exhaustiveSuckingTotal(previous.total);
+  exhaustiveCardCounter += 1;
+  const detailId = `exhaustive-sucking-${exhaustiveCardCounter}`;
   await ChatMessage.create({
     speaker:ChatMessage.getSpeaker({ actor }),
-    content:`<div class="sw25-chat-card sw25-spell-power-result"><h3>${escape(spell.name)}</h3><p><strong>Previous Magic Power roll:</strong> ${Number(previous.total)}</p><p><strong>Damage:</strong> 18 + ${Number(previous.total)}</p><p class="sw25-weapon-total"><strong>Total: ${total} physical damage</strong></p>${damageApplicationButton(total, "physical", false)}<button type="button" data-sw25-chat-action="heal-exhaustive-sucking" data-actor-uuid="${escape(actor.uuid)}" data-healing="${total}"><i class="fas fa-heart"></i> Heal Caster ${total} HP</button><p><em>Do not apply the healing if the target has Poison Immunity.</em></p></div>`
+    content:`<div class="sw25-chat-card sw25-damage-card sw25-spell-damage"><h3>${escape(spell.name)}</h3><div class="sw25-damage-stat" data-target="${detailId}"><div class="sw25-damage-stat-summary" role="button" tabindex="0"><span class="sw25-damage-roll">${Number(previous.total)}</span><span class="sw25-damage-plus">+</span><span class="sw25-damage-bonus">18</span><span class="sw25-damage-equals">=</span><span class="sw25-damage-total">${total}</span></div><div class="sw25-damage-stat-detail" id="${detailId}" style="display:none;"><ul class="sw25-roll-breakdown"><li><strong>Previous Magic Power roll:</strong> ${Number(previous.total)}</li><li><strong>Damage:</strong> 18 + ${Number(previous.total)}</li></ul></div></div><p class="sw25-weapon-total"><strong>Total: ${total} physical damage</strong></p>${damageApplicationButton(total, "physical", false)}<button type="button" data-sw25-chat-action="heal-exhaustive-sucking" data-actor-uuid="${escape(actor.uuid)}" data-healing="${total}"><i class="fas fa-heart"></i> Heal Caster ${total} HP</button><p><em>Do not apply the healing if the target has Poison Immunity.</em></p></div>`
   });
   return true;
 }
@@ -159,16 +166,14 @@ async function requestExhaustiveHealing(message, button) {
 // ── Instant/X spell detection (T5.7) ───────────────────────────────────────
 
 /**
- * Read the Duration value from a spell's metadata (raw text imported from
- * the SW2.5 wiki, e.g. "Duration: Instant" or "Duration: Instant/3 rounds").
+ * Read the STORED duration of a spell (the Effects-engine representation:
+ * the exact normalized text, e.g. "Instant" or "Instant/3 rounds").
+ * Implemented in rules/spell-data.mjs — the single shared reader — and
+ * re-exported here for the Effects engine's existing consumers.
  * @param {object} spell - Spell Item document.
  * @returns {string|null} The duration string, or null when absent.
  */
-export function getSpellDuration(spell) {
-  const metadata = String(spell?.system?.metadata || "");
-  const match = metadata.match(/^duration:\s*(.+)$/im);
-  return match ? match[1].trim() : null;
-}
+export { getSpellDuration } from "./spell-data.mjs";
 
 /**
  * Whether a spell is an Instant/X effect: its duration declares an immediate
@@ -243,33 +248,25 @@ export function getInstantXSpellData(spell) {
 }
 
 // ── Instant/X identity (T5.7-C: DEC-1/DEC-16) ──────────────────────────────
-
-/** Approved rank → Roman numeral table (DEC-16, ranks 1..10). */
-const INSTANT_X_RANK_ROMAN = new Map([
-  ["I", 1], ["II", 2], ["III", 3], ["IV", 4], ["V", 5],
-  ["VI", 6], ["VII", 7], ["VIII", 8], ["IX", 9], ["X", 10]
-]);
-
-/** Full-width Roman numerals (attached form, e.g. "保護Ⅳ"). */
-const INSTANT_X_FULLWIDTH_ROMAN = new Map([
-  ["Ⅰ", 1], ["Ⅱ", 2], ["Ⅲ", 3], ["Ⅳ", 4], ["Ⅴ", 5],
-  ["Ⅵ", 6], ["Ⅶ", 7], ["Ⅷ", 8], ["Ⅸ", 9], ["Ⅹ", 10]
-]);
+//
+// The family/rank parser lives in rules/spell-data.mjs
+// (`parseSpellNameIdentity`) and is shared with the importer, which uses it
+// to populate `system.rank`. No duplicate maps or parsing exist here.
 
 /**
- * Resolve the stacking identity (DEC-1) of an Instant/X spell from its
- * authored name, following DEC-16: `family` is the canonical base name as
- * authored (authoring markers like ⏩/‡/†/△ stay in the family; DEC-1
- * comparison normalizes case at comparison time, never at storage), and
- * `rank` is the parsed version numeral (0 = no numeral).
+ * Resolve the stacking identity (DEC-1) of an Instant/X spell.
  *
- * There is no canonical identity field in the spell schema (`system.school`
- * stores the CASTING CLASS, not a magical school — verified in
- * sw25-importer.mjs), so the authored name is the only available source.
- * The rank is never taken from the spell level.
+ * `family` is the canonical base name as authored (authoring markers like
+ * ⏩/‡/†/△ stay in the family; DEC-1 comparison normalizes case at
+ * comparison time, never at storage). `rank` is the stored integer
+ * `system.rank` (0 = base) when present, falling back to the version numeral
+ * parsed from the authored name via the SHARED parser
+ * `parseSpellNameIdentity` (rules/spell-data.mjs) — the same implementation
+ * the importer uses to populate `system.rank`. The rank is never taken from
+ * the spell level.
  *
- * Parsing rules (validated against all 656 compendium spells: 22 ranked
- * names parse correctly, 0 false positives):
+ * Parsing rules of the shared name parser (validated against all 656
+ * compendium spells: 22 ranked names parse correctly, 0 false positives):
  *   - A trailing attached full-width numeral (Ⅰ..Ⅹ) is a rank.
  *   - A trailing SPACE-SEPARATED ASCII Roman numeral in UPPERCASE
  *     (case-sensitive: "Mana Max" never matches) is a rank.
@@ -279,36 +276,20 @@ const INSTANT_X_FULLWIDTH_ROMAN = new Map([
  * @returns {{family: string, rank: number}}
  */
 export function getInstantXSpellIdentity(spell) {
-  const name = String(spell?.name || "").trim();
-  if (!name) return { family: "", rank: 0 };
-  const fullwidth = name.match(/[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]$/u);
-  if (fullwidth) {
-    return { family: name.slice(0, -1).trim(), rank: INSTANT_X_FULLWIDTH_ROMAN.get(fullwidth[0]) };
-  }
-  // Case-SENSITIVE uppercase (no `i` flag): the numeral must be authored as
-  // an uppercase Roman numeral separated by whitespace.
-  const ascii = name.match(/\s(X|IX|VIII|VII|VI|IV|V|III|II|I)$/);
-  if (ascii) {
-    return { family: name.slice(0, ascii.index).trim(), rank: INSTANT_X_RANK_ROMAN.get(ascii[1]) };
-  }
-  return { family: name, rank: 0 };
+  const parsed = parseSpellNameIdentity(String(spell?.name || "").trim());
+  const storedRank = Number(spell?.system?.rank);
+  const rank = Number.isInteger(storedRank) && storedRank >= 0 ? storedRank : parsed.rank;
+  return { family: parsed.family, rank };
 }
 
 /**
- * Parse the typed damage attribute of a spell from its metadata "Type:"
- * line (e.g. "Type: Poison" → "Poison", "Type: Psychic (Weak)" →
- * "Psychic"). Only the first token is kept: parenthetical qualifiers are
- * weakness annotations, not the damage attribute (DEC-9 `damageType`).
+ * Read the typed damage attribute of a spell. Implemented in
+ * rules/spell-data.mjs (reading the structured `system.damageType.attribute`
+ * field) and re-exported here for the existing consumers.
  * @param {object} spell - Spell Item document.
  * @returns {string|null} The attribute name, or null when absent.
  */
-export function parseSw25SpellDamageAttribute(spell) {
-  const metadata = String(spell?.system?.metadata || "");
-  const match = metadata.match(/^type:\s*(.+)$/im);
-  if (!match) return null;
-  const token = match[1].trim().split(/[\s(]/)[0].trim();
-  return token || null;
-}
+export { parseSw25SpellDamageAttribute } from "./spell-data.mjs";
 
 /**
  * Resolve the combat anchor (D4/T5.2) of the caster of an Instant/X spell:

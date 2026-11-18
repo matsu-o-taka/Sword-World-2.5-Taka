@@ -196,6 +196,7 @@ function setGm() {
 const service = await import("../module/effects/effect-service.mjs");
 const relay = await import("../module/effects/effect-relay.mjs");
 const spellEffects = await import("../module/rules/spell-effects.mjs");
+const spellData = await import("../module/rules/spell-data.mjs");
 const spellCast = await import("../module/rules/spell-cast.mjs");
 const damageApplication = await import("../module/combat/damage-application.mjs");
 const engine = await import("../module/effects/duration-engine.mjs");
@@ -204,6 +205,7 @@ const { registerSw25StackingResolver, initializeEffectService } = service;
 const { applyInstantXPersistentEffect } = spellCast;
 const { damageApplicationButton, initializeDamageApplication } = damageApplication;
 const { getInstantXSpellIdentity, getInstantXSpellData, resolveSw25CasterAnchor } = spellEffects;
+const { normalizeSpellData } = spellData;
 const { processSw25DurationEvent } = engine;
 
 // Production wiring: stacking resolution, service write guards, and the
@@ -221,14 +223,21 @@ const record = label => console.log(`  ${label}`);
 
 // ── Fixtures ───────────────────────────────────────────────────────────────
 
-// Real compendium metadata shapes (sw25-library spells pack).
+// Real compendium metadata shapes (sw25-library spells pack). The fixtures
+// pass through the SHARED `normalizeSpellData` — the same migration logic
+// the actor-sheet drop handler and the test-world migration use — so the
+// spells carry the current schema's structured fields.
 function makeSpell(uuid, name, metadata, extraSystem = {}) {
+  const { system } = normalizeSpellData(
+    { metadata, className: "Divine", ...extraSystem },
+    { name }
+  );
   const spell = {
     uuid,
     id: uuid.split(".").pop(),
     name,
     type: "spell",
-    system: { metadata, school: "Divine", className: "Divine", ...extraSystem }
+    system
   };
   spellCollection.set(uuid, spell);
   return spell;
@@ -341,7 +350,7 @@ const contextWarnings = () => consoleWarnings.filter(line => line.includes("pers
   });
   // DEC-9 damageType: nature from the spell channel, attribute from metadata.
   assert.deepEqual(system.damageType, { nature: "Magical", attribute: "Psychic" });
-  // Identity from the authored name (DEC-1/DEC-16), never from system.school.
+  // Identity from the authored name (DEC-1/DEC-16) and the stored rank.
   assert.equal(system.family, "Shocking Wave");
   assert.equal(system.rank, 0);
   assert.equal(target.effects[0].name, "Shocking Wave", "Canonical document name");
@@ -478,7 +487,9 @@ if (process.env.T57C_DEBUG === "1") {
 
 {
   // Pure identity parsing (validated against the compendium: 22 ranked
-  // names, 0 false positives).
+  // names, 0 false positives). `fieldProtection` carries the STORED rank 2
+  // (normalized from the "Field Protection II" name numeral by the shared
+  // parser); a plain-name object still parses from the name.
   assert.deepEqual(getInstantXSpellIdentity(fieldProtection), { family: "Field Protection", rank: 2 });
   assert.deepEqual(getInstantXSpellIdentity(shockingWave), { family: "Shocking Wave", rank: 0 });
   assert.deepEqual(getInstantXSpellIdentity({ name: "△Take the Lead I" }), { family: "△Take the Lead", rank: 1 });
@@ -489,13 +500,12 @@ if (process.env.T57C_DEBUG === "1") {
   assert.deepEqual(getInstantXSpellIdentity({ name: "‡Fear" }), { family: "‡Fear", rank: 0 });
   assert.deepEqual(getInstantXSpellIdentity({ name: "Freeze" }), { family: "Freeze", rank: 0 });
   // The spell LEVEL is never used as the rank (Field Protection is level 8,
-  // its rank is 2).
+  // its rank is 2), and the STORED integer rank wins over the name numeral.
   assert.equal(fieldProtection.system.level ?? 8, 8);
-  assert.equal(getInstantXSpellIdentity(fieldProtection).rank, 2, "Rank comes from the name numeral, not the level");
-  // system.school (the casting class) is never the family.
-  assert.equal(fieldProtection.system.school, "Divine");
+  assert.equal(getInstantXSpellIdentity(fieldProtection).rank, 2, "Rank comes from the stored structured rank / name numeral, not the level");
+  assert.deepEqual(getInstantXSpellIdentity({ name: "Summon Fairy IV", system: { rank: 6 } }), { family: "Summon Fairy", rank: 6 }, "A stored integer rank overrides the name numeral");
   assert.notEqual(getInstantXSpellIdentity(fieldProtection).family, "Divine");
-  record("case 6: family/rank identity per DEC-1/DEC-16 (name numeral, never level or school)");
+  record("case 6: family/rank identity per DEC-1/DEC-16 (stored rank / name numeral, never level)");
 }
 
 // ── 7. casterUUID and origin preservation ──────────────────────────────────

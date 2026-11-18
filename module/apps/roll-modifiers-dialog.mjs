@@ -33,6 +33,10 @@ export class RollModifiersDialog extends foundry.appv1.api.Application {
     });
     this._diceFormula = String(config.diceFormula ?? "2d6");
     this._submitLabel = String(config.submitLabel ?? "Roll");
+    // Optional flow-specific hint overriding the default wording: the
+    // Spellcasting flow explains that temporary modifiers join the effective
+    // Magic Power of the SV (the roll itself stays 2d6).
+    this._hint = typeof config.hint === "string" && config.hint.trim() !== "" ? config.hint.trim() : null;
     this._resolve = null;
   }
 
@@ -66,6 +70,7 @@ export class RollModifiersDialog extends foundry.appv1.api.Application {
     return {
       diceFormula: this._diceFormula,
       submitLabel: this._submitLabel,
+      hint: this._hint,
       parts: this._parts,
       total,
       totalLabel: signedValue(total)

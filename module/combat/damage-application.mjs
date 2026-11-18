@@ -39,8 +39,8 @@ export function parseWeaknessData(value) {
 export function damageApplicationButton(total, damageType = "physical", includeHalf = true, combatStyleId = null, actorUuid = null) {
   const type = damageType === "magical" ? "magical" : "physical";
   const label = type === "magical" ? "Magical" : "Physical";
-  const combatStyleAttr = combatStyleId ? ` data-combat-style-id="${String(combatStyleId)}"` : "";
-  const actorUuidAttr = actorUuid ? ` data-actor-id="${String(actorUuid)}"` : "";
+  const combatStyleAttr = combatStyleId ? ` data-combat-style-id="${escape(combatStyleId)}"` : "";
+  const actorUuidAttr = actorUuid ? ` data-actor-id="${escape(actorUuid)}"` : "";
   // The casting Success Value does NOT travel on damage buttons: the
   // persistent Instant/X components are created at cast time with the
   // authentic cast SV, so the apply-damage transport has no casting context
@@ -134,19 +134,37 @@ async function requestDamage(button) {
     actor = game.actors.get(targetUuid) ?? (await fromUuid(targetUuid)) ?? null;
   }
   if (!actor) {
-    // Fallback: targeted tokens first, then selected tokens
-    const targeted = [...(game?.user?.targets ?? [])];
-    if (targeted.length) {
-      actor = targeted[0].actor;
+    const candidates = [...(canvas?.tokens?.placeables ?? [])]
+      .filter(token => token.actor && token.actor.type !== "fellow");
+    if (!candidates.length) return ui.notifications.warn("No valid damage targets are available.");
+    const options = candidates.map(token =>
+      `<label class="checkbox"><input type="checkbox" name="target" value="${escape(token.actor.uuid)}"> ${escape(token.name)}</label>`
+    ).join("");
+    const selectedUuids = await new Promise(resolve => new Dialog({
+      title:"Select Damage Target",
+      content:`<form><div class="form-group"><label>Select one or more targets</label><div class="form-fields">${options}</div></div></form>`,
+      buttons:{
+        apply:{ label:"Apply Damage", callback:html => resolve(html.find('[name="target"]:checked').map((_, input) => input.value).get()) },
+        cancel:{ label:"Cancel", callback:() => resolve([]) }
+      },
+      default:"apply",
+      close:() => resolve([])
+    }).render(true));
+    if (!selectedUuids?.length) return;
+    const payloadBase = {
+      action:"apply-damage",
+      total:Number(button.dataset.damage ?? 0),
+      damageType:button.dataset.damageType === "magical" ? "magical" : "physical",
+      factor:Number(button.dataset.damageFactor) === 0.5 ? 0.5 : 1,
+      combatStyleId: button.dataset.combatStyleId ?? null
+    };
+    for (const uuid of selectedUuids) {
+      const selectedActor = await fromUuid(uuid);
+      if (selectedActor) await applyDamageToSelectedActor(selectedActor, payloadBase);
     }
+    return;
   }
-  if (!actor) {
-    const selected = [...(canvas?.tokens?.controlled || [])];
-    if (selected.length) {
-      actor = selected[0].actor;
-    }
-  }
-  if (!actor) return ui.notifications.warn("No se pudo determinar el objetivo del daño. Seleccione o targetee un token.");
+  if (!actor) return ui.notifications.warn("The selected damage target could not be found.");
   if (actor.type === "fellow") return ui.notifications.info("Fellows are immune to damage.");
   const payload = {
     action:"apply-damage",
@@ -156,6 +174,30 @@ async function requestDamage(button) {
     factor:Number(button.dataset.damageFactor) === 0.5 ? 0.5 : 1,
     combatStyleId: button.dataset.combatStyleId ?? null
   };
+  await applyDamageToSelectedActor(actor, payload);
+}
+
+async function applyDamageToSelectedActor(actor, payload) {
+  if (actor.type === "fellow") return ui.notifications.info("Fellows are immune to damage.");
+  if (actor.type === "monster" && !payload.combatStyleId && (actor.system.combatStyles?.length ?? 0) > 1) {
+    const styles = actor.system.combatStyles;
+    const options = styles.map((style, index) =>
+      `<option value="${escape(style.id)}">${escape(monsterSectionLabel(style, index))}</option>`
+    ).join("");
+    const styleId = await new Promise(resolve => new Dialog({
+      title:`Select Damage Section — ${escape(actor.name)}`,
+      content:`<form><div class="form-group"><label>Section</label><select name="combatStyle">${options}</select></div></form>`,
+      buttons:{
+        apply:{ label:"Continue", callback:html => resolve(html.find('[name="combatStyle"]').val()) },
+        cancel:{ label:"Cancel", callback:() => resolve(null) }
+      },
+      default:"apply",
+      close:() => resolve(null)
+    }).render(true));
+    if (!styleId) return;
+    payload.combatStyleId = styleId;
+  }
+  payload.actorUuid = actor.uuid;
   if (actor.isOwner) {
     try {
       // Immediate damage only: the persistent Instant/X components were

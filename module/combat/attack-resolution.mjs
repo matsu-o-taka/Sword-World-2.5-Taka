@@ -42,8 +42,9 @@ export function getMonsterActiveCombatRolls(monster) {
 }
 
 // Read the active/fixed mode for a monster: an explicit override wins;
-// otherwise the per-monster toggle decides.
-function resolveMonsterRollMode(mode, monster) {
+// otherwise the per-monster toggle decides. Shared by weapon and spell
+// resolution so every combat flow applies the same configuration default.
+export function resolveMonsterRollMode(mode, monster) {
   if (mode === "active" || mode === "passive") return mode;
   return getMonsterActiveCombatRolls(monster) ? "active" : "passive";
 }
@@ -95,6 +96,14 @@ export function resolveAttackTarget({ targets, controlled } = {}) {
   const actor = token?.actor ?? token?.document?.actor ?? null;
   if (!actor) return { status: "no-actor", actor: null, token: null };
   return { status: "ok", actor, token };
+}
+
+// Weapon accuracy is always rollable. This helper treats an absent,
+// ambiguous, or inapplicable target as "no comparison" rather than as a
+// reason to block the attack roll. Only a single monster can supply Evasion.
+export function resolveOptionalMonsterAttackTarget(targetState = {}) {
+  const result = resolveAttackTarget(targetState);
+  return result.status === "ok" && result.actor?.type === "monster" ? result.actor : null;
 }
 
 // Human-readable failure reason for a target that cannot be resolved.
@@ -227,6 +236,23 @@ export function attackCardHtml({
   attackerCritFailNote, attackerFailureButton = "", defenseFailureButton = "",
   extraHtml = ""
 }) {
+  const cardId = foundry.utils.randomID?.() ?? globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
+  if (!defenderName) {
+    const detailId = `attack-roll-${cardId}`;
+    return `
+      <div class="sw25-chat-card sw25-attack-card">
+        <h3>${esc(attackerTitle)} — ${esc(attackStatLabel)}</h3>
+        <div class="sw25-attack-comparison">
+          <div class="sw25-attack-stat sw25-attack-side-accuracy" data-target="${detailId}">
+            <div class="sw25-attack-stat-summary" role="button" tabindex="0"><span class="sw25-attack-summary-heading">Accuracy</span><span class="sw25-attack-roll-group"><span class="sw25-attack-roll-label">Roll</span><span class="sw25-attack-roll">${Number(attackNatural) || 0}</span></span><span class="sw25-attack-total-group"><span class="sw25-attack-total-label">Total</span><span class="sw25-attack-total">${signedValue(attackTotal)}</span></span></div>
+            <div class="sw25-attack-stat-detail" id="${detailId}" style="display:none;"><ul class="sw25-roll-breakdown">${attackParts.map(part => `<li>${esc(part.label)}: ${esc(signedValue(part.value))}</li>`).join("")}<li><strong>Origin:</strong> ${esc(attackOrigin)}</li></ul></div>
+          </div>
+        </div>
+        ${attackerCritFailNote ? `<p>${esc(attackerCritFailNote)}</p>` : ""}
+        ${Boolean(attackCriticalFailure) && attackerFailureButton ? `<div class="sw25-attack-failure-register">${attackerFailureButton}</div>` : ""}
+        ${extraHtml}
+      </div>`;
+  }
   const isFumble = Boolean(attackCriticalFailure);
   const isAttackAutoSuccess = !isFumble && Number(attackNatural) === 12;
   const defenseAuto = Boolean(defenseAutomaticSuccess) && !isFumble;
@@ -247,8 +273,9 @@ export function attackCardHtml({
   else { outcomeLabel = "MISS"; outcomeClass = "sw25-attack-miss"; }
 
   const accuracyRoll = Number(attackNatural) || 0;
-  const accuracyBonus = Number(attackTotal) - accuracyRoll;
   const evasionRoll = Number(defenseNatural) || 0;
+  const accuracyDetailId = `attack-accuracy-${cardId}`;
+  const evasionDetailId = `attack-evasion-${cardId}`;
 
   return `
     <div class="sw25-chat-card sw25-attack-card">
@@ -259,14 +286,13 @@ export function attackCardHtml({
       </div>
 
       <div class="sw25-attack-comparison sw25-attack-compare">
-        <div class="sw25-attack-stat" data-target="accuracy-detail">
+        <div class="sw25-attack-stat sw25-attack-side-accuracy" data-target="${accuracyDetailId}">
           <div class="sw25-attack-stat-summary" role="button" tabindex="0">
-            <span class="sw25-attack-roll">(${accuracyRoll})</span>
-            <span class="sw25-attack-bonus">${signedValue(accuracyBonus)}</span>
-            <span class="sw25-attack-equals">=</span>
-            <span class="sw25-attack-total">${signedValue(attackTotal)}</span>
+            <span class="sw25-attack-summary-heading">Accuracy</span>
+            <span class="sw25-attack-roll-group"><span class="sw25-attack-roll-label">Roll</span><span class="sw25-attack-roll">${accuracyRoll}</span></span>
+            <span class="sw25-attack-total-group"><span class="sw25-attack-total-label">Total</span><span class="sw25-attack-total">${signedValue(attackTotal)}</span></span>
           </div>
-          <div class="sw25-attack-stat-detail" id="accuracy-detail" style="display:none;">
+          <div class="sw25-attack-stat-detail" id="${accuracyDetailId}" style="display:none;">
             <ul class="sw25-roll-breakdown">
               ${attackParts.map(p => `<li>${esc(p.label)}: ${esc(signedValue(p.value))}</li>`).join('')}
               <li><strong>Origin:</strong> ${esc(attackOrigin)}</li>
@@ -277,11 +303,11 @@ export function attackCardHtml({
 
         <div class="sw25-attack-vs">vs</div>
 
-        <div class="sw25-attack-stat" data-target="evasion-detail">
+        <div class="sw25-attack-stat sw25-attack-side-evasion" data-target="${evasionDetailId}">
           <div class="sw25-attack-stat-summary" role="button" tabindex="0">
             ${defenseNatural !== null ? `(${evasionRoll})` : esc(signedValue(defenseTotal))}
           </div>
-          <div class="sw25-attack-stat-detail" id="evasion-detail" style="display:none;">
+          <div class="sw25-attack-stat-detail" id="${evasionDetailId}" style="display:none;">
             <ul class="sw25-roll-breakdown">
               ${defenseParts.map(p => `<li>${esc(p.label)}: ${esc(signedValue(p.value))}</li>`).join('')}
               <li><strong>Origin:</strong> ${esc(defenseOrigin)}</li>
@@ -328,13 +354,13 @@ export async function characterWeaponAttackFlow({
   actor, weapon, attackingClass, accuracyParts, targetMonster,
   resolutionMode, promptModifiers = openRollModifiersDialog
 } = {}) {
-  if (targetMonster?.type !== "monster") return { status: "invalid-target" };
+  if (targetMonster && targetMonster.type !== "monster") return { status: "invalid-target" };
 
   // Multi-section monster: prompt the GM to select which section is being targeted.
   // This determines both the Evasion used for the accuracy contest and the
   // combatStyles row that will receive damage.
   let combatStyleId = null;
-  const combatStyles = readMonsterActorCombatStyles(targetMonster);
+  const combatStyles = targetMonster ? readMonsterActorCombatStyles(targetMonster) : [];
   if (combatStyles.length > 1) {
     combatStyleId = await openTargetSelectionDialog({
       title: `Select Section Target — ${targetMonster.name}`,
@@ -349,8 +375,7 @@ export async function characterWeaponAttackFlow({
     if (!combatStyleId) return { status: "cancelled", phases: { dialog: true, roll: false } };
   }
 
-  const defense = await resolveMonsterDefense(targetMonster, resolutionMode, combatStyleId);
-  if (!defense) return { status: "no-defense" };
+  const defense = targetMonster ? await resolveMonsterDefense(targetMonster, resolutionMode, combatStyleId) : null;
 
   const seedParts = [...(accuracyParts ?? []).map(part => ({ ...part, enabled: true, temporary: false }))];
 
@@ -376,16 +401,16 @@ export async function characterWeaponAttackFlow({
   // RAW precedence: a defender Automatic Success wins over everything; a
   // defender fumble lets the attack through; an attacker automatic success
   // always hits unless the defender also automatic-succeeds.
-  const hit = resolveAttackHit({
+  const hit = defense ? resolveAttackHit({
     attackCriticalFailure: attackerCriticalFailure,
     attackNatural: natural,
     attackTotal: Number(roll.total),
     defenseTotal: defense.total,
     defenseCriticalFailure: defense.criticalFailure,
     defenseAutomaticSuccess: defense.automaticSuccess
-  });
+  }) : null;
 
-  const damageButtonHtml = hit && !isGunLikeWeapon(weapon) ? `
+  const damageButtonHtml = (hit !== false) && !isGunLikeWeapon(weapon) ? `
     <button type="button" class="sw25-attack-damage"
       data-sw25-chat-action="roll-critical-damage"
       data-actor-id="${esc(actor?.id)}"
@@ -407,16 +432,16 @@ export async function characterWeaponAttackFlow({
       attackParts: parts,
       attackTotal: Number(roll.total),
       attackCriticalFailure: Boolean(attackerCriticalFailure),
-      defenderName: targetMonster?.name,
+      defenderName: defense ? targetMonster?.name : null,
       defenseStatLabel: "Evasion",
-      defenseOrigin: defense.mode === "passive"
+      defenseOrigin: defense ? defense.mode === "passive"
         ? `fixed (${signedValue(defense.total)})`
-        : `active roll (2d6 ${signedValue(defense.base)})`,
-      defenseNatural: defense.natural,
-      defenseParts: [{ label: "Base Evasion", value: defense.base }],
-      defenseTotal: defense.total,
-      defenseCriticalFailure: Boolean(defense.criticalFailure),
-      defenseAutomaticSuccess: Boolean(defense.automaticSuccess),
+        : `active roll (2d6 ${signedValue(defense.base)})` : "",
+      defenseNatural: defense?.natural ?? null,
+      defenseParts: defense ? [{ label: "Base Evasion", value: defense.base }] : [],
+      defenseTotal: defense?.total,
+      defenseCriticalFailure: Boolean(defense?.criticalFailure),
+      defenseAutomaticSuccess: Boolean(defense?.automaticSuccess),
       attackerCritFailNote: attackerCriticalFailure ? "Critical failure: the attack is an automatic miss." : "",
       attackerFailureButton: automaticFailureButton(actor),
       extraHtml: damageButtonHtml
@@ -430,10 +455,10 @@ export async function characterWeaponAttackFlow({
     attackTotal: Number(roll.total),
     attackNatural: natural,
     attackAutomaticCritical,
-    defenseTotal: defense.total,
-    defenseMode: defense.mode,
-    defenseCriticalFailure: defense.criticalFailure,
-    defenseAutomaticSuccess: Boolean(defense.automaticSuccess),
+    defenseTotal: defense?.total ?? null,
+    defenseMode: defense?.mode ?? null,
+    defenseCriticalFailure: Boolean(defense?.criticalFailure),
+    defenseAutomaticSuccess: Boolean(defense?.automaticSuccess),
     attackerCriticalFailure
   };
 }

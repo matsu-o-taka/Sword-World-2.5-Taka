@@ -14,6 +14,8 @@ import {
   characterHPMaximum,
   characterMPMaximum,
   characterResourceMaximum,
+  characterResourceValue,
+  updateCharacterResourceValue,
   wizardClassLevels
 } from "../module/rules/resources.mjs";
 import {
@@ -84,6 +86,40 @@ assert.equal(characterMPMaximum({ abilityBases: { mind: 5 } }, []), 5, "MP max w
 function characterAdventurerLevelGuard(items) {
   return Array.from(items).reduce((highest, item) => Math.max(highest, Number(item.system.level ?? 0)), 0);
 }
+
+console.log("=== current-resource normalization and scalar writes ===");
+
+const currentCases = [
+  [20, 20],
+  ["20", 20],
+  [[20], 20],
+  [[20, 20], 20],
+  [["20", "20"], 20],
+  [[null, 30, null, null], 30],
+  [[null, "", "17", 19], 17],
+  [[NaN, "bad", 12], 12]
+];
+for (const [caseIndex, [raw, expected]] of currentCases.entries()) {
+  const actor = stubActor({ system: { mp: { value: Array.isArray(raw) ? [...raw] : raw } } });
+  assert.equal(characterResourceValue(actor, "mp"), expected, `current MP normalization case ${caseIndex + 1}`);
+  if (Array.isArray(raw)) assert.deepEqual(actor.system.mp.value, raw, "reading never mutates the persisted legacy array");
+}
+for (const raw of [[], null, undefined, "", "bad", NaN, Infinity]) {
+  const actor = stubActor({ system: { mp: { value: raw } } });
+  assert.equal(characterResourceValue(actor, "mp"), 0, "missing and non-finite current values safely become zero");
+}
+assert.equal(characterResourceValue(null, "mp"), 0, "no actor current value → 0");
+assert.equal(characterResourceValue(stubActor(), "spell"), 0, "unknown current resource → 0");
+
+const scalarWriteActor = stubActor({ system: { mp: { value: [20, 20] } } });
+await updateCharacterResourceValue(scalarWriteActor, "mp", "24", { render: false });
+assert.equal(scalarWriteActor.system.mp.value, 24, "the writer persists a numeric scalar");
+assert.equal(typeof scalarWriteActor.system.mp.value, "number", "the persisted value is not a string or array");
+assert.deepEqual(scalarWriteActor.updates[0], { data: { "system.mp.value": 24 }, options: { render: false } }, "the writer uses only the canonical path and forwards update options");
+await updateCharacterResourceValue(scalarWriteActor, "mp", [null, "", "19", 22]);
+assert.equal(scalarWriteActor.system.mp.value, 19, "legacy array input is normalized before persistence");
+await updateCharacterResourceValue(scalarWriteActor, "mp", "bad");
+assert.equal(scalarWriteActor.system.mp.value, 0, "invalid UI input can never persist NaN");
 
 console.log("=== unified accessor (characterResourceMaximum) ===");
 
@@ -180,6 +216,21 @@ assert.deepEqual(
   "decreased maxima clamp current values to base + effect modifiers (7 + 2 HP, 9 MP)"
 );
 assert.deepEqual(decreaseActor.updates[0].options, {}, "value-clamping writes re-render open sheets");
+
+const legacyArrayDecrease = stubActor({
+  system: {
+    abilityBases: { body: 4, mind: 6 },
+    hp: { max: 7, value: 5 },
+    mp: { max: 30, value: [28, 28] }
+  },
+  items: [classItem("Wizard", "wizard", 1)]
+});
+await syncActorMaxima(legacyArrayDecrease);
+assert.deepEqual(
+  legacyArrayDecrease.updates[0].data,
+  { "system.mp.max": 9, "system.mp.value": 9 },
+  "a legacy MP array is normalized before applying a persistent-maximum decrease"
+);
 
 const fittingActor = stubActor({
   system: {

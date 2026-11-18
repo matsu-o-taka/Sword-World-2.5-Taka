@@ -2,6 +2,7 @@ import { parseMonsterPage, validateMonsterProfile } from "./monster-parser.mjs";
 import { parseClassSpecificItems, parseEquipmentTables } from "./equipment-parser.mjs";
 import { defaultFeatureDefenseModifier } from "../rules/feature-defense.mjs";
 import { selectConcealedMainSection } from "../combat/concealed-main-section.mjs";
+import { deriveSpellFields } from "../rules/spell-data.mjs";
 
 export class SW25Importer {
   static async open(actor = null) {
@@ -175,7 +176,7 @@ export class SW25Importer {
     const existingNames = new Set(actor.items
       .filter(item => item.type === "spell" && (
         String(item.system.classId || "") === classId ||
-        (!item.system.classId && String(item.system.className || item.system.school || "").toLowerCase() === className.toLowerCase())
+        (!item.system.classId && String(item.system.className || "").toLowerCase() === className.toLowerCase())
       ))
       .map(item => normalize(item.name)));
     const existingUrls = new Set(actor.items
@@ -330,57 +331,116 @@ export class SW25Importer {
       !/^(?:this is sw2\.0 content|source:|click here|return to list)/i.test(line) &&
       !new RegExp(`^(?:${options.featureType || "ability"}),`, "i").test(line)
     ).join("\n\n").trim();
-    return {
+    // Spell Items carry the structured data model (rules/spell-data.mjs).
+    // The shared derivation populates rank/resistance/target/range/area/
+    // duration/damageType and the casting markers; unrecognized source
+    // values are REPORTED, never silently assigned an invented meaning.
+    // Spell Items no longer receive `featureType`, `cost` or `resourceData`.
+    // Their Power is retained as the catalog-row selector.
+    const isSpellImport = String(options.featureType || "") === "spell";
+    const spellFields = isSpellImport
+      ? deriveSpellFields({ name, metadata, specialDamageBands, hasPowerTable })
+      : null;
+    if (spellFields?.warnings?.length) {
+      console.warn(`Sword World 2.5 | Spell "${name}" has unrecognized source values (stored as null):`, spellFields.warnings);
+    }
+    const parsed = {
       name,
-      type: options.featureType === "spell" ? "spell" : "ability",
+      type: isSpellImport ? "spell" : "ability",
       classId: options.classId || "",
       className: options.className || "",
-      featureType: options.featureType || "ability",
       requirement,
-      cost,
       mpCost: Number(String(mp).match(/\d+/)?.[0] || 0),
-      power: hasPowerTable ? Number(powerMatch[1]) : 0,
+      power: hasPowerTable ? Number(powerMatch[1]) : null,
       powerTable,
       critical,
       criticalModifier,
       hasPowerTable,
       specialDamageBands,
       metadata,
-      resourceData,
       description,
       sourceUrl: url
     };
+    if (isSpellImport) {
+      Object.assign(parsed, {
+        rank: spellFields.rank,
+        resistance: spellFields.resistance,
+        usesFortitude: spellFields.usesFortitude,
+        target: spellFields.target,
+        range: spellFields.range,
+        area: spellFields.area,
+        duration: spellFields.duration,
+        damageType: spellFields.damageType,
+        minorAction: spellFields.minorAction,
+        combatPreparation: spellFields.combatPreparation
+      });
+    } else {
+      Object.assign(parsed, {
+        featureType: options.featureType || "ability",
+        cost,
+        resourceData
+      });
+    }
+    return parsed;
   }
 
   static async createClassFeature(parsed, actor) {
+    const isSpell = parsed.type === "spell";
     const system = {
       source: "class",
       classId: parsed.classId,
       className: parsed.className,
-      featureType: parsed.featureType,
       requirement: parsed.requirement,
-      cost: parsed.cost,
       mpCost: parsed.mpCost,
-      power: parsed.power,
       powerTable: parsed.powerTable,
       critical: parsed.critical,
       criticalModifier: parsed.criticalModifier,
       hasPowerTable: parsed.hasPowerTable,
       specialDamageBands: parsed.specialDamageBands || [],
-      school: parsed.className,
       level: Number(parsed.level ?? String(parsed.requirement).match(/\d+/)?.[0] ?? 1),
       metadata: parsed.metadata,
-      resourceData: parsed.resourceData,
       description: parsed.description,
       sourceUrl: parsed.sourceUrl
     };
+    if (isSpell) {
+      // New Spell schema: structured fields only — Power is retained as the
+      // catalog-row selector; school/cost/featureType/resourceData are omitted.
+      Object.assign(system, {
+        power: parsed.power ?? null,
+        rank: Number.isInteger(parsed.rank) && parsed.rank >= 0 ? parsed.rank : 0,
+        resistance: parsed.resistance ?? null,
+        usesFortitude: parsed.usesFortitude === true,
+        target: parsed.target ?? null,
+        range: parsed.range ?? null,
+        area: parsed.area ?? null,
+        duration: parsed.duration ?? null,
+        damageType: parsed.damageType ?? null,
+        minorAction: parsed.minorAction === true,
+        combatPreparation: parsed.combatPreparation === true
+      });
+    } else {
+      // Ability Items keep their established fields unchanged.
+      Object.assign(system, {
+        featureType: parsed.featureType || "ability",
+        cost: parsed.cost,
+        resourceData: parsed.resourceData,
+        school: parsed.className
+      });
+    }
     if (!actor) return Item.create({ name:parsed.name, type:parsed.type, system });
     const existing = actor.items.find(item =>
       item.type === parsed.type && item.name.toLowerCase() === parsed.name.toLowerCase() &&
       String(item.system.classId || "") === String(parsed.classId || "")
     );
     if (existing) {
-      await existing.update(Object.fromEntries(Object.entries(system).map(([key, value]) => [`system.${key}`, value])));
+      const update = Object.fromEntries(Object.entries(system).map(([key, value]) => [`system.${key}`, value]));
+      if (isSpell) {
+        // Spell schema migration on refresh: drop the obsolete fields.
+        for (const key of ["school", "cost", "featureType", "resourceData"]) {
+          update[`system.-=${key}`] = null;
+        }
+      }
+      await existing.update(update);
       return existing;
     }
     const [created] = await actor.createEmbeddedDocuments("Item", [{ name: parsed.name, type: parsed.type, system }]);
