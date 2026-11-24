@@ -325,6 +325,8 @@
       "range": null,
       "area": null,
       "duration": null,
+      "durationData": null,
+      "effectType": null,
       "damageType": null,
       "minorAction": false,
       "combatPreparation": false,

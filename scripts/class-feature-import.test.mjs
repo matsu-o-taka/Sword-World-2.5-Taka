@@ -94,13 +94,66 @@ Power ③ ④ ⑤ ⑥ ⑦ ⑧ ⑨ ⑩ ⑪ ⑫ Crit
 `, "https://sw25.wikidot.com/spell:critical-bullet", {
   classId: "artificer-id", className: "Artificer", featureType: "spell"
 });
-assert.equal(criticalBullet.name, "⏩Critical Bullet");
+assert.equal(criticalBullet.name, "Critical Bullet", "Phase 2: stored spell name is canonical — the leading ⏩ is authoring metadata");
 assert.equal(criticalBullet.hasPowerTable, true);
 assert.equal(criticalBullet.criticalModifier, -1);
 assert.equal(criticalBullet.critical, 0, "A signed modifier is not an absolute threshold");
-// ⏩Critical Bullet carries the Minor Action marker (kept in the name).
+// ⏩Critical Bullet carries the Minor Action marker (persisted as the boolean).
 assert.equal(criticalBullet.minorAction, true);
 assert.equal(criticalBullet.rank, 0);
+
+// ── Phase 2: canonical spell names, durationData persistence and the
+// canonical duplicate/refresh lookup at the creation points. ────────────────
+
+const quickShieldSpell = SW25Importer.parseClassFeature(`
+Title: ⏩Quick Shield - Sword World 2.5 Reference Wiki
+Markdown Content:
+# ⏩Quick Shield
+Sorcerer, Level 1
+MP: 4
+Target: Caster
+Range/Area: Caster
+Duration: 3 rounds
+Resistance: None
+Creates a barrier around the caster.
+`, "https://sw25.wikidot.com/spell:quick-shield", {
+  classId: "sorcerer-id", className: "Sorcerer", featureType: "spell"
+});
+assert.equal(quickShieldSpell.name, "Quick Shield", "Phase 2: spell imports store the canonical name");
+assert.equal(quickShieldSpell.minorAction, true, "The ⏩ metadata is persisted as the boolean");
+assert.equal(quickShieldSpell.combatPreparation, false);
+assert.equal(quickShieldSpell.duration, "3 rounds");
+assert.deepEqual(quickShieldSpell.durationData, {
+  raw: "3 rounds",
+  immediate: false,
+  persistent: { scale: "rounds", amount: 3, unit: "rounds", sourceUnit: "rounds", sourceAmount: 3, nonIntegerRounds: false }
+}, "spell imports persist the structured durationData");
+
+{
+  // The duplicate/refresh lookup compares CANONICAL names on BOTH sides:
+  // an existing markered item is found by a now-canonical parse, and the
+  // created spell carries the canonical name + durationData.
+  globalThis.Item = globalThis.Item || {};
+  globalThis.Item.create = async data => ({ ...data, id: "item-created" });
+  const existingMarkered = {
+    name: "⏩Quick Shield", type: "spell",
+    system: { classId: "sorcerer-id" },
+    update: async () => {}
+  };
+  const refreshActor = { items: [existingMarkered] };
+  const refreshed = await SW25Importer.createClassFeature(quickShieldSpell, refreshActor);
+  assert.equal(refreshed, existingMarkered, "the markered existing spell is found by canonical comparison (refresh path)");
+
+  const createdActor = {
+    items: [],
+    createEmbeddedDocuments: async (type, docs) => [{ ...docs[0], id: "item-created-2" }]
+  };
+  const created = await SW25Importer.createClassFeature(quickShieldSpell, createdActor);
+  assert.equal(created.name, "Quick Shield", "the created spell carries the canonical name");
+  assert.equal(created.system.minorAction, true, "the created spell keeps the marker boolean");
+  assert.deepEqual(created.system.durationData, quickShieldSpell.durationData, "the created spell persists durationData");
+  console.log("  PASS: importer creation points are canonical (name, durationData, lookup)");
+}
 
 const evocation = SW25Importer.parseClassFeature(`
 # Barkmail

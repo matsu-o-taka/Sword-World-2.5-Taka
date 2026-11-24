@@ -28,10 +28,11 @@
 //      tie means the target wins. Resistance TYPES (Can't/None/Optional/
 //      Neg/Half/Temporary), their difficulties and their rolls live ONLY
 //      here — the effect engine never sees them.
-//   7. Spell effects and consequences. The persistent Instant/X components
-//      are created AS A CONSEQUENCE OF THE CAST (never when Apply Damage is
-//      pressed) with the AUTHENTIC cast SV (0 for the no-check modalities).
-//      A resisted target never receives the persistent component.
+//   7. Spell effects and consequences. Explicitly modeled immediate Instant/X
+//      components resolve as part of casting; their transient data never enters
+//      an ActiveEffect. The persistent component is created AS A CONSEQUENCE
+//      OF THE CAST (never when Apply Damage is pressed) with the AUTHENTIC cast
+//      SV (0 for no-check modalities). A resisted target receives neither.
 //   8. Damage, when the spell deals it, is resolved through the SHARED Power
 //      Table procedure (rules/spell-damage.mjs) and is fully independent of
 //      the Spellcasting check: a Power Table fumble is a damage fumble, not
@@ -79,7 +80,16 @@ import {
   resolveSw25CasterAnchor
 } from "./spell-effects.mjs";
 import { requestSw25EffectOperation } from "../effects/effect-relay.mjs";
-import { getSpellResistance, spellDamageNature as spellDataNature } from "./spell-data.mjs";
+import {
+  collectCancellationCandidates,
+  collectCancellationRemovalGroup,
+  effectRecordedSuccessValue,
+  isDispelMagicSpell,
+  isSharedSpaceEffect,
+  resolveCancellationAttempt
+} from "../effects/effect-cancellation.mjs";
+import { SW25_EFFECT_SCOPES } from "../effects/effect-model.mjs";
+import { canonicalSpellName, getSpellResistance, spellDamageNature as spellDataNature } from "./spell-data.mjs";
 import {
   automaticFailureButton,
   criticalFailureHTML,
@@ -560,6 +570,332 @@ function activeSummary(target, outcome, resistanceType, defenseCharacteristic) {
   return targetResolutionSummary(target, outcome, resistanceType, defenseCharacteristic);
 }
 
+// ── Dispel Magic forced removal (T6.1/T6.2, DEC-7) ─────────────────────────
+//
+// Dispel Magic's printed target is "1 spell", not a creature: the normal
+// target-resistance phase does NOT run (the user-approved reading of the
+// printed `Resistance: Neg` — the only opposed check is the Success Value
+// comparison of CR I pp. 166-167). The selected tokens identify the effect
+// OWNERS; the cast can remove exactly ONE effect in total (CR I p. 167:
+// "only one magic or effect can be removed").
+//
+// T6.1 corrections:
+//   - The targeted effect is DECLARED BEFORE the Spellcasting check (CR I
+//     p. 167: "The removing side must declare in advance which effect they
+//     want to remove"), so the chooser never runs with the attempt's SV
+//     already known.
+//   - Passive Success Values are NEVER shown before the attempt, and
+//     `system.gmOnly` effects are invisible to non-GM users throughout the
+//     whole flow (selection AND result card).
+//   - The declaration transports only `{actorUuid, effectId}`; the effect is
+//     re-validated against the CURRENT documents when the result is
+//     processed, so a stale or forged selection removes nothing.
+
+function cancellationEffectName(effect) {
+  return effect?.name ?? effect?.system?.family ?? "Effect";
+}
+
+/** The declaration of one effect: an opaque reference, never the document. */
+function cancellationSelection(candidate) {
+  return { actorUuid: candidate?.target?.uuid ?? null, effectId: candidate?.effect?.id ?? null };
+}
+
+/**
+ * The eligible and ineligible system effects of the selected owners.
+ * `gmOnly` effects are filtered out for non-GM users BEFORE any reporting, so
+ * neither the declaration list nor the result card can reveal them.
+ */
+function collectDispelCandidates(owners) {
+  const includeGmOnly = game?.user?.isGM === true;
+  const eligible = [];
+  const ineligible = [];
+  const emptyOwners = [];
+  for (const target of owners) {
+    const candidates = collectCancellationCandidates(target, "dispel", undefined, { includeGmOnly });
+    if (!candidates.length) {
+      emptyOwners.push(target);
+      continue;
+    }
+    for (const candidate of candidates) {
+      const entry = { target, effect: candidate.effect, eligibility: candidate.eligibility };
+      if (candidate.eligibility.eligible) eligible.push(entry);
+      else ineligible.push(entry);
+    }
+  }
+  return { eligible, ineligible, emptyOwners };
+}
+
+/**
+ * Default declaration dialog. It runs BEFORE the roll and lists only effect
+ * names and owners — never a Success Value. Cancelling the dialog aborts the
+ * cast before the MP cost; "Do not remove any" casts without a declaration.
+ */
+async function defaultDeclareCancellationEffect({ candidates }) {
+  const DialogV2 = foundry?.applications?.api?.DialogV2;
+  if (typeof DialogV2?.wait !== "function") return { selection: null };
+  const buttons = candidates.map((candidate, index) => ({
+    action: `effect-${index}`,
+    label: `${escape(candidate.target?.name ?? "Target")}: ${escape(cancellationEffectName(candidate.effect))}`
+  }));
+  buttons.push({ action: "none", label: "Do not remove any" });
+  const answer = await DialogV2.wait({
+    window: { title: "Dispel Magic" },
+    modal: true,
+    content: "<p>Declare the one effect targeted by <strong>Dispel Magic</strong> BEFORE the Spellcasting check (CR I p. 167). The effects' Success Values are not shown.</p>",
+    buttons
+  });
+  if (answer === "none") return { selection: null };
+  const index = typeof answer === "string" && answer.startsWith("effect-")
+    ? Number.parseInt(answer.slice("effect-".length), 10)
+    : -1;
+  if (!Number.isInteger(index) || index < 0 || index >= candidates.length) return { cancelled: true };
+  return { selection: cancellationSelection(candidates[index]) };
+}
+
+/**
+ * Declare the single effect a Dispel Magic cast targets, BEFORE the check.
+ * @param {object} input
+ * @param {Actor[]} input.targets - Effect owners.
+ * @param {object} [input.dialogs] - `declareEffect({ candidates })` override
+ *   returning `{selection: {actorUuid, effectId}|null}` or `{cancelled:true}`.
+ * @returns {Promise<{cancelled: boolean, selection: object|null}>}
+ */
+export async function declareDispelCancellation({ targets, dialogs = {} } = {}) {
+  const owners = (targets ?? []).filter(Boolean);
+  const { eligible } = collectDispelCandidates(owners);
+  if (!eligible.length) return { cancelled: false, selection: null };
+  const declareEffect = dialogs.declareEffect || defaultDeclareCancellationEffect;
+  const answer = await declareEffect({ candidates: eligible });
+  if (answer?.cancelled === true) return { cancelled: true, selection: null };
+  const selection = answer?.selection ?? null;
+  if (!selection || typeof selection.actorUuid !== "string" || typeof selection.effectId !== "string") {
+    return { cancelled: false, selection: null };
+  }
+  return { cancelled: false, selection };
+}
+
+/**
+ * Fallback of CR I p. 167 when the effect's original Success Value was not
+ * recorded: the value is determined AGAIN at cancellation time. The GM enters
+ * the re-determined value; an empty/invalid answer removes nothing (the value
+ * is never silently replaced by 0).
+ */
+async function defaultRecoverCancellationSuccessValue({ target, effect }) {
+  const DialogV2 = foundry?.applications?.api?.DialogV2;
+  if (typeof DialogV2?.wait !== "function") return null;
+  return DialogV2.wait({
+    window: { title: "Dispel Magic — Success Value not recorded" },
+    modal: true,
+    content: `<p>The original Success Value of <strong>${escape(cancellationEffectName(effect))}</strong> (${escape(target?.name ?? "Target")}) was not recorded. Determine it again now (CR I p. 167) and enter the result. Without a value, nothing is removed.</p><p><label>Re-determined Success Value <input type="number" name="successValue" min="0" step="1" value="0"></label></p>`,
+    buttons: [
+      {
+        action: "submit",
+        label: "Use this Success Value",
+        callback: (_event, button) => {
+          const value = Number(button?.form?.elements?.successValue?.value);
+          return Number.isInteger(value) && value >= 0 ? value : null;
+        }
+      },
+      { action: "none", label: "Do not remove", callback: () => null }
+    ]
+  });
+}
+
+function cancellationStatusLine(target, effectName, text, { cancelled = false, pending = false, ineligible = true } = {}) {
+  const statusClass = pending
+    ? "sw25-resistance-pending"
+    : cancelled
+      ? "sw25-resistance-affected"
+      : "sw25-resistance-resisted";
+  return {
+    target,
+    cancellation: true,
+    cancellationEligible: !ineligible,
+    countsForOutcome: false,
+    selected: false,
+    cancelled,
+    resisted: false,
+    pending: false,
+    automaticFailure: false,
+    automaticSuccess: false,
+    halfDamage: false,
+    effectsNullified: false,
+    summary: `<strong>${escape(target?.name ?? "Target")}:</strong> ${escape(effectName)} — ${text}`,
+    statusClass
+  };
+}
+
+/**
+ * Remove the representations of the declared effect through the
+ * GM-authoritative EffectService path. A `/Space` casting removes every
+ * representation of the same `castId`; anything else removes exactly one.
+ */
+async function removeCancellationMembers(members) {
+  const removed = [];
+  const failures = [];
+  for (const member of members) {
+    const removal = await requestSw25EffectOperation("remove", { actorUuid: member.target.uuid, effectId: member.effect.id });
+    if (removal?.ok === true) removed.push(member);
+    else failures.push({ member, removal });
+  }
+  return { removed, failures };
+}
+
+/** Owners scanned for a `/Space` casting: every Actor, not only the targets. */
+function cancellationRemovalOwners(owners, shared) {
+  if (!shared) return owners;
+  const worldActors = [...(game?.actors ?? [])];
+  return worldActors.length ? worldActors : owners;
+}
+
+/**
+ * Resolve a Dispel Magic cast against the DECLARED effect of the selected
+ * effect owners. Ineligible effects are reported and NEVER compared; the
+ * declaration is re-validated against the current documents, the stored SV is
+ * compared strictly (re-determined first when it was never recorded), and
+ * only a beaten effect is removed through the GM-authoritative EffectService
+ * `remove` operation.
+ *
+ * @param {object} input
+ * @param {Actor[]} input.targets - Effect owners (selected tokens).
+ * @param {number} input.successValue - The cast's Success Value.
+ * @param {boolean} [input.automaticSuccess=false] - Natural double 6.
+ * @param {{actorUuid: string, effectId: string}|null} [input.declared] - The
+ *   effect declared BEFORE the roll; null removes nothing.
+ * @param {object} [input.dialogs] - `recoverSuccessValue({target, effect})`
+ *   override for the unrecorded-SV fallback (CR I p. 167).
+ * @returns {Promise<Array<object>>} Presentation results for the cast card.
+ */
+export async function resolveDispelCancellation({ targets, successValue, automaticSuccess = false, declared = null, dialogs = {} } = {}) {
+  const results = [];
+  const owners = (targets ?? []).filter(Boolean);
+  if (!owners.length) {
+    results.push({
+      target: null,
+      cancellation: true,
+      cancellationEligible: false,
+      countsForOutcome: false,
+      selected: false,
+      cancelled: false,
+      resisted: false,
+      pending: false,
+      automaticFailure: false,
+      automaticSuccess: false,
+      halfDamage: false,
+      effectsNullified: false,
+      statusClass: "sw25-resistance-pending",
+      summary: "<strong>Dispel Magic:</strong> no effect owner was targeted; no effect was removed. Select the token carrying the effect."
+    });
+    return results;
+  }
+
+  // Eligibility first: ineligible effects are reported and never compared.
+  const { eligible, ineligible, emptyOwners } = collectDispelCandidates(owners);
+  for (const target of emptyOwners) {
+    results.push(cancellationStatusLine(target, "No effects", "there is no system effect to target.", { pending: true }));
+  }
+  for (const candidate of ineligible) {
+    results.push(cancellationStatusLine(
+      candidate.target,
+      cancellationEffectName(candidate.effect),
+      `cannot be removed (${escape(candidate.eligibility.reasons.join(" "))}).`,
+      { pending: true }
+    ));
+  }
+  const reportUntargeted = except => {
+    for (const candidate of eligible.filter(entry => entry !== except)) {
+      results.push(cancellationStatusLine(candidate.target, cancellationEffectName(candidate.effect), "was not targeted and remains in place.", { pending: true, ineligible: false }));
+    }
+  };
+  if (!eligible.length) return results;
+
+  // CR I p. 167: "only one magic or effect can be removed", and the effect is
+  // declared in advance. Without a declaration nothing is compared.
+  if (!declared) {
+    reportUntargeted(null);
+    return results;
+  }
+
+  // Re-validate the declaration against the CURRENT documents: an unknown,
+  // stale, hidden or ineligible reference is rejected, never trusted.
+  const chosen = eligible.find(candidate =>
+    candidate.target?.uuid === declared.actorUuid && candidate.effect?.id === declared.effectId);
+  if (!chosen) {
+    const owner = owners.find(target => target?.uuid === declared.actorUuid) ?? null;
+    results.push(cancellationStatusLine(
+      owner,
+      "Declared effect",
+      "the declared effect is no longer a valid target of this cast (it was removed, is not eligible, or is not visible to you). Nothing was removed.",
+      { pending: true }
+    ));
+    reportUntargeted(null);
+    return results;
+  }
+
+  // CR I p. 167 fallback: an unrecorded original SV is determined again at
+  // cancellation time. It is never silently replaced by 0.
+  let reDetermined = null;
+  if (automaticSuccess !== true && effectRecordedSuccessValue(chosen.effect.system) === null) {
+    const recover = dialogs.recoverSuccessValue || defaultRecoverCancellationSuccessValue;
+    reDetermined = await recover({ target: chosen.target, effect: chosen.effect, mechanism: "dispel" });
+    if (!Number.isInteger(reDetermined) || reDetermined < 0) {
+      results.push(cancellationStatusLine(
+        chosen.target,
+        cancellationEffectName(chosen.effect),
+        "its original Success Value is not recorded and no re-determined value was provided (CR I p. 167). It was NOT treated as 0; nothing was removed.",
+        { pending: true, ineligible: false }
+      ));
+      reportUntargeted(chosen);
+      return results;
+    }
+  }
+
+  const attempt = resolveCancellationAttempt({
+    mechanism: "dispel",
+    attemptSuccessValue: successValue,
+    system: chosen.effect.system,
+    automaticSuccess,
+    effectSuccessValue: reDetermined ?? undefined
+  });
+  let cancelled = false;
+  let removalNote = "";
+  if (attempt.cancelled) {
+    const shared = isSharedSpaceEffect(chosen.effect.system);
+    const group = collectCancellationRemovalGroup(chosen, cancellationRemovalOwners(owners, shared));
+    const { removed, failures } = await removeCancellationMembers(group.members);
+    cancelled = failures.length === 0 && removed.length > 0;
+    if (failures.length) {
+      removalNote = group.members.length === 1
+        ? ` The removal failed (${escape(failures[0].removal?.code ?? failures[0].removal?.error ?? "unknown error")}).`
+        : ` The removal failed (${failures.map(failure => `${escape(failure.member.target?.name ?? "Target")}: ${escape(failure.removal?.code ?? failure.removal?.error ?? "unknown error")}`).join("; ")}).`;
+    }
+    if (group.incomplete) {
+      removalNote += " Only the declared representation could be identified: the casting has no recorded castId, so the other /Space representations were NOT removed.";
+    } else if (shared && removed.length > 1) {
+      removalNote += ` The /Space spell is one effect for the whole area: its ${removed.length} representations were removed (CR I p. 167).`;
+    }
+  }
+  results.push({
+    ...cancellationStatusLine(
+      chosen.target,
+      cancellationEffectName(chosen.effect),
+      `${escape(attempt.reason)}${removalNote}`,
+      { cancelled }
+    ),
+    cancellationEligible: true,
+    countsForOutcome: true,
+    selected: true,
+    cancelled,
+    resisted: !cancelled,
+    attemptSuccessValue: Number(successValue),
+    effectSuccessValue: attempt.effectSuccessValue,
+    automaticSuccess: attempt.automaticSuccess,
+    automaticFailure: false
+  });
+  reportUntargeted(chosen);
+  return results;
+}
+
 // ── Instant/X persistent components at CAST time ───────────────────────────
 
 /**
@@ -572,6 +908,35 @@ function activeSummary(target, outcome, resistanceType, defenseCharacteristic) {
  */
 export function spellDamageNature(spell) {
   return spellDataNature(specialDamageBands(spell), spell?.system?.hasPowerTable);
+}
+
+/**
+ * Identity of ONE casting (T6.1/DEC-8): every effect created by this cast
+ * shares it, so separate castings of the same spell stay distinguishable even
+ * when their family/rank coincide, and a `/Space` cast can be removed as the
+ * single area effect it is (CR I p. 167).
+ * @returns {string}
+ */
+function newCastId() {
+  const randomId = globalThis.foundry?.utils?.randomID;
+  const suffix = typeof randomId === "function"
+    ? randomId()
+    : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+  return `cast-${suffix}`;
+}
+
+/**
+ * Target selection mode of the spell for the forced-removal area rule
+ * (CR I pp. 161-162/167): the structured `target.selection` authored by the
+ * importer ("space" | "all" | "limited"). Non-area targets and unrecorded
+ * selections carry no scope, and their effects stay individual.
+ * @param {object} spell - Spell Item document.
+ * @returns {string|null}
+ */
+function spellCastEffectScope(spell) {
+  const target = spell?.system?.target;
+  if (!target || typeof target !== "object" || Array.isArray(target)) return null;
+  return SW25_EFFECT_SCOPES.includes(target.selection) ? target.selection : null;
 }
 
 /**
@@ -607,6 +972,10 @@ export function spellDamageNature(spell) {
  *   (DEC-6); absent means missing mandatory data, 0 is the no-check value.
  * @param {string|null} [context.damageType] - Spell damage channel
  *   ("magical"|"physical"); mapped to the DEC-9 nature.
+ * @param {string|null} [context.successValueSource] - SV provenance
+ *   (SW25_SUCCESS_VALUE_SOURCES), supplied by the cast flow.
+ * @param {string|null} [context.castId] - Identity of THIS casting, shared by
+ *   every representation the cast creates (T6.1/DEC-8).
  * @returns {Promise<void>}
  */
 export async function applyInstantXPersistentEffect(actor, context = {}) {
@@ -642,14 +1011,23 @@ export async function applyInstantXPersistentEffect(actor, context = {}) {
   }
   // T5.2/D4: combat scales (rounds/turns) REQUIRE a resolved anchor. The
   // approved default regime is casterTurn/begin (T5.0-R D5); when the caster
-  // is not a combatant of the active encounter, no anchor is fabricated and
-  // the persistent component is not created.
+  // is not a combatant of the active encounter, no anchor is fabricated.
+  // Phase 2: a minute/second-DERIVED duration then falls back to its manual
+  // out-of-combat mapping (pre-combat casts keep working, under GM
+  // management); an AUTHORED rounds/turns duration has no fallback and is
+  // not created (D4 skip preserved).
   let durationAnchor = null;
+  let scaleData = spellData;
   if (spellData.durationScale === "rounds" || spellData.durationScale === "turns") {
     durationAnchor = resolveSw25CasterAnchor(casterUuid);
     if (!durationAnchor) {
-      console.warn(`sw25-taka: the persistent component of "${spell.name}" was NOT created: its ${spellData.durationScale}-scale duration requires a combat anchor (D4) and the caster is not a combatant of the active encounter.`);
-      return;
+      if (spellData.outOfCombat) {
+        console.warn(`sw25-taka: "${spell.name}" was cast without a combat anchor (D4): its persistent component is created on the manual "${spellData.outOfCombat.durationScale}" scale (GM-managed, out-of-combat fallback).`);
+        scaleData = spellData.outOfCombat;
+      } else {
+        console.warn(`sw25-taka: the persistent component of "${spell.name}" was NOT created: its ${spellData.durationScale}-scale duration requires a combat anchor (D4) and the caster is not a combatant of the active encounter.`);
+        return;
+      }
     }
   }
   const attribute = parseSw25SpellDamageAttribute(spell);
@@ -658,12 +1036,34 @@ export async function applyInstantXPersistentEffect(actor, context = {}) {
     family: identity.family,
     rank: identity.rank,
     cast: { successValue },
+    // T6.1/DEC-7: the SV provenance is transmitted by the cast flow (an
+    // ordinary check, an automatic success whose +5 is already inside the SV,
+    // or a no-check modality). It is never inferred from the numeric value.
+    successValueSource: typeof context.successValueSource === "string" && context.successValueSource.trim() !== ""
+      ? context.successValueSource.trim()
+      : null,
+    // T6.1/DEC-8: one `castId` per CASTING, shared by every representation of
+    // this cast on every target, plus the target selection mode of the spell
+    // (`/Space`, `/All`, `/Z`) for the forced-removal area rule.
+    castId: typeof context.castId === "string" && context.castId.trim() !== "" ? context.castId.trim() : null,
+    effectScope: spellCastEffectScope(spell),
     changes: [],
-    durationScale: spellData.durationScale,
-    initialDuration: spellData.initialDuration,
-    remainingDuration: spellData.remainingDuration,
+    durationScale: scaleData.durationScale,
+    initialDuration: scaleData.initialDuration,
+    remainingDuration: scaleData.remainingDuration,
+    // Phase 3 corrections: the authored seconds identity of an out-of-combat
+    // fallback application travels with the effect (null otherwise). The
+    // combat-entry flow reads it; no countdown semantics of its own.
+    sourceDuration: scaleData.sourceDuration ?? null,
     durationAnchor,
     effectType: typeof spell.system?.effectType === "string" && spell.system.effectType.trim() !== "" ? spell.system.effectType.trim() : null,
+    // Cancellation eligibility (DEC-7/§55): this persistent component comes
+    // from a spell, so it is magical. The resistance notation is preserved as
+    // source provenance only — it is NOT a cancellation-eligibility condition
+    // (T6.1) and NOT the resistance resolution outcome (that remains the
+    // `resisted` transport boolean below).
+    isMagical: true,
+    resistance: getSpellResistance(spell),
     origin: spell.uuid ?? spellUuid,
     casterUUID: casterUuid,
     damageType: nature || attribute ? { nature, ...(attribute ? { attribute } : {}) } : null,
@@ -679,30 +1079,127 @@ export async function applyInstantXPersistentEffect(actor, context = {}) {
   }
 }
 
+// Immediate components are deliberately keyed by explicit spell identity:
+// spell descriptions are source text, not executable rules data. These two
+// handlers are the initial coverage set (spell compendium sourceUrl):
+//   Chilling Breath — https://sw25.wikidot.com/spell:chilling-breath
+//   Healing Water   — https://sw25.wikidot.com/fspell:healing-water
+//
+// Damage remains a manual Roll Damage action. Healing Water creates the water
+// at cast time; drinking it and rolling its healing remain a later action.
+const INSTANT_X_IMMEDIATE_HANDLERS = new Map([
+  ["chilling breath", ({ target }) => ({
+    kind: "manual-damage",
+    targetUuid: target.uuid,
+    targetName: target.name
+  })],
+  ["healing water", ({ target }) => ({
+    kind: "created-water",
+    targetUuid: target.uuid,
+    targetName: target.name
+  })]
+]);
+
 /**
- * Create the persistent Instant/X components for every target that did NOT
- * resist. A resisted target never receives one (its additional effects are
- * nullified under Half; under Neg it is unaffected altogether).
+ * Canonical registry/ledger key of a spell name (Phase 2): the leading ⏩/△
+ * action-marker run is authoring metadata and is stripped via the shared
+ * `canonicalSpellName` before the case folding, so a handler (or a Combat
+ * Preparation ledger entry) registered under a markered name resolves for the
+ * clean spelling and vice versa.
+ * @param {string} spellName - Authored spell name.
+ * @returns {string} The canonical comparison key.
+ */
+function canonicalSpellKey(spellName) {
+  return canonicalSpellName(spellName ?? "").name.trim().toLocaleLowerCase();
+}
+
+/**
+ * Register a spell-specific immediate-component resolver. The spell name is
+ * stored under its CANONICAL key: registering "⏩Healing Water" and
+ * "Healing Water" target the same entry.
+ * @param {string} spellName
+ * @param {(context: object) => object|Promise<object>} handler
+ * @returns {() => void} unregister callback
+ */
+export function registerSw25InstantXImmediateHandler(spellName, handler) {
+  const key = canonicalSpellKey(spellName);
+  if (!key || typeof handler !== "function") throw new TypeError("An Instant/X spell name and immediate handler are required.");
+  const previous = INSTANT_X_IMMEDIATE_HANDLERS.get(key);
+  INSTANT_X_IMMEDIATE_HANDLERS.set(key, handler);
+  return () => {
+    if (INSTANT_X_IMMEDIATE_HANDLERS.get(key) !== handler) return;
+    if (previous) INSTANT_X_IMMEDIATE_HANDLERS.set(key, previous);
+    else INSTANT_X_IMMEDIATE_HANDLERS.delete(key);
+  };
+}
+
+/**
+ * Resolve the explicitly modeled immediate component once for each eligible
+ * target in this cast. Results are transient UI instructions, never effect
+ * application data. A failed handler is not retried: it may have completed
+ * part of its work before rejecting, and replay could duplicate that work.
+ */
+export async function resolveCastImmediateComponents({ spell, targetResults }) {
+  if (!isInstantXSpell(spell)) return [];
+  const handler = INSTANT_X_IMMEDIATE_HANDLERS.get(canonicalSpellKey(spell?.name));
+  if (!handler) {
+    console.warn(`sw25-taka: no explicit Instant/X immediate handler is registered for "${spell?.name ?? "unknown spell"}"; its persistent component is still processed.`);
+    return [];
+  }
+  const resolved = [];
+  const attemptedTargets = new Set();
+  for (const result of targetResults ?? []) {
+    const target = result?.target;
+    if (!target || result.resisted) continue;
+    const targetKey = target.uuid ?? target.id ?? target;
+    if (attemptedTargets.has(targetKey)) continue;
+    attemptedTargets.add(targetKey);
+    try {
+      const component = await handler({ spell, target, result });
+      if (component) resolved.push({ ...component, target });
+    } catch (error) {
+      console.error(`sw25-taka: the immediate component of "${spell.name}" failed for "${target.name}"; it will not be retried for this cast.`, error);
+    }
+  }
+  return resolved;
+}
+
+/**
+ * Resolve the explicit immediate component and create the persistent
+ * Instant/X component for every target that did NOT resist. Immediate data is
+ * returned only for the cast card and is never included in the EffectService
+ * payload.
  * @param {object} input
  * @param {object} input.spell - Spell Item document.
  * @param {Actor} input.caster - Casting actor.
  * @param {Array} input.targetResults - Outcomes of resolveCastTargets.
  * @param {number} input.successValue - The cast's SV.
- * @returns {Promise<void>}
+ * @param {string|null} [input.successValueSource] - The SV provenance
+ *   (SW25_SUCCESS_VALUE_SOURCES): "check"/"automatic" for a checked cast,
+ *   "none" for the no-check modalities.
+ * @returns {Promise<Array<object>|undefined>} Transient immediate-component
+ *   descriptors for the cast card; undefined for non-Instant/X or invalid SV.
  */
-export async function createCastEffects({ spell, caster, targetResults, successValue }) {
+export async function createCastEffects({ spell, caster, targetResults, successValue, successValueSource = null }) {
   if (!isInstantXSpell(spell)) return;
   if (typeof successValue !== "number" || !Number.isInteger(successValue) || successValue < 0) return;
+  const immediateComponents = await resolveCastImmediateComponents({ spell, targetResults });
   const damageType = spellDamageNature(spell);
+  // ONE identity for the whole casting: all the representations created below
+  // share it, whatever their receiving Actor (T6.1/DEC-8).
+  const castId = newCastId();
   for (const result of targetResults) {
     if (!result.target || result.resisted) continue;
     await applyInstantXPersistentEffect(result.target, {
       spellUuid: spell.uuid,
       casterUuid: caster.uuid,
       successValue,
+      successValueSource,
+      castId,
       damageType
     });
   }
+  return immediateComponents;
 }
 
 // ── Shared cast preparation (validation BEFORE any MP cost) ────────────────
@@ -805,17 +1302,28 @@ export async function deductCastMP(actor, cost, spell) {
 
 // ── Combat Preparation: once per name (CR1 p. 175) ─────────────────────────
 
+/**
+ * The ledger records CANONICAL spell names (Phase 2). Entries recorded before
+ * the migration hold raw lowercased names that may carry leading ⏩/△
+ * markers; those are canonicalized at READ time, so old-format ledgers keep
+ * matching without any data migration.
+ * @param {Actor} actor - Casting actor.
+ * @returns {string[]} Canonical names already recorded for the active combat.
+ */
 function combatPreparationNames(actor) {
   const combatId = game?.combat?.id ?? "";
   const state = actor.getFlag(FLAG_SCOPE, "combatPreparationCasts") ?? null;
-  return state && state.combatId === combatId ? [...(state.names || [])] : [];
+  if (!state || state.combatId !== combatId) return [];
+  return [...(state.names || [])].map(name => canonicalSpellKey(name));
 }
 
 /**
  * Whether the spell name has already been cast during the current Combat
  * Preparation (CR1 p. 175: spells with the same name can only be cast once).
- * The ledger is scoped to the active combat; without a combat there is no
- * shared preparation window and nothing is recorded.
+ * Comparison runs on canonical names: a markered spelling and the clean
+ * spelling are the same spell. The ledger is scoped to the active combat;
+ * without a combat there is no shared preparation window and nothing is
+ * recorded.
  * @param {Actor} actor - Casting actor.
  * @param {object} spell - Spell Item document.
  * @returns {boolean}
@@ -823,14 +1331,14 @@ function combatPreparationNames(actor) {
 export function spellAlreadyCastInCombatPreparation(actor, spell) {
   const combatId = game?.combat?.id ?? "";
   if (!combatId) return false;
-  return combatPreparationNames(actor).includes(String(spell?.name ?? "").trim().toLowerCase());
+  return combatPreparationNames(actor).includes(canonicalSpellKey(spell?.name));
 }
 
 async function recordCombatPreparationCast(actor, spell) {
   const combatId = game?.combat?.id ?? "";
   if (!combatId) return;
   const names = combatPreparationNames(actor);
-  names.push(String(spell?.name ?? "").trim().toLowerCase());
+  names.push(canonicalSpellKey(spell?.name));
   await actor.setFlag(FLAG_SCOPE, "combatPreparationCasts", { combatId, names });
 }
 
@@ -883,21 +1391,34 @@ function rollDamageButton(actor, spell, castingClass, successValue, targetUuid =
 }
 
 function spellCastMetadata({ actor, spell, castingClass, cost }) {
-  return `<div class="sw25-spell-cast-meta"><span><strong>${escape(castingClass.name)} Magic Power:</strong> ${spellDamageMagicPower(actor, castingClass)}</span><span><strong>MP:</strong> ${cost}</span><span><strong>Resistance:</strong> ${escape(spellResistanceLabel(spell))}</span></div>`;
+  // Dispel Magic's printed Resistance is Neg, but no creature resistance roll
+  // exists: the only opposed check is the Success Value comparison against the
+  // targeted effect (CR I pp. 166-167). The card states that explicitly.
+  const resistance = isDispelMagicSpell(spell)
+    ? "Neg (target effect SV comparison)"
+    : spellResistanceLabel(spell);
+  return `<div class="sw25-spell-cast-meta"><span><strong>${escape(castingClass.name)} Magic Power:</strong> ${spellDamageMagicPower(actor, castingClass)}</span><span><strong>MP:</strong> ${cost}</span><span><strong>Resistance:</strong> ${escape(resistance)}</span></div>`;
 }
 
 // The badge describes the spell's outcome, never its numeric SV. For multiple
 // targets, a fully affected target makes the overall result SUCCESS; if every
 // target resists, any Half result makes it RESISTED (partial effect), otherwise
 // it is FAILED (no effect). Individual lines retain every target's outcome.
+// Cancellation results use the same badge over the lines that were actually
+// evaluated (`countsForOutcome`): ineligible/untargeted effects never turn a
+// cast into FAILED, and a cast with no eligible effect is NO VALID TARGET.
 function spellOutcomeBadge(automaticSuccess, targetResults) {
   let label = "SUCCESS";
   let className = "sw25-spell-outcome-success";
-  if (automaticSuccess) {
+  const evaluated = targetResults.filter(result => result.countsForOutcome !== false);
+  if (!evaluated.length && targetResults.length) {
+    label = "NO VALID TARGET";
+    className = "sw25-spell-outcome-failure";
+  } else if (automaticSuccess) {
     label = "AUTOMATIC SUCCESS";
     className = "sw25-spell-outcome-automatic";
-  } else if (targetResults.length && targetResults.every(result => result.resisted)) {
-    if (targetResults.some(result => result.halfDamage)) {
+  } else if (evaluated.length && evaluated.every(result => result.resisted)) {
+    if (evaluated.some(result => result.halfDamage)) {
       label = "RESISTED";
       className = "sw25-spell-outcome-resisted";
     } else {
@@ -921,7 +1442,7 @@ async function postAutomaticFailureCard({ actor, spell, castingClass, cost, chec
 // cast data (Magic Power, MP cost, Resistance), and the damage action. The
 // spell's metadata/description stay on the item sheet — the card keeps only
 // the mechanical result of this cast.
-async function postCastCard({ actor, spell, castingClass, cost, modality, check = null, targetResults = [], magicPowerParts = [] }) {
+async function postCastCard({ actor, spell, castingClass, cost, modality, check = null, targetResults = [], magicPowerParts = [], immediateComponents = [] }) {
   const detailId = spellCardId();
   const automaticSuccess = modality === "major" && check?.automaticSuccess === true;
   const successValue = modality === "major" ? Number(check?.successValue ?? 0) : 0;
@@ -937,19 +1458,24 @@ async function postCastCard({ actor, spell, castingClass, cost, modality, check 
   }
   if (targetResults.length) {
     lines.push(`<ul class="sw25-resistance-results">${targetResults.map(result => {
-      const statusClass = result.pending
+      const statusClass = result.statusClass ?? (result.pending
         ? "sw25-resistance-pending"
         : result.resisted
           ? result.halfDamage ? "sw25-resistance-partial" : "sw25-resistance-resisted"
-          : "sw25-resistance-affected";
+          : "sw25-resistance-affected");
       return `<li class="sw25-resistance-line ${statusClass}">${result.summary}</li>`;
     }).join("")}</ul>`);
   }
   lines.push(spellCastMetadata({ actor, spell, castingClass, cost }));
   lines.push(`<p class="sw25-spell-mp-note"><em>${escape(actor.name)} spends ${cost} MP.</em></p>`);
-  const originalDamageTarget = targetResults.length === 1 ? targetResults[0].target?.uuid ?? "" : "";
+  if (immediateComponents.some(component => component.kind === "created-water")) {
+    lines.push('<p class="sw25-spell-immediate-result">The Healing Water is created now. A character must drink it using a Major Action to receive the listed healing; drinking and healing are not automatic.</p>');
+  }
+  const damageComponents = immediateComponents.filter(component => component.kind === "manual-damage");
   const powerRoll = spell.system.hasPowerTable && !isNaturalPower(spell)
-    ? `<p class="sw25-spell-damage-action">${rollDamageButton(actor, spell, castingClass, successValue, originalDamageTarget)}</p>`
+    ? `<p class="sw25-spell-damage-action">${damageComponents.length
+      ? damageComponents.map(component => `${escape(component.targetName)}: ${rollDamageButton(actor, spell, castingClass, successValue, component.targetUuid)}`).join("<br>")
+      : rollDamageButton(actor, spell, castingClass, successValue, targetResults.length === 1 ? targetResults[0].target?.uuid ?? "" : "")}</p>`
     : "";
   lines.push(powerRoll);
   await ChatMessage.create({
@@ -1051,6 +1577,18 @@ export async function castSpellAsMajor({ actor, spell, applyCost = true, dialogs
     magicPowerParts = [...permanentMagicPowerParts, ...chosen.filter(part => part.temporary)];
   }
 
+  // (2b) Dispel Magic declares its target effect BEFORE the MP cost and the
+  // roll (CR I p. 167): the choice can never be informed by the attempt's SV,
+  // and abandoning the declaration aborts the cast with no side effects.
+  let targets = null;
+  let dispelDeclaration = null;
+  if (isDispelMagicSpell(spell)) {
+    targets = castSpellTargetList({ actor, spell, prepared });
+    const declaration = await declareDispelCancellation({ targets, dialogs });
+    if (declaration.cancelled) return { cast: false, cancelled: true, mpSpent: 0 };
+    dispelDeclaration = declaration.selection;
+  }
+
   // (3) MP deduction happens immediately BEFORE the roll; a fizzle below
   // never refunds it.
   if (applyCost) await deductCastMP(actor, prepared.cost, spell);
@@ -1067,24 +1605,45 @@ export async function castSpellAsMajor({ actor, spell, applyCost = true, dialogs
   }
 
   // (2)+(6) Targets and their individual resistances (one shared check).
-  const targets = castSpellTargetList({ actor, spell, prepared });
-  const resistanceType = getSpellResistance(spell);
-  const targetResults = await resolveCastTargets({
-    caster: actor,
-    spell,
-    resistanceType,
-    successValue: check.successValue,
-    targets,
-    dialogs
-  });
+  // Dispel Magic is the exception: its target is an effect, not a creature,
+  // so the normal resistance phase does not run (the printed Neg is the
+  // effect-SV comparison, CR I pp. 166-167). Eligible effects only are
+  // compared and removed through EffectService (DEC-7/DEC-8).
+  targets = targets ?? castSpellTargetList({ actor, spell, prepared });
+  let targetResults;
+  if (isDispelMagicSpell(spell)) {
+    targetResults = await resolveDispelCancellation({
+      targets,
+      successValue: check.successValue,
+      automaticSuccess: check.automaticSuccess,
+      declared: dispelDeclaration,
+      dialogs
+    });
+  } else {
+    const resistanceType = getSpellResistance(spell);
+    targetResults = await resolveCastTargets({
+      caster: actor,
+      spell,
+      resistanceType,
+      successValue: check.successValue,
+      targets,
+      dialogs
+    });
+  }
 
   // (7) Spell effects: the Instant/X persistent components are created NOW,
   // with the authentic cast SV, only for targets that did not resist.
-  await createCastEffects({ spell, caster: actor, targetResults, successValue: check.successValue });
+  const immediateComponents = await createCastEffects({
+    spell,
+    caster: actor,
+    targetResults,
+    successValue: check.successValue,
+    successValueSource: check.automaticSuccess ? "automatic" : "check"
+  });
 
   // (8) The cast card (with the check, the resistance results and the damage
   // button carrying the authentic SV) and the spell's own consequences.
-  await postCastCard({ actor, spell, castingClass: prepared.castingClass, cost: prepared.cost, modality: "major", check, targetResults, magicPowerParts });
+  await postCastCard({ actor, spell, castingClass: prepared.castingClass, cost: prepared.cost, modality: "major", check, targetResults, magicPowerParts, immediateComponents });
   await dispatchSpellConsequences({ actor, spell, castingClass: prepared.castingClass, targetResults });
 
   return { cast: true, check, targetResults, mpSpent: prepared.cost };
@@ -1144,17 +1703,26 @@ async function castSpellWithoutCheck({ actor, spell, applyCost, dialogs, modalit
   // No dice are rolled, so no automatic failure can occur (CR1 p. 174).
   const successValue = 0;
   const targets = castSpellTargetList({ actor, spell, prepared });
-  const resistanceType = getSpellResistance(spell);
-  const targetResults = await resolveCastTargets({
-    caster: actor,
-    spell,
-    resistanceType,
-    successValue,
-    targets,
-    dialogs
-  });
-  await createCastEffects({ spell, caster: actor, targetResults, successValue });
-  await postCastCard({ actor, spell, castingClass: prepared.castingClass, cost: prepared.cost, modality, check: null, targetResults });
+  // Dispel Magic also declares its single target effect before the attempt
+  // is resolved (no check is rolled in these modalities).
+  let dispelDeclaration = null;
+  if (isDispelMagicSpell(spell)) {
+    const declaration = await declareDispelCancellation({ targets, dialogs });
+    if (declaration.cancelled) return { cast: false, cancelled: true, mpSpent: prepared.cost };
+    dispelDeclaration = declaration.selection;
+  }
+  const targetResults = isDispelMagicSpell(spell)
+    ? await resolveDispelCancellation({ targets, successValue, declared: dispelDeclaration, dialogs })
+    : await resolveCastTargets({
+      caster: actor,
+      spell,
+      resistanceType: getSpellResistance(spell),
+      successValue,
+      targets,
+      dialogs
+    });
+  const immediateComponents = await createCastEffects({ spell, caster: actor, targetResults, successValue, successValueSource: "none" });
+  await postCastCard({ actor, spell, castingClass: prepared.castingClass, cost: prepared.cost, modality, check: null, targetResults, immediateComponents });
   await dispatchSpellConsequences({ actor, spell, castingClass: prepared.castingClass, targetResults });
   return { cast: true, successValue, targetResults, mpSpent: prepared.cost };
 }

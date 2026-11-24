@@ -25,7 +25,7 @@
 
     <section class="monster-panel effects-panel">
       <h2>Effects{{#if effectsTab.canRepair}}<span class="class-feature-heading-actions"><button type="button" class="effects-repair" data-action="repair-sw25-effect-data" title="Normalize and repair the data of this sheet's persistent effects. GM only: no write is made when nothing needs fixing; newer-schema and irrecoverable data are never touched."><i class="fas fa-wrench"></i> Repair Data</button></span>{{/if}}</h2>
-      <div class="effects-head"><span>Effect</span><span>SV</span><span>Duration</span><span>Anchor</span><span>Source</span><span>State</span></div>
+      <div class="effects-head"><span>Effect</span><span>SV</span><span>Duration</span><span>Anchor</span><span>Source</span><span>State</span><span>Action</span></div>
       <div class="effects-list">
         {{#if effectsTab.nativeStatusRow}}
         <div class="effects-row native-status">
@@ -53,6 +53,12 @@
           <span class="effect-anchor" title="{{#if row.anchorUnavailableReason}}Anchor unavailable: {{row.anchorUnavailableReason}}{{else}}{{row.anchorLabel}}{{/if}}">{{#if row.anchorLabel}}{{row.anchorLabel}}{{else}}—{{/if}}</span>
           <span class="effect-source" title="{{row.originUUID}}">{{#if row.originLabel}}{{row.originLabel}}{{else}}—{{/if}}</span>
           <span class="effect-state">{{row.stateLabel}}</span>
+          <span class="effect-actions">
+            {{#if @root.isGM}}
+            <button type="button" class="effect-toggle" data-action="toggle-sw25-effect" data-effect-id="{{row.id}}" data-disabled="{{row.disabled}}" title="{{#if row.disabled}}Activate{{else}}Deactivate{{/if}} effect"><i class="fas {{#if row.disabled}}fa-play{{else}}fa-pause{{/if}}"></i></button>
+            <button type="button" class="effect-trash" data-action="remove-sw25-effect" data-effect-id="{{row.id}}" title="Remove effect"><i class="fas fa-trash"></i></button>
+            {{/if}}
+          </span>
         </div>
         {{else}}
         <p class="paper-empty">No persistent effects.</p>

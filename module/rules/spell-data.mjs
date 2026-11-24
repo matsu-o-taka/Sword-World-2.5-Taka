@@ -27,9 +27,19 @@
 //   - `range`       — { areas, distance } (metres) or null.
 //   - `area`        — magical propagation: "target"|"shot"|"line"|
 //     "breakthrough"|null. Never inferred from `target`.
-//   - `duration`    — the exact Effects-engine duration text ("Instant",
-//     "Instant/3 rounds", "3 minutes (18 rounds)", ...). The parsing of that
-//     text into scales/counters remains in spell-effects.mjs.
+//   - `duration`    — the exact source duration expression ("Instant",
+//     "Instant/3 rounds", "3 minutes (18 rounds)", ...). It remains the
+//     editable raw text; nothing destroys or rewrites it.
+//   - `durationData` — { raw, immediate, persistent } — the canonical
+//     structured reading of `duration` (parseSpellDurationData). The
+//     active-effect timing interpretation (scales/counters/anchors) remains
+//     in spell-effects.mjs until the consumer phase adopts durationData.
+//   - Item name     — leading ⏩/△ authoring markers are METADATA, not part
+//     of the internal name: canonicalSpellName strips the leading marker run
+//     and reports it, while `minorAction`/`combatPreparation` remain the
+//     authoritative storage. †/‡ are preserved (meaning unverified).
+//   - `effectType`  — functional spell type (Curse/Psychic/Poison/Disease)
+//     kept separate from `damageType.attribute`.
 //   - `damageType`  — { nature: "physical"|"magical"|null, attribute: string|null }.
 //
 // Unknown or malformed source values are REPORTED (warnings) and stored as
@@ -96,7 +106,9 @@ const SPELL_RANK_FULLWIDTH_ROMAN = new Map([
  *   - Everything else: the full authored name is the family, rank 0.
  *
  * Authoring markers (⏩/‡/†/△) stay in the family (DEC-1): comparison
- * normalizes case at comparison time, never at storage.
+ * normalizes case at comparison time, never at storage. (The ⏩/△ ACTION
+ * markers are stripped from the canonical NAME by `canonicalSpellName`
+ * below; this parser itself never rewrites its input.)
  *
  * @param {string} name - Authored spell name.
  * @returns {{family: string, rank: number}} `rank` is an integer, 0 = base.
@@ -115,6 +127,95 @@ export function parseSpellNameIdentity(name) {
     return { family: text.slice(0, ascii.index).trim(), rank: SPELL_RANK_ROMAN.get(ascii[1]) };
   }
   return { family: text, rank: 0 };
+}
+
+// ── Canonical spell name (action-marker metadata) ──────────────────────────
+
+/**
+ * Strip the leading action-marker run from an authored spell name and report
+ * the marker metadata the name carried (audit
+ * spell-data-parsing-normalization-audit.md: the ⏩/△ markers are METADATA —
+ * they are never part of the internal spell name).
+ *
+ *   canonicalSpellName("⏩△Hyper Acceleration")
+ *     → { name: "Hyper Acceleration", minorAction: true,
+ *         combatPreparation: true, changed: true }
+ *
+ * Rules:
+ *   - Only a LEADING run of markers is removed (any order, repeats allowed,
+ *     whitespace tolerated between markers); the whitespace the run leaves
+ *     behind is consumed with it. A marker elsewhere in the name is authored
+ *     content and is preserved.
+ *   - `†`/`‡` are NOT action markers (their meaning is unverified): they
+ *     stay in the name untouched.
+ *   - The structured booleans (`system.minorAction` /
+ *     `system.combatPreparation`) remain the authoritative storage; derive
+ *     them from the ORIGINAL name BEFORE canonicalizing it.
+ *   - Idempotent: an already-canonical name is returned unchanged
+ *     (changed: false), authored leading whitespace included — only
+ *     whitespace left behind by removed markers is consumed. The stripping
+ *     is proven injective across all 656 compendium spells (zero
+ *     canonical-name collisions; asserted by spell-normalization.test.mjs).
+ *
+ * @param {string} name - Authored spell name (may carry leading markers).
+ * @returns {{name: string, minorAction: boolean, combatPreparation: boolean,
+ *   changed: boolean}} The canonical name plus the markers found in the
+ *   ORIGINAL input.
+ */
+export function canonicalSpellName(name) {
+  const original = String(name ?? "");
+  let index = 0;
+  let minorAction = false;
+  let combatPreparation = false;
+  while (index < original.length) {
+    const char = original[index];
+    if (char === "⏩") {
+      minorAction = true;
+      index += 1;
+    } else if (char === "△") {
+      combatPreparation = true;
+      index += 1;
+    } else if (/\s/.test(char) && /^[\s]*[⏩△]/.test(original.slice(index))) {
+      index += 1; // whitespace INSIDE the leading marker run
+    } else {
+      break;
+    }
+  }
+  if (index === 0) {
+    return { name: original, minorAction: false, combatPreparation: false, changed: false };
+  }
+  return { name: original.slice(index).replace(/^\s+/, ""), minorAction, combatPreparation, changed: true };
+}
+
+/**
+ * Every document whose spell identity matches a canonical name within one
+ * class page (Phase 3 corrections): the shared read-only lookup behind the
+ * importer's duplicate/refresh check AND the actor-sheet spell-drop duplicate
+ * check, so both creation points treat identity identically. Matching
+ * compares the CANONICAL names of BOTH sides (a markered and a clean spelling
+ * are the same spell) plus the item type and the associated class.
+ *
+ * This is a LOOKUP: it never renames, merges or deletes anything. When it
+ * returns more than one document, the callers report a canonical identity
+ * conflict — the documents are preserved exactly as they are.
+ *
+ * @param {object|Array<object>} items - Candidate documents: an actor's items
+ *   (a Foundry Collection, a mock collection, or a plain array — anything
+ *   with a `filter`).
+ * @param {string} name - The authored name to match against (either side may
+ *   carry leading ⏩/△ markers; both are canonicalized before comparing).
+ * @param {object} [options]
+ * @param {string} [options.type="spell"] - Item type of the identity.
+ * @param {string} [options.classId=""] - Class-page association to match.
+ * @returns {Array<object>} All matching documents, in iteration order.
+ */
+export function findSw25CanonicalSpellMatches(items, name, { type = "spell", classId = "" } = {}) {
+  const target = canonicalSpellName(name).name.toLowerCase();
+  return (items ?? []).filter(item =>
+    item?.type === type &&
+    canonicalSpellName(item?.name ?? "").name.toLowerCase() === target &&
+    String(item.system?.classId || "") === String(classId || "")
+  );
 }
 
 // ── Duration (Effects-engine representation) ───────────────────────────────
@@ -143,6 +244,168 @@ export function getSpellDuration(spell) {
   if (stored == null) return null;
   const text = String(stored).trim();
   return text === "" ? null : text;
+}
+
+// ── Structured duration data (system.durationData) ─────────────────────────
+
+/**
+ * Approved duration-scale ids for `system.durationData.persistent.scale`.
+ * Same vocabulary as the Effects engine (`SW25_DURATION_SCALES` in
+ * effects/effect-model.mjs); restated here because this module is
+ * deliberately dependency-free (the effects engine imports FROM this
+ * module, never the reverse).
+ * @type {string[]}
+ */
+export const SPELL_DURATION_SCALES = [
+  "rounds", "turns", "minutes", "hours", "days", "permanent", "other"
+];
+
+/** 1 combat round = 10 seconds (SW25 combat timing). */
+const SECONDS_PER_ROUND = 10;
+
+/**
+ * Parse a duration expression into the structured `system.durationData`
+ * reading. `system.duration` REMAINS the editable raw expression; this
+ * function derives its canonical, consumer-ready interpretation:
+ *
+ *   parseSpellDurationData("Instant / 3 minutes (18 rounds)")
+ *     → {
+ *         raw: "Instant / 3 minutes (18 rounds)",  // source expression, preserved
+ *         immediate: true,                          // "Instant" / "Instant/..." declared
+ *         persistent: {                             // null when nothing persists
+ *           scale: "rounds",        // canonical scale (SPELL_DURATION_SCALES)
+ *           amount: 18,             // canonical amount within that scale
+ *           unit: "rounds",         // canonical unit label (null: permanent/other)
+ *           sourceUnit: "minutes",  // unit as authored (lowercased)
+ *           sourceAmount: 3,        // amount as authored
+ *           nonIntegerRounds: false // the round conversion was fractional?
+ *         }
+ *       }
+ *
+ * Conversion rules (approved — spell-data-parsing-normalization-audit.md):
+ *   - Only SECONDS and MINUTES are converted to combat rounds, by arithmetic
+ *     (1 round = 10 seconds; minutes are converted to seconds first). No
+ *     lookup of common durations exists.
+ *   - Hours, days and every other unit KEEP their original scale; they are
+ *     never treated as combat-decrementing durations.
+ *   - A fractional round result is kept exact and flagged with
+ *     `nonIntegerRounds` — never silently rounded or truncated.
+ *   - "Permanent" maps to the permanent scale. "Special", "Various" and any
+ *     uninterpretable expression keep scale "other" with the raw text
+ *     preserved — no interpretation is invented.
+ *   - Pure "Instant" → `immediate: true`, `persistent: null`.
+ *     "Instant / X" → `immediate: true` plus the parsed persistent part,
+ *     accepting any whitespace around the slash (23 of the 61 compendium
+ *     Instant/X expressions are written with a space before the slash).
+ *   - A "(N rounds)" parenthetical is presentation; the canonical rounds
+ *     value is always computed (the compendium's 319 seconds/minutes
+ *     expressions agree with the computation — asserted by
+ *     spell-normalization.test.mjs).
+ *
+ * @param {string} durationText - Raw duration expression (null/"" allowed).
+ * @returns {{raw: string, immediate: boolean, persistent: object|null}}
+ */
+export function parseSpellDurationData(durationText) {
+  const raw = String(durationText ?? "").trim();
+  if (raw === "") return { raw: "", immediate: false, persistent: null };
+  if (/^instant$/i.test(raw)) return { raw, immediate: true, persistent: null };
+  const instantSplit = raw.match(/^instant\s*\/\s*(.*)$/i);
+  if (instantSplit) {
+    const persistentText = instantSplit[1].trim();
+    return {
+      raw,
+      immediate: true,
+      persistent: persistentText === "" ? null : parseSpellPersistentDuration(persistentText)
+    };
+  }
+  return { raw, immediate: false, persistent: parseSpellPersistentDuration(raw) };
+}
+
+/**
+ * Parse the persistent component of a duration expression (private helper of
+ * `parseSpellDurationData`).
+ * @param {string} text - Persistent duration text (already trimmed).
+ * @returns {object} The persistent duration structure (see
+ *   `parseSpellDurationData` for the field semantics).
+ */
+function parseSpellPersistentDuration(text) {
+  if (/^permanent\b/i.test(text)) {
+    return { scale: "permanent", amount: null, unit: null, sourceUnit: null, sourceAmount: null, nonIntegerRounds: false };
+  }
+  const match = text.match(/^(\d+)\s*(seconds?|minutes?|hours?|days?|rounds?|turns?)\b\s*(?:\(([^)]*)\))?$/i);
+  if (!match) {
+    // Unknown / uninterpretable: preserved as raw text, nothing invented.
+    return { scale: "other", amount: null, unit: null, sourceUnit: null, sourceAmount: null, nonIntegerRounds: false };
+  }
+  const sourceAmount = Number(match[1]);
+  const sourceUnit = match[2].toLowerCase();
+  const stem = sourceUnit.replace(/s$/, "");
+  if (stem === "second" || stem === "minute") {
+    // Arithmetic only: seconds ÷ 10; minutes are converted to seconds
+    // first, then ÷ 10. Fractional results are flagged, never rounded.
+    const seconds = stem === "second" ? sourceAmount : sourceAmount * 60;
+    const rounds = seconds / SECONDS_PER_ROUND;
+    return {
+      scale: "rounds",
+      amount: rounds,
+      unit: "rounds",
+      sourceUnit,
+      sourceAmount,
+      nonIntegerRounds: !Number.isInteger(rounds)
+    };
+  }
+  const scales = {
+    round: ["rounds", "rounds"],
+    turn: ["turns", "turns"],
+    hour: ["hours", "hours"],
+    day: ["days", "days"]
+  };
+  const [scale, unit] = scales[stem];
+  return { scale, amount: sourceAmount, unit, sourceUnit, sourceAmount, nonIntegerRounds: false };
+}
+
+// ── Centralized duration-data read path (Phase 2) ───────────────────────────
+
+/**
+ * Whether a stored `system.durationData` value has the approved shape. A
+ * value that fails this check is never trusted: it is re-derived from the
+ * stored duration text instead.
+ * @param {*} data - The stored value.
+ * @returns {boolean}
+ */
+function isSpellDurationDataShape(data) {
+  if (data === null || typeof data !== "object" || Array.isArray(data)) return false;
+  if (typeof data.raw !== "string" || typeof data.immediate !== "boolean") return false;
+  if (data.persistent === null) return true;
+  if (data.persistent === undefined || typeof data.persistent !== "object" || Array.isArray(data.persistent)) return false;
+  const { scale } = data.persistent;
+  return typeof scale === "string" && SPELL_DURATION_SCALES.includes(scale);
+}
+
+/**
+ * Centralized read of a spell's structured duration data (Phase 2 consumer
+ * migration). Consumers must read durations THROUGH this function instead of
+ * parsing the raw `system.duration` text themselves.
+ *
+ * Trust rule: the stored `system.durationData` is returned AS-IS (same
+ * reference, never re-derived, never rewritten) when its shape is valid AND
+ * its `raw` still matches the stored duration text. A stale value — the
+ * duration was edited after normalization —, a malformed value, or an absent
+ * value is re-derived from the stored text via `parseSpellDurationData` and
+ * returned without writing anything back (the read path never persists; the
+ * write path is `normalizeSpellData`/the importer).
+ *
+ * @param {object} spell - Spell Item document.
+ * @returns {{raw: string, immediate: boolean, persistent: object|null}} The
+ *   structured duration reading; an absent duration reads as the empty
+ *   reading `{ raw: "", immediate: false, persistent: null }`.
+ */
+export function getSpellDurationData(spell) {
+  const stored = spell?.system?.durationData;
+  if (isSpellDurationDataShape(stored) && stored.raw === (getSpellDuration(spell) ?? "")) {
+    return stored;
+  }
+  return parseSpellDurationData(getSpellDuration(spell) ?? "");
 }
 
 // ── Resistance (CR1 pp. 167-169) ───────────────────────────────────────────
@@ -382,6 +645,25 @@ export function readSpellDamageAttributeFromMetadata(metadata) {
 }
 
 /**
+ * Read the functional spell Type used by forced-cancellation rules. This is
+ * deliberately separate from the damage attribute: a Curse spell must remain
+ * identifiable as Curse even when its damage channel is absent.
+ * @param {string} metadata - Raw imported metadata text.
+ * @returns {string|null} Canonical functional type, or null when absent.
+ */
+export function readSpellEffectTypeFromMetadata(metadata) {
+  const match = String(metadata ?? "").match(/^type:\s*(.+)$/im);
+  if (!match) return null;
+  const value = match[1].trim();
+  const normalized = value.toLowerCase().replace(/[’‘]/g, "'");
+  if (/^curse\b/.test(normalized)) return "Curse";
+  if (/^psychic\b/.test(normalized)) return "Psychic";
+  if (/^poison\b/.test(normalized)) return "Poison";
+  if (/^disease\b/.test(normalized)) return "Disease";
+  return null;
+}
+
+/**
  * Read the STORED damage attribute of a spell.
  * @param {object} spell - Spell Item document.
  * @returns {string|null} The attribute name, or null when absent.
@@ -404,7 +686,8 @@ export function parseSw25SpellDamageAttribute(spell) {
  * @param {Array} [input.specialDamageBands] - Parsed special damage bands.
  * @param {boolean} [input.hasPowerTable] - Power Table presence.
  * @returns {object} { rank, resistance, usesFortitude, target, range, area,
- *   duration, damageType, minorAction, combatPreparation, warnings }
+ *   duration, durationData, effectType, damageType, minorAction,
+ *   combatPreparation, warnings }
  */
 export function deriveSpellFields({ name = "", metadata = "", specialDamageBands = [], hasPowerTable = false } = {}) {
   const text = String(metadata ?? "");
@@ -415,6 +698,7 @@ export function deriveSpellFields({ name = "", metadata = "", specialDamageBands
   const warnings = [];
 
   const duration = readSpellDurationText(text);
+  const durationData = parseSpellDurationData(duration);
 
   const resistanceEntry = parseSpellResistanceEntry(metaLine("resistance"));
   if (resistanceEntry.warning) warnings.push(resistanceEntry.warning);
@@ -438,8 +722,13 @@ export function deriveSpellFields({ name = "", metadata = "", specialDamageBands
     }
   }
 
+  // Markers are read from the ORIGINAL authored name — before any
+  // canonicalization — so a leading ⏩/△ run sets its boolean even though
+  // the canonical name strips it.
+  const markers = canonicalSpellName(String(name ?? ""));
   const identity = parseSpellNameIdentity(String(name ?? "").trim());
   const attribute = readSpellDamageAttributeFromMetadata(text);
+  const effectType = readSpellEffectTypeFromMetadata(text);
   const nature = spellDamageNature(specialDamageBands, hasPowerTable);
   const damageType = nature || attribute ? { nature: nature ?? null, attribute: attribute ?? null } : null;
 
@@ -451,9 +740,11 @@ export function deriveSpellFields({ name = "", metadata = "", specialDamageBands
     range,
     area,
     duration,
+    durationData,
+    effectType,
     damageType,
-    minorAction: /⏩/.test(String(name ?? "")),
-    combatPreparation: /△/.test(String(name ?? "")),
+    minorAction: markers.minorAction,
+    combatPreparation: markers.combatPreparation,
     warnings
   };
 }
@@ -467,12 +758,23 @@ export function deriveSpellFields({ name = "", metadata = "", specialDamageBands
  * SAME `deriveSpellFields` logic the importer uses) and REMOVES the obsolete
  * fields (`school`, `cost`, `featureType`, `resourceData`). Power is retained
  * as the potency selector for the centralized Power Table catalog.
- * function is idempotent: running it again changes nothing.
+ * The function is idempotent: running it again changes nothing.
+ *
+ * `durationData` is DERIVED data (never user-authored): it is derived when
+ * absent and re-derived when its `raw` no longer matches the stored
+ * `duration` expression (a stale value after a manual edit); a matching
+ * value is kept byte-for-byte. The stored `duration` text itself is never
+ * rewritten.
+ *
+ * The canonical spell name (leading ⏩/△ markers stripped, see
+ * `canonicalSpellName`) is REPORTED, not written: `Item.name` belongs to the
+ * caller, so every write path (import, drop, migration) can adopt it
+ * uniformly.
  *
  * Consumers:
  *   - `_onDropItem` (actor-sheet.mjs): every Spell entering an actor —
  *     including unmigrated compendium documents — is normalized on copy.
- *   - The test-world migration script.
+ *   - The compendium migration tooling.
  *
  * Existing values are never overwritten: a populated structured field wins
  * over a derived one.
@@ -480,8 +782,11 @@ export function deriveSpellFields({ name = "", metadata = "", specialDamageBands
  * @param {object} system - Spell system data (old or current schema).
  * @param {object} [options]
  * @param {string} [options.name] - Authored spell name.
- * @returns {{system: object, warnings: string[]}} The normalized system data
- *   and the warnings for unrecognized source values (reported, not invented).
+ * @returns {{system: object, warnings: string[], name: string, nameChanged: boolean}}
+ *   The normalized system data; the warnings for unrecognized source values
+ *   (reported, not invented); and the canonical (marker-stripped) name
+ *   derived from `options.name` — `nameChanged` is true when it differs from
+ *   the authored name.
  */
 export function normalizeSpellData(system = {}, { name = "" } = {}) {
   const next = { ...system };
@@ -508,6 +813,14 @@ export function normalizeSpellData(system = {}, { name = "" } = {}) {
   const storedDuration = next.duration == null ? "" : String(next.duration).trim();
   next.duration = storedDuration !== "" ? storedDuration : derived.duration;
 
+  // Structured duration: derived, never authored. Derive it when absent and
+  // re-derive it when it no longer matches the stored expression; a matching
+  // value is kept (idempotent).
+  const storedDurationData = next.durationData ?? null;
+  if (storedDurationData == null || String(storedDurationData.raw ?? "") !== String(next.duration ?? "").trim()) {
+    next.durationData = parseSpellDurationData(next.duration);
+  }
+
   const storedResistance = typeof next.resistance === "string" ? next.resistance.trim() : "";
   if (storedResistance !== "" && SPELL_RESISTANCE_IDS.has(storedResistance)) {
     next.resistance = storedResistance;
@@ -521,11 +834,13 @@ export function normalizeSpellData(system = {}, { name = "" } = {}) {
   if (next.range == null) next.range = derived.range;
   if (next.area == null) next.area = derived.area;
   if (next.damageType == null) next.damageType = derived.damageType;
+  if (next.effectType == null) next.effectType = derived.effectType;
 
   delete next.school;
   delete next.cost;
   delete next.featureType;
   delete next.resourceData;
 
-  return { system: next, warnings };
+  const canonical = canonicalSpellName(name);
+  return { system: next, warnings, name: canonical.name, nameChanged: canonical.changed };
 }

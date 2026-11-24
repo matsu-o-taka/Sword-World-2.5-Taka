@@ -17,6 +17,7 @@
 // exactly one implementation shared by every sheet that renders the section.
 
 import { repairActorSw25Effects } from "../effects/effects-tab.mjs";
+import { removeSw25Effect, toggleSw25Effect } from "../effects/effect-service.mjs";
 
 /**
  * Wire the shared Effects-section listeners on a rendered sheet.
@@ -53,5 +54,44 @@ export function wireSw25EffectsTabHandlers(sheet, html) {
       ui.notifications.warn(`Sword World 2.5 | ${summary.refused} effect(s) could not be repaired (see the warnings above).`);
     }
     sheet.render(false); // Refresh the list; the repair contract already notified per effect.
+  });
+
+  /** Toggle one sw25Effect between active and disabled (GM only). */
+  html.find('[data-action="toggle-sw25-effect"]').on("click", async event => {
+    event.preventDefault();
+    if (game.user.isGM !== true) return; // The button only renders for the GM; enforced here too.
+    const effectId = event.currentTarget.dataset.effectId;
+    const disabled = event.currentTarget.dataset.disabled === "true";
+    const actor = sheet.actor;
+    const effect = effectId ? actor.effects.get(effectId) : null;
+    if (!effect || effect.type !== "sw25Effect") return;
+    const result = await toggleSw25Effect(actor, effectId, { active: disabled });
+    if (result.ok) {
+      sheet.render(false);
+    } else if (result.error) {
+      ui.notifications.warn(result.error);
+    }
+  });
+
+  /** Remove one sw25Effect from the actor (GM only, confirmed). */
+  html.find('[data-action="remove-sw25-effect"]').on("click", async event => {
+    event.preventDefault();
+    if (game.user.isGM !== true) return; // The button only renders for the GM; enforced here too.
+    const effectId = event.currentTarget.dataset.effectId;
+    const effect = effectId ? sheet.actor.effects.get(effectId) : null;
+    if (!effect || effect.type !== "sw25Effect") return;
+    const confirmed = await foundry.applications.api.DialogV2.confirm({
+      window: { title: "Remove Effect" },
+      content: `<p>Remove <strong>${foundry.utils.escapeHTML(effect.name || "this effect")}</strong>? This cannot be undone.</p>`,
+      rejectClose: false,
+      modal: true
+    });
+    if (confirmed !== true) return;
+    const result = await removeSw25Effect(sheet.actor, effectId);
+    if (result.ok) {
+      sheet.render(false);
+    } else if (result.error) {
+      ui.notifications.warn(result.error);
+    }
   });
 }

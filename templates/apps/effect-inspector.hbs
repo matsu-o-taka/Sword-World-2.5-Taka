@@ -50,6 +50,28 @@
     {{/if}}
   </section>
 
+  {{#if timeCounter}}
+  <section class="sw25-effect-inspector-section">
+    <h3>Non-Combat Time Counter</h3>
+    {{#if canEditDuration}}
+    <p class="sw25-effect-inspector-hint">The counter stores WHOLE MINUTES; the unit only sets how you type the amount (90 minutes = 1.5 hours, shown as "1 hour and 30 minutes"). Changing the unit converts the amount field; an amount that is not a whole number of minutes is refused.</p>
+    <form class="sw25-effect-inspector-duration" data-inspector-duration-form>
+      <label>Amount <input type="number" name="duration-amount" min="0.0001" step="any" value="{{timeCounter.amount}}"></label>
+      <label>Unit
+        <select name="duration-unit">
+          {{#each timeCounter.units as |unit|}}
+          <option value="{{unit.value}}"{{#if unit.selected}} selected{{/if}}>{{unit.label}}</option>
+          {{/each}}
+        </select>
+      </label>
+      <button type="button" data-inspector-duration-save><i class="fas fa-floppy-disk"></i> Save</button>
+    </form>
+    {{else}}
+    <p class="sw25-effect-inspector-empty">Only the Game Master or the owning user can edit this time counter.</p>
+    {{/if}}
+  </section>
+  {{/if}}
+
   <section class="sw25-effect-inspector-section">
     <h3>Provenance &amp; State</h3>
     <dl>
@@ -89,6 +111,9 @@
   {{/if}}
 
   <footer class="sw25-effect-inspector-footer">
+    {{#if canRemove}}
+    <button type="button" class="sw25-effect-inspector-remove" data-inspector-remove><i class="fas fa-trash"></i> Remove</button>
+    {{/if}}
     <button type="button" data-inspector-close><i class="fas fa-xmark"></i> Close</button>
   </footer>
 </div>

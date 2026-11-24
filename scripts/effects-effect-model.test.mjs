@@ -42,6 +42,8 @@ class ArrayField extends MockField {
   }
 }
 
+class ObjectField extends MockField {}
+
 // Mirrors the real ActiveEffectTypeDataModel.defineSchema (verified in the
 // installed v14 client source: common/data/active-effect.mjs).
 class MockActiveEffectTypeDataModel {
@@ -73,7 +75,7 @@ class MockActiveEffectTypeDataModel {
 
 globalThis.foundry = {
   data: {
-    fields: { NumberField, StringField, BooleanField, DocumentUUIDField, AnyField, SchemaField, ArrayField },
+    fields: { NumberField, StringField, BooleanField, DocumentUUIDField, AnyField, SchemaField, ArrayField, ObjectField },
     ActiveEffectTypeDataModel: MockActiveEffectTypeDataModel
   }
 };
@@ -151,7 +153,8 @@ function cleanField(field, value) {
 
   // Expected field set: identity, SV, durations, provenance, classification.
   for (const key of ["changes", "schemaVersion", "family", "rank", "successValue",
-    "initialDuration", "remainingDuration", "casterUUID", "effectType"]) {
+    "initialDuration", "remainingDuration", "casterUUID", "effectType",
+    "isMagical", "resistance"]) {
     assert.ok(key in schema, `schema must define ${key}`);
   }
 
@@ -234,19 +237,24 @@ function cleanField(field, value) {
 }
 
 {
-  // Duration bookkeeping (DEC-23): nullable integers in rounds; null means the
-  // effect is not round-managed (manual scales under GM management).
+  // Duration bookkeeping (DEC-23 + the 2026-11-22 combat-end minutes
+  // conversion): nullable finite numbers ≥ 0 expressed in the unit of the
+  // effect's durationScale — integral combat rounds for the counted scales,
+  // fractional MINUTES after the purge conversion (17 rounds → 2.8333…).
+  // Integrality of counted scales remains a service-level rule. Null means
+  // the effect is not counted (manual scales under GM management).
   const schema = SW25EffectModel.defineSchema();
   for (const key of ["initialDuration", "remainingDuration"]) {
     const f = schema[key];
     assert.ok(f instanceof NumberField, `${key} must be a NumberField`);
     assert.equal(f.options.nullable, true, `${key} must be nullable`);
-    assert.equal(f.options.integer, true, `${key} must be an integer`);
+    assert.equal(f.options.integer, undefined, `${key} accepts finite non-integers (converted minutes)`);
     assert.equal(f.options.min, 0, `${key} must reject negatives`);
-    assert.equal(f.options.initial, null, `${key} defaults to null (not round-managed)`);
+    assert.equal(f.options.initial, null, `${key} defaults to null (not counted)`);
     assert.equal(cleanField(f, undefined).value, null);
     assert.equal(cleanField(f, null).value, null, "null is legitimate for manual scales");
     assert.equal(cleanField(f, 4).value, 4, "rounds value accepted");
+    assert.equal(cleanField(f, 17 / 6).value, 17 / 6, "converted fractional minutes accepted (never rounded)");
     assert.equal(cleanField(f, -2).ok, false, "durations must reject negatives");
   }
 }
@@ -270,15 +278,78 @@ function cleanField(field, value) {
 }
 
 {
+  // Cancellation eligibility fields (DEC-7/§55): the magical flag and the
+  // emitting effect's Resistance notation. `isMagical` is strictly boolean:
+  // false covers non-magical and unconfirmed effects, including legacy data.
+  const schema = SW25EffectModel.defineSchema();
+  const isMagical = schema.isMagical;
+  assert.ok(isMagical instanceof BooleanField);
+  assert.equal(isMagical.options.required, true, "isMagical is always present after schema initialization");
+  assert.equal(isMagical.options.nullable, false, "null is never valid");
+  assert.equal(isMagical.options.initial, false);
+  assert.equal(cleanField(isMagical, undefined).value, false);
+  assert.equal(cleanField(isMagical, null).ok, false);
+  assert.equal(cleanField(isMagical, true).value, true);
+  assert.equal(cleanField(isMagical, false).value, false);
+
+  const resistance = schema.resistance;
+  assert.ok(resistance instanceof StringField);
+  assert.equal(resistance.options.required, false);
+  assert.equal(resistance.options.nullable, true);
+  assert.equal(resistance.options.blank, false, "a stored resistance notation must be non-blank");
+  assert.equal(cleanField(resistance, undefined).value, null);
+  assert.equal(cleanField(resistance, "").ok, false);
+  assert.equal(cleanField(resistance, "cant").value, "cant");
+}
+
+{
+  // Bloque 6 additive fields (T6.1, DEC-7/DEC-8): Success Value provenance
+  // and casting identity/scope. All are optional and nullable: an absent
+  // value means "not recorded" and is never invented.
+  const schema = SW25EffectModel.defineSchema();
+  for (const key of ["successValueSource", "castId", "effectScope"]) {
+    const field = schema[key];
+    assert.ok(field instanceof StringField, `${key} is a StringField`);
+    assert.equal(field.options.required, false, `${key} is optional`);
+    assert.equal(field.options.nullable, true, `${key} is nullable (not recorded)`);
+    assert.equal(field.options.blank, false, `${key}, when present, must be non-blank`);
+    assert.equal(field.options.initial, null);
+    assert.equal(cleanField(field, undefined).value, null);
+    assert.equal(cleanField(field, "").ok, false);
+  }
+  assert.equal(cleanField(schema.successValueSource, "automatic").value, "automatic");
+  assert.equal(cleanField(schema.castId, "cast-abc123").value, "cast-abc123");
+  assert.equal(cleanField(schema.effectScope, "space").value, "space");
+}
+
+{
   // The model defines no schema-side helpers for repair/migration/stacking:
   // those belong to later tasks (T1.3, T4.x, T5.x).
   const schema = SW25EffectModel.defineSchema();
   // 9 T1.x groups + familyPolicy + damageType (Bloque 4 additive fields,
   // DEC-3/T4.4 and DEC-9/DEC-20) + durationScale + durationAnchor (Bloque 5,
   // T5.2; schema stays v1, DEC-41) + gmOnly (presentation visibility,
-  // additive optional field, schema stays v1).
-  assert.equal(Object.keys(schema).length, 14, "v1 defines exactly the fourteen approved field groups");
+  // additive optional field, schema stays v1) + isMagical + resistance
+  // (DEC-7/§55, additive fields, v1) + successValueSource + castId +
+  // effectScope (Bloque 6, T6.1 cancellation identity, additive optional
+  // fields, schema stays v1) + rules (configured rule elements, additive
+  // optional field, schema stays v1) + sourceDuration (authored source
+  // duration identity, Phase 3 corrections, additive optional field, schema
+  // stays v1).
+  assert.equal(Object.keys(schema).length, 21, "v1 defines exactly the twenty-one approved field groups");
   assert.equal(typeof SW25EffectModel.migrateSource, "undefined");
+}
+
+{
+  // Configured rule elements: `system.rules` is an optional array of plain
+  // objects whose semantics belong to the rule-element registry. The schema
+  // only guarantees "array of objects" (each rule family owns its parameters).
+  const schema = SW25EffectModel.defineSchema();
+  const rules = schema.rules;
+  assert.ok(rules instanceof ArrayField, "rules is an ArrayField");
+  assert.ok(rules.element instanceof ObjectField, "rules elements are plain objects");
+  assert.equal(rules.options.required, false, "rules is optional (legacy effects have none)");
+  assert.equal(rules.options.nullable, false, "rules is an array, never null");
 }
 
 {

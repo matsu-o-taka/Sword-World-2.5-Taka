@@ -70,6 +70,7 @@ const VALID = {
   remainingDuration: 3,
   casterUUID: "Actor.abcd1234efgh5678",
   effectType: "buff",
+  isMagical: false,
   changes: [{ key: "system.hp.max", type: "add", value: 5, phase: "initial", priority: 1 }]
 };
 
@@ -91,7 +92,7 @@ const VALID = {
   // Missing version: backfilled (auto-fixed).
   const raw = { family: "protection" };
   const result = normalizeSw25EffectSystem(raw);
-  assert.deepEqual(codes(result), ["auto-fixed:version-missing", "auto-fixed:changes-defaulted"]);
+  assert.deepEqual(codes(result), ["auto-fixed:version-missing", "auto-fixed:isMagical-missing-defaulted", "auto-fixed:changes-defaulted"]);
   assert.equal(result.data.schemaVersion, 1);
 
   // String version "1": corrected to the integer.
@@ -137,6 +138,7 @@ const VALID = {
     remainingDuration: null,
     casterUUID: "Actor.abcd1234efgh5678",
     effectType: "buff",
+    isMagical: false,
     changes: []
   });
 }
@@ -150,6 +152,7 @@ const VALID = {
   assert.equal(result.data.initialDuration, undefined, "absent durations stay absent");
   assert.equal(result.data.remainingDuration, undefined);
   assert.equal(result.data.effectType, undefined);
+  assert.equal(result.data.isMagical, false, "a missing legacy magical flag normalizes to false");
   assert.deepEqual(result.data.changes, [], "absent native changes receive the schema initial (empty array)");
 }
 
@@ -175,6 +178,93 @@ const VALID = {
   assert.deepEqual(result.data.changes, [], "null changes receive the native default (empty array)");
 }
 
+// ── Cancellation eligibility fields (DEC-7/§55) ─────────────────────────────
+
+{
+  // Stored values pass through untouched; surrounding whitespace is lossless.
+  const result = normalizeSw25EffectSystem({ family: "protection", isMagical: true, resistance: "  cant  " });
+  assert.equal(result.data.isMagical, true, "a recorded magical flag is preserved");
+  assert.equal(result.data.resistance, "cant", "the resistance notation is trimmed");
+  assert.deepEqual(codes(result), ["auto-fixed:version-missing", "auto-fixed:resistance-trimmed", "auto-fixed:changes-defaulted"]);
+  const reloaded = normalizeSw25EffectSystem(JSON.parse(JSON.stringify(result.data)));
+  assert.equal(reloaded.data.isMagical, true, "an explicit magical value survives a serialized reload");
+  assert.equal(reloaded.changed, false);
+  assert.equal(reloaded.issues.length, 0);
+}
+
+{
+  // Legacy null normalizes to false; an absent resistance remains independent.
+  const result = normalizeSw25EffectSystem({ family: "protection", isMagical: null, resistance: "" });
+  assert.equal(result.data.isMagical, false, "a null legacy magical flag normalizes to false");
+  assert.equal(result.data.resistance, null);
+  assert.ok(codes(result).includes("auto-fixed:isMagical-null-defaulted"));
+  assert.ok(codes(result).includes("auto-fixed:resistance-blank-to-null"));
+  const second = normalizeSw25EffectSystem(result.data);
+  assert.equal(second.data.isMagical, false);
+  assert.equal(second.issues.some(issue => issue.code === "isMagical-null-defaulted"), false, "normalization is idempotent");
+}
+
+{
+  // Unsupported stored types are KEPT and reported (DEC-41).
+  const result = normalizeSw25EffectSystem({ family: "protection", isMagical: "true", resistance: 42 });
+  assert.equal(result.data.isMagical, "true");
+  assert.equal(result.data.resistance, 42);
+  assert.ok(codes(result).includes("review:isMagical-unsupported-type"));
+  assert.ok(codes(result).includes("review:resistance-unsupported-type"));
+}
+
+{
+  // The two fields belong to schema v1 (no foreign-field review).
+  const result = normalizeSw25EffectSystem({ schemaVersion: 1, family: "protection", isMagical: false, resistance: "neg", changes: [] });
+  assert.equal(result.issues.length, 0);
+  assert.equal(result.data.isMagical, false);
+  assert.equal(result.data.resistance, "neg");
+}
+
+// ── Cancellation identity fields (Bloque 6, T6.1) ───────────────────────────
+
+{
+  // Approved provenance/scope ids and a casting id pass through trimmed.
+  const result = normalizeSw25EffectSystem({
+    schemaVersion: 1, family: "protection", successValue: 24,
+    successValueSource: " automatic ", castId: " cast-abc123 ", effectScope: " space ", changes: []
+  });
+  assert.equal(result.issues.filter(issue => issue.severity === "review").length, 0, `unexpected review issues: ${JSON.stringify(result.issues)}`);
+  assert.equal(result.data.successValueSource, "automatic");
+  assert.equal(result.data.castId, "cast-abc123");
+  assert.equal(result.data.effectScope, "space");
+}
+
+{
+  // Absent provenance stays absent: the SV is NOT re-classified from its
+  // numeric value, and a legacy 0 is not turned into a recorded value.
+  const result = normalizeSw25EffectSystem({ schemaVersion: 1, family: "protection", successValue: 0, changes: [] });
+  assert.equal(result.data.successValue, 0);
+  assert.equal(result.data.successValueSource, undefined, "an unrecorded provenance is never invented");
+  assert.equal(result.data.castId, undefined);
+  assert.equal(result.data.effectScope, undefined);
+}
+
+{
+  // Blank normalizes to null (lossless); unknown ids are KEPT and reported.
+  const blank = normalizeSw25EffectSystem({ schemaVersion: 1, family: "protection", successValueSource: "", castId: "", effectScope: "", changes: [] });
+  assert.equal(blank.data.successValueSource, null);
+  assert.equal(blank.data.castId, null);
+  assert.equal(blank.data.effectScope, null);
+  const unknown = normalizeSw25EffectSystem({ schemaVersion: 1, family: "protection", successValueSource: "psychic", effectScope: "scene", changes: [] });
+  assert.equal(unknown.data.successValueSource, "psychic");
+  assert.equal(unknown.data.effectScope, "scene");
+  assert.ok(codes(unknown).includes("review:successValueSource-unknown"));
+  assert.ok(codes(unknown).includes("review:effectScope-unknown"));
+}
+
+{
+  // A legitimate recorded zero keeps its provenance through normalization.
+  const result = normalizeSw25EffectSystem({ schemaVersion: 1, family: "protection", successValue: 0, successValueSource: "none", changes: [] });
+  assert.equal(result.data.successValue, 0);
+  assert.equal(result.data.successValueSource, "none", "a recorded no-check SV 0 is authoritative, not missing");
+}
+
 // ── Irrecoverable data: KEPT in place, reported for review (DEC-41) ─────────
 
 {
@@ -187,6 +277,7 @@ const VALID = {
     initialDuration: -2,             // out of range
     casterUUID: "not-a-uuid",        // wrong shape
     effectType: 42,                  // unsupported type
+    isMagical: false,                // valid: isolates the irrecoverable cases
     changes: { broken: true },       // native structure, not repaired here
     stackKey: "forbidden-field"      // foreign to schema v1
   };
@@ -213,7 +304,7 @@ const VALID = {
 
 {
   // Absent family: reported, no default invented.
-  const result = normalizeSw25EffectSystem({ schemaVersion: 1, rank: 1 });
+  const result = normalizeSw25EffectSystem({ schemaVersion: 1, rank: 1, isMagical: false });
   assert.deepEqual(codes(result), ["review:family-missing", "auto-fixed:changes-defaulted"]);
   assert.equal(result.changed, true, "only the native changes default is written; no invented family");
   assert.equal("family" in result.data, false, "no invented family value");
@@ -221,7 +312,7 @@ const VALID = {
 
 {
   // remainingDuration > initialDuration: inconsistent, kept, reported.
-  const result = normalizeSw25EffectSystem({ schemaVersion: 1, family: "protection", initialDuration: 2, remainingDuration: 5 });
+  const result = normalizeSw25EffectSystem({ schemaVersion: 1, family: "protection", initialDuration: 2, remainingDuration: 5, isMagical: false });
   assert.deepEqual(codes(result), ["review:duration-inconsistent", "auto-fixed:changes-defaulted"]);
   assert.equal(result.data.initialDuration, 2);
   assert.equal(result.data.remainingDuration, 5);
@@ -242,15 +333,15 @@ const VALID = {
   // initial `false` applies on load); an explicit null is dropped (null ≡
   // absent for the non-nullable boolean); a non-boolean is KEPT and
   // reported; a real boolean passes through with no issues.
-  const absent = normalizeSw25EffectSystem({ schemaVersion: 1, family: "protection" });
+  const absent = normalizeSw25EffectSystem({ schemaVersion: 1, family: "protection", isMagical: false });
   assert.equal("gmOnly" in absent.data, false, "absent gmOnly is not invented");
   assert.equal(absent.issues.some(issue => issue.code === "gmOnly-null-dropped"), false);
 
-  const nullDropped = normalizeSw25EffectSystem({ schemaVersion: 1, family: "protection", gmOnly: null });
+  const nullDropped = normalizeSw25EffectSystem({ schemaVersion: 1, family: "protection", isMagical: false, gmOnly: null });
   assert.deepEqual(codes(nullDropped), ["auto-fixed:gmOnly-null-dropped", "auto-fixed:changes-defaulted"]);
   assert.equal("gmOnly" in nullDropped.data, false, "explicit null is dropped losslessly");
 
-  const wrongType = normalizeSw25EffectSystem({ schemaVersion: 1, family: "protection", gmOnly: "yes" });
+  const wrongType = normalizeSw25EffectSystem({ schemaVersion: 1, family: "protection", isMagical: false, gmOnly: "yes" });
   assert.deepEqual(codes(wrongType), ["review:gmOnly-unsupported-type", "auto-fixed:changes-defaulted"]);
   assert.equal(wrongType.data.gmOnly, "yes", "a non-boolean gmOnly is kept in place (never coerced)");
 
@@ -468,6 +559,54 @@ const VALID = {
   assert.equal(severities.has(SEVERITY_REVIEW), false, "whitespace fixes are lossless");
 }
 
+// ── Authored source duration identity (Phase 3 corrections) ─────────────────
+
+{
+  // The field belongs to schema v1: a clean identity passes with NO review
+  // issues (in particular no foreign-field review), verbatim.
+  const result = normalizeSw25EffectSystem({
+    ...VALID,
+    sourceDuration: { unit: "seconds", amount: 10 }
+  });
+  assert.deepEqual(result.data.sourceDuration, { unit: "seconds", amount: 10 });
+  assert.equal(result.issues.length, 0, `clean identity normalizes cleanly: ${result.issues.map(issue => issue.code).join(", ")}`);
+}
+
+{
+  // Absent stays absent (the schema initial null applies at the model layer).
+  const result = normalizeSw25EffectSystem({ ...VALID });
+  assert.equal("sourceDuration" in result.data, false, "no invented sourceDuration");
+}
+
+{
+  // An all-null identity carries no data: normalized to null (lossless).
+  const result = normalizeSw25EffectSystem({ ...VALID, sourceDuration: { unit: null, amount: null } });
+  assert.equal(result.data.sourceDuration, null);
+  assert.ok(codes(result).includes("auto-fixed:sourceDuration-empty-null"));
+}
+
+{
+  // Malformed shapes are KEPT and reported, never dropped (DEC-41).
+  const unsupportedType = normalizeSw25EffectSystem({ ...VALID, sourceDuration: "10 seconds" });
+  assert.equal(unsupportedType.data.sourceDuration, "10 seconds", "kept in place");
+  assert.ok(codes(unsupportedType).includes("review:sourceDuration-unsupported-type"));
+
+  const foreignKeys = normalizeSw25EffectSystem({
+    ...VALID, sourceDuration: { unit: "seconds", amount: 10, label: "Daemon Buster" }
+  });
+  assert.equal(foreignKeys.data.sourceDuration.label, "Daemon Buster", "foreign key kept");
+  assert.ok(codes(foreignKeys).includes("review:sourceDuration-foreign-keys"));
+
+  const missingUnit = normalizeSw25EffectSystem({ ...VALID, sourceDuration: { unit: "  ", amount: 10 } });
+  assert.ok(codes(missingUnit).includes("review:sourceDuration-missing-unit"));
+
+  const zeroAmount = normalizeSw25EffectSystem({ ...VALID, sourceDuration: { unit: "seconds", amount: 0 } });
+  assert.ok(codes(zeroAmount).includes("review:sourceDuration-invalid-amount"));
+
+  const negativeAmount = normalizeSw25EffectSystem({ ...VALID, sourceDuration: { unit: "seconds", amount: -5 } });
+  assert.ok(codes(negativeAmount).includes("review:sourceDuration-invalid-amount"));
+}
+
 // ── Native changes field: preserved untouched ───────────────────────────────
 
 {
@@ -570,7 +709,7 @@ function effectStub(raw, { name = "Probe", updateThrows = false } = {}) {
   // GM informed of both the fixes and (none here) the irrecoverable data.
   globalThis.game = { user: { isGM: true } };
   resetNotifications();
-  const raw = { family: " protection ", rank: "2", successValue: "17", stackKey: "foreign" };
+  const raw = { family: " protection ", rank: "2", successValue: "17", isMagical: false, stackKey: "foreign" };
   const effect = effectStub(raw);
   const result = await repairSw25Effect(effect);
   assert.equal(result.ok, true);
@@ -605,6 +744,36 @@ function effectStub(raw, { name = "Probe", updateThrows = false } = {}) {
 }
 
 {
+  // Legacy null is repaired through the existing GM-authoritative write path.
+  resetNotifications();
+  const raw = { ...structuredClone(VALID), isMagical: null };
+  const effect = effectStub(raw);
+  const result = await repairSw25Effect(effect);
+  assert.equal(result.ok, true);
+  assert.equal(result.code, "repaired");
+  assert.deepEqual(result.updateData, { "system.isMagical": false });
+  assert.equal(raw.isMagical, false);
+  const reloaded = normalizeSw25EffectSystem(JSON.parse(JSON.stringify(raw)));
+  assert.equal(reloaded.data.isMagical, false);
+  assert.equal(reloaded.changed, false);
+}
+
+{
+  // An existing explicit true survives repair and reload without modification.
+  resetNotifications();
+  const raw = { ...structuredClone(VALID), isMagical: true };
+  const effect = effectStub(raw);
+  const result = await repairSw25Effect(effect);
+  assert.equal(result.ok, true);
+  assert.equal(result.code, "no-changes");
+  assert.equal(effect.updates.length, 0);
+  const reloaded = normalizeSw25EffectSystem(JSON.parse(JSON.stringify(raw)));
+  assert.equal(reloaded.data.isMagical, true);
+  assert.equal(reloaded.changed, false);
+  assert.equal(reloaded.issues.length, 0);
+}
+
+{
   // GM + future version: refused, no write, GM warned.
   resetNotifications();
   const effect = effectStub({ schemaVersion: 2, family: "x" });
@@ -622,7 +791,7 @@ function effectStub(raw, { name = "Probe", updateThrows = false } = {}) {
   // family is KEPT and the GM is informed — the document is never left
   // partially repaired silently.
   resetNotifications();
-  const raw = { schemaVersion: 1, family: "" };
+  const raw = { schemaVersion: 1, family: "", isMagical: false };
   const effect = effectStub(raw);
   const result = await repairSw25Effect(effect);
   assert.equal(result.ok, true);

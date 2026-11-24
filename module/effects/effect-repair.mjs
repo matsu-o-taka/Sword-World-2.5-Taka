@@ -39,8 +39,9 @@
 // normalizer); both bindings are function declarations used at call time,
 // which ESM resolves safely.
 
-import { SW25_EFFECT_SCHEMA_VERSION, SW25_DURATION_SCALES, SW25_ANCHOR_REGIMES, SW25_ANCHOR_EDGES, SW25_ANCHOR_STATES } from "./effect-model.mjs";
+import { SW25_EFFECT_SCHEMA_VERSION, SW25_DURATION_SCALES, SW25_ANCHOR_REGIMES, SW25_ANCHOR_EDGES, SW25_ANCHOR_STATES, SW25_SUCCESS_VALUE_SOURCES, SW25_EFFECT_SCOPES } from "./effect-model.mjs";
 import { performSw25EffectRepairWrite } from "./effect-service.mjs";
+import { repairSw25RuleElements } from "./rule-elements.mjs";
 
 /** Current schema version of the effect `system.*` payload (DEC-41). */
 export const EFFECT_SCHEMA_VERSION = SW25_EFFECT_SCHEMA_VERSION;
@@ -58,15 +59,22 @@ const SCHEMA_V1_KEYS = new Set([
   "family",
   "rank",
   "successValue",
+  "successValueSource",
+  "castId",
+  "effectScope",
   "initialDuration",
   "remainingDuration",
   "casterUUID",
   "effectType",
+  "isMagical",
+  "resistance",
   "familyPolicy",
   "damageType",
   "durationScale",
   "durationAnchor",
-  "gmOnly"
+  "sourceDuration",
+  "gmOnly",
+  "rules"
 ]);
 
 /**
@@ -92,7 +100,9 @@ function pushIssue(issues, code, severity, detail) {
 
 /**
  * Coerce a stored numeric-string to an exact integer (recoverable, lossless).
- * Non-integer or out-of-range values are kept and reported for review.
+ * Non-integer or out-of-range values are kept and reported for review,
+ * UNLESS `allowFraction` is set (duration counters after the combat-end
+ * minutes conversion): then any finite number ≥ min is legitimate.
  * @param {object} data - Private normalized clone (mutated in place).
  * @param {string} key - Field key.
  * @param {Array} issues - Diagnostics list.
@@ -101,8 +111,10 @@ function pushIssue(issues, code, severity, detail) {
  * @param {number|null} [options.nullDefault] - For non-nullable fields with a
  *   schema initial (rank, successValue): a stored null receives the approved
  *   default. Nullable fields (durations) leave it unset so null stays null.
+ * @param {boolean} [options.allowFraction] - Accept finite non-integer
+ *   numbers ≥ min without an issue (duration counters only).
  */
-function coerceStoredInteger(data, key, issues, { min = null, nullDefault } = {}) {
+function coerceStoredInteger(data, key, issues, { min = null, nullDefault, allowFraction = false } = {}) {
   const raw = data[key];
   if (raw === undefined) return;
   if (raw === null) {
@@ -113,7 +125,7 @@ function coerceStoredInteger(data, key, issues, { min = null, nullDefault } = {}
     return;
   }
   if (typeof raw === "number") {
-    if (!Number.isInteger(raw)) {
+    if (!Number.isInteger(raw) && !allowFraction) {
       pushIssue(issues, `${key}-not-integer`, SEVERITY_REVIEW,
         `system.${key} is ${String(raw)}; the schema requires an integer. The value was NOT modified and needs GM review.`);
     } else if (min !== null && raw < min) {
@@ -253,10 +265,36 @@ export function normalizeSw25EffectSystem(raw) {
 
   // ── Success Value (DEC-6) ───────────────────────────────────────────────
   coerceStoredInteger(data, "successValue", issues, { nullDefault: 0 });
+  // T6.1/DEC-7: the Success Value provenance is the ONLY thing that decides
+  // whether the stored number is an authoritative SV. Absent/null stays null
+  // ("not recorded": forced removal re-determines the value at cancellation
+  // time, CR I p. 167 — it is NEVER read as a 0 SV). An unknown id is KEPT
+  // and reported, never silently reinterpreted (DEC-41).
+  cleanStoredString(data, "successValueSource", issues, { blankToNull: true });
+  if (typeof data.successValueSource === "string" && data.successValueSource !== ""
+    && !SW25_SUCCESS_VALUE_SOURCES.includes(data.successValueSource)) {
+    pushIssue(issues, "successValueSource-unknown", SEVERITY_REVIEW,
+      `system.successValueSource ("${data.successValueSource}") is not an approved provenance id (${SW25_SUCCESS_VALUE_SOURCES.join(", ")}). The value was NOT modified and needs GM review.`);
+  }
+
+  // ── Casting instance identity and target scope (Bloque 6, T6.1) ────────
+  // `castId` groups the representations of one casting; `effectScope` records
+  // its target selection mode. Absent/null stays absent (legacy effects are
+  // individual, ungrouped effects). Unknown scope ids are KEPT and reported.
+  cleanStoredString(data, "castId", issues, { blankToNull: true });
+  cleanStoredString(data, "effectScope", issues, { blankToNull: true });
+  if (typeof data.effectScope === "string" && data.effectScope !== ""
+    && !SW25_EFFECT_SCOPES.includes(data.effectScope)) {
+    pushIssue(issues, "effectScope-unknown", SEVERITY_REVIEW,
+      `system.effectScope ("${data.effectScope}") is not an approved scope id (${SW25_EFFECT_SCOPES.join(", ")}). The value was NOT modified and needs GM review.`);
+  }
 
   // ── Duration bookkeeping (DEC-23) ──────────────────────────────────────
-  coerceStoredInteger(data, "initialDuration", issues, { min: 0 });
-  coerceStoredInteger(data, "remainingDuration", issues, { min: 0 });
+  // The duration counters accept FRACTIONAL finite values ≥ min since the
+  // combat-end minutes conversion (rounds ÷ 6) writes them (e.g. 17 rounds →
+  // 2.8333… minutes). Counted-scale integrality remains a service-level rule.
+  coerceStoredInteger(data, "initialDuration", issues, { min: 0, allowFraction: true });
+  coerceStoredInteger(data, "remainingDuration", issues, { min: 0, allowFraction: true });
   const initial = data.initialDuration;
   const remaining = data.remainingDuration;
   if (typeof initial === "number" && typeof remaining === "number" && remaining > initial) {
@@ -269,6 +307,29 @@ export function normalizeSw25EffectSystem(raw) {
 
   // ── Normative classification (DEC-9/DEC-10) ────────────────────────────
   cleanStoredString(data, "effectType", issues, { blankToNull: true });
+
+  // ── Cancellation eligibility (DEC-7 / §55) ─────────────────────────────
+  // `isMagical` is strictly boolean: true means confirmed magical; false means
+  // non-magical or unconfirmed. Legacy absent/null values normalize to false.
+  // Explicit booleans survive untouched. Other malformed types are KEPT and
+  // reported for GM review, never silently coerced into either classification.
+  if (data.isMagical === undefined) {
+    data.isMagical = false;
+    pushIssue(issues, "isMagical-missing-defaulted", SEVERITY_AUTO_FIXED,
+      "system.isMagical was absent; normalized to false (non-magical or unconfirmed).");
+  } else if (data.isMagical === null) {
+    data.isMagical = false;
+    pushIssue(issues, "isMagical-null-defaulted", SEVERITY_AUTO_FIXED,
+      "system.isMagical was null; normalized to false (non-magical or unconfirmed).");
+  } else if (typeof data.isMagical !== "boolean") {
+    pushIssue(issues, "isMagical-unsupported-type", SEVERITY_REVIEW,
+      `system.isMagical has an unsupported type (${Array.isArray(data.isMagical) ? "array" : typeof data.isMagical}); expected a boolean. The value was NOT modified and needs GM review.`);
+  }
+  // `resistance` keeps the emitting effect's notation as source provenance
+  // (e.g. "cant"). It is NOT a cancellation-eligibility condition (T6.1:
+  // `Resistance: Can't` does not prevent cancellation). Blank ≡ absent
+  // (lossless); non-string values are kept and reported.
+  cleanStoredString(data, "resistance", issues, { blankToNull: true });
 
   // ── Stacking policy family (Bloque 4, T4.4) ────────────────────────────
   // Not an identity field (DEC-1/16/44): it selects the central stacking
@@ -405,6 +466,51 @@ export function normalizeSw25EffectSystem(raw) {
     }
   }
 
+  // ── Authored source duration identity (Phase 3 corrections) ────────────
+  // Approved two-key shape { unit, amount }: the unit the duration was
+  // AUTHORED in (e.g. "seconds") and its positive amount. Written only by
+  // the Instant/X out-of-combat fallback; never inferred from display text.
+  // Malformed shapes are KEPT and reported (DEC-41); the field carries no
+  // countdown semantics of its own.
+  if (data.sourceDuration !== undefined && data.sourceDuration !== null) {
+    if (typeof data.sourceDuration !== "object" || Array.isArray(data.sourceDuration)) {
+      pushIssue(issues, "sourceDuration-unsupported-type", SEVERITY_REVIEW,
+        `system.sourceDuration has an unsupported type (${Array.isArray(data.sourceDuration) ? "array" : typeof data.sourceDuration}). The value was NOT modified and needs GM review.`);
+    } else {
+      const clone = structuredClone(data.sourceDuration);
+      cleanStoredString(clone, "unit", issues, { blankToNull: true });
+      coerceStoredInteger(clone, "amount", issues, { min: 0, allowFraction: true });
+      const allowed = new Set(["unit", "amount"]);
+      const foreign = Object.keys(clone).filter(key => !allowed.has(key));
+      if (foreign.length) {
+        pushIssue(issues, "sourceDuration-foreign-keys", SEVERITY_REVIEW,
+          `system.sourceDuration carries keys outside the approved shape (${foreign.join(", ")}). They were KEPT in place; the schema will drop them on the next document write.`);
+      }
+      const unit = Object.prototype.hasOwnProperty.call(clone, "unit") ? clone.unit : null;
+      const amount = Object.prototype.hasOwnProperty.call(clone, "amount") ? clone.amount : null;
+      if (foreign.length) {
+        // Foreign keys stay in place untouched (DEC-41: nothing silently
+        // dropped); only trimming inside the approved keys may have applied.
+        data.sourceDuration = clone;
+      } else if (unit === null && amount === null) {
+        // An all-null sourceDuration carries no data: normalize to null.
+        data.sourceDuration = null;
+        pushIssue(issues, "sourceDuration-empty-null", SEVERITY_AUTO_FIXED,
+          "system.sourceDuration had neither unit nor amount; normalized to null (empty identity ≡ absent).");
+      } else {
+        if (unit === null) {
+          pushIssue(issues, "sourceDuration-missing-unit", SEVERITY_REVIEW,
+            "system.sourceDuration carries an amount without a unit; the authored identity cannot be derived. The value was NOT modified and needs GM review.");
+        }
+        if (amount === null || amount <= 0) {
+          pushIssue(issues, "sourceDuration-invalid-amount", SEVERITY_REVIEW,
+            `system.sourceDuration.amount (${amount ?? "absent"}) is not a positive number. The value was NOT modified and needs GM review.`);
+        }
+        data.sourceDuration = { unit: unit ?? null, amount: amount ?? null };
+      }
+    }
+  }
+
   // ── Presentation visibility (gmOnly) ────────────────────────────────────
   // Boolean presentation flag. Absent reads as `false` through the schema
   // initial (backward compatible: effects written before the field existed
@@ -420,6 +526,30 @@ export function normalizeSw25EffectSystem(raw) {
   } else if (typeof data.gmOnly !== "boolean") {
     pushIssue(issues, "gmOnly-unsupported-type", SEVERITY_REVIEW,
       `system.gmOnly has an unsupported type (${Array.isArray(data.gmOnly) ? "array" : typeof data.gmOnly}); expected a boolean. The value was NOT modified and needs GM review.`);
+  }
+
+  // ── Configured rule elements (`system.rules`) ───────────────────────────
+  // Additive optional array (schema stays v1, DEC-41). Absent stays absent (the
+  // schema initial `[]` applies); an explicit null is dropped as lossless
+  // (null ≡ absent for a non-nullable array with a default); a non-array is
+  // KEPT and reported. Entries are canonicalized by the rule-element registry;
+  // entries the registry cannot interpret are KEPT untouched and reported —
+  // never silently discarded or reinterpreted (DEC-41).
+  if (data.rules === undefined) {
+    // Absent: the schema initial applies; nothing to normalize.
+  } else if (data.rules === null) {
+    delete data.rules;
+    pushIssue(issues, "rules-null-dropped", SEVERITY_AUTO_FIXED,
+      "system.rules was null; normalized to absent (null ≡ absent for the array field; the schema initial `[]` applies).");
+  } else if (!Array.isArray(data.rules)) {
+    pushIssue(issues, "rules-not-array", SEVERITY_REVIEW,
+      `system.rules has an unsupported type (${typeof data.rules}); expected an array of rule element objects. The value was NOT modified and needs GM review.`);
+  } else {
+    const repaired = repairSw25RuleElements(data.rules);
+    data.rules = repaired.rules;
+    for (const issue of repaired.issues) {
+      pushIssue(issues, issue.code, SEVERITY_REVIEW, issue.detail);
+    }
   }
 
   // ── Native changes field: only restored/reported, never restructured ────

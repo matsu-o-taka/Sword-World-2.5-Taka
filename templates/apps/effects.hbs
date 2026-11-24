@@ -1,0 +1,157 @@
+<div class="sw25-effects-body">
+  <header class="sw25-effects-header">
+    <h2>Effect Creator</h2>
+    <p>Create generic or mechanically configured effects for testing or for insertion into content descriptions. Choose an effect type, configure its properties, then preview, copy or apply it.</p>
+  </header>
+
+  <section class="sw25-effects-tool" aria-labelledby="sw25-effect-creator-title">
+    <header class="sw25-effects-tool-header">
+      <h3 id="sw25-effect-creator-title"><i class="fas fa-hand-sparkles"></i> Configured Effect</h3>
+      <span>Preview · Copy · Apply</span>
+    </header>
+
+    <form data-effect-configurator-form>
+      <div class="sw25-effects-form-grid">
+        <div class="form-group sw25-effects-wide">
+          <label for="sw25-effect-type">Effect type</label>
+          <select id="sw25-effect-type" name="effectType" data-effect-type>
+            {{#each effectTypes as |effectType|}}
+            <option value="{{effectType.id}}" {{#if effectType.selected}}selected{{/if}}>{{effectType.label}}</option>
+            {{/each}}
+          </select>
+          <p class="hint">Generic effects carry no mechanical rules. Damage Vulnerability evaluates incoming damage.</p>
+        </div>
+      </div>
+
+      <section class="sw25-effects-type-section" data-effect-section="generic" {{#if isDamageVulnerability}}hidden{{/if}}>
+        <header class="sw25-effects-type-header">
+          <h4><i class="fas fa-star"></i> Generic Effect</h4>
+          <span>No mechanical rules</span>
+        </header>
+        <div class="sw25-effects-form-grid">
+          <div class="form-group sw25-effects-wide">
+            <label for="sw25-generic-name">Effect name</label>
+            <input id="sw25-generic-name" type="text" name="genericName" value="{{genericValues.name}}" required autocomplete="off">
+          </div>
+
+          <div class="form-group sw25-effects-wide">
+            <label for="sw25-generic-description">Description <span>(optional)</span></label>
+            <textarea id="sw25-generic-description" name="genericDescription" rows="2">{{genericValues.description}}</textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="sw25-generic-magical">Magical classification</label>
+            <select id="sw25-generic-magical" name="genericMagical">
+              {{#each magicalOptions as |option|}}
+              <option value="{{option.id}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+              {{/each}}
+            </select>
+            <p class="hint">Stored as a boolean <code>isMagical</code>. Choose Magical only when confirmed; otherwise use Non-magical.</p>
+          </div>
+
+          <div class="form-group">
+            <label for="sw25-generic-success">Fixed Success Value</label>
+            <input id="sw25-generic-success" type="number" name="genericSuccessValue" value="{{genericValues.successValue}}" min="0" step="1" required>
+            <p class="hint">Authoritative SV for Dispel Magic and Wordbreak. Ordinary comparisons must exceed it and ties resist; an automatic success can cancel an eligible effect without this comparison.</p>
+          </div>
+
+          <div class="form-group">
+            <label for="sw25-generic-effect-type">Effect type</label>
+            <select id="sw25-generic-effect-type" name="genericEffectType">
+              {{#each effectTypeOptions as |option|}}
+              <option value="{{option.id}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+              {{/each}}
+            </select>
+            <p class="hint">Optional classification used by the existing Curse and continuous-physical-state cancellation exclusions.</p>
+          </div>
+
+          <div class="form-group">
+            <label for="sw25-generic-duration">Persistent duration (X)</label>
+            <select id="sw25-generic-duration" name="genericDurationScale">
+              {{#each durationOptions as |option|}}
+              <option value="{{option.id}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+              {{/each}}
+            </select>
+          </div>
+
+          <div class="form-group" data-generic-rounds {{#unless genericRounds}}hidden{{/unless}}>
+            <label for="sw25-generic-duration-value">Duration in rounds</label>
+            <input id="sw25-generic-duration-value" type="number" name="genericDurationValue" value="{{genericValues.durationValue}}" min="1" step="1" required>
+            <p class="hint">Initial and remaining duration start at this value. Each confirmed round end reduces the remainder; zero removes the effect.</p>
+          </div>
+
+          <div class="form-group sw25-effects-wide">
+            <p class="hint">Persistent (X) effects only. Rounds use the existing round-end expiration workflow; all other scales are GM-managed and have no numeric countdown. Instant and Instant/X immediate resolution is action-specific and is not offered here.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="sw25-effects-type-section" data-effect-section="damageVulnerability" {{#unless isDamageVulnerability}}hidden{{/unless}}>
+        <header class="sw25-effects-type-header">
+          <h4><i class="fas fa-hand-sparkles"></i> Damage Vulnerability</h4>
+          <span>Configured Effect</span>
+        </header>
+        <div class="sw25-effects-form-grid">
+          <div class="form-group sw25-effects-wide">
+            <label for="sw25-effect-name">Effect name</label>
+            <input id="sw25-effect-name" type="text" name="name" value="{{values.name}}" required autocomplete="off">
+          </div>
+
+          <div class="form-group sw25-effects-wide">
+            <label for="sw25-effect-description">Description <span>(optional)</span></label>
+            <textarea id="sw25-effect-description" name="description" rows="2">{{values.description}}</textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="sw25-effect-additional-damage">Additional damage</label>
+            <input id="sw25-effect-additional-damage" type="number" name="additionalDamage" value="{{values.additionalDamage}}" step="1" required>
+            <p class="hint">Integer; positive or negative.</p>
+          </div>
+
+          <div class="form-group">
+            <label for="sw25-effect-category">Damage category</label>
+            <select id="sw25-effect-category" name="category">
+              {{#each categories as |category|}}
+              <option value="{{category.id}}" {{#if category.selected}}selected{{/if}}>{{category.label}}</option>
+              {{/each}}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="sw25-effect-element">Damage element</label>
+            <select id="sw25-effect-element" name="element">
+              {{#each elements as |element|}}
+              <option value="{{element.id}}" {{#if element.selected}}selected{{/if}}>{{element.label}}</option>
+              {{/each}}
+            </select>
+          </div>
+
+          <div class="form-group sw25-effects-wide">
+            <label for="sw25-effect-source">Damage source <span>(optional UUID or sourceUrl)</span></label>
+            <input id="sw25-effect-source" type="text" name="source" value="{{values.source}}" placeholder="Any Source" autocomplete="off" spellcheck="false">
+            <p class="hint">Leave blank for Any Source. This filters incoming damage; it is not the effect's origin.</p>
+          </div>
+        </div>
+      </section>
+    </form>
+
+    <p class="sw25-effects-origin-note"><strong>Origin:</strong> None (manual effect). No document UUID is fabricated or borrowed from the effect type, damage source or target Actor.</p>
+    <p class="sw25-effects-validation" data-effect-validation role="alert" hidden></p>
+
+    <section class="sw25-effects-preview" aria-labelledby="sw25-effect-preview-title">
+      <h4 id="sw25-effect-preview-title">Live preview <span>— drag this entry onto an Actor sheet or copy its HTML</span></h4>
+      <div class="sw25-effects-preview-entry" data-effect-preview>
+        The preview will appear when the configuration is valid.
+      </div>
+      <label for="sw25-effect-html">Generated HTML</label>
+      <textarea id="sw25-effect-html" data-effect-html rows="5" readonly spellcheck="false" aria-label="Generated configured-effect HTML"></textarea>
+    </section>
+
+    <footer class="sw25-effects-actions">
+      <button type="button" data-effect-copy><i class="fas fa-copy"></i> Copy HTML</button>
+      <button type="button" class="sw25-effects-apply" data-effect-apply><i class="fas fa-user-check"></i> Apply to Selected Actor</button>
+    </footer>
+    <p class="hint">Direct application requires exactly one selected Actor token and uses the same configured-effect / EffectService workflow as drag-and-drop.</p>
+    <p class="sw25-effects-action-status" data-effect-action-status role="status" aria-live="polite" hidden></p>
+  </section>
+</div>

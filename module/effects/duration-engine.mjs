@@ -196,9 +196,11 @@ async function degradeEffect(actor, effect, reason, event, summary) {
  *     never touched. A `rounds` effect WITHOUT a usable counter is a
  *     processing failure reported to the GM — never an implicit duration
  *     (T5.3, open question 5.1).
- *   - `turns`: condition scale — the expiry condition (regime/edge) is met
- *     at this event, so the effect expires (removed). No numeric counter is
- *     invented or touched.
+ *   - `turns`: a numeric `remainingDuration` (as used by Instant/N turns)
+ *     counts down at each matching anchor event, like `rounds`; a condition-
+ *     based turn duration without a numeric counter expires at its matching
+ *     edge. This preserves existing edge-condition effects while honoring
+ *     explicit counted-turn durations.
  * @param {object} actor - The effect's owner.
  * @param {object} effect - The effect to process.
  * @param {object} event - The confirmed event.
@@ -209,17 +211,23 @@ async function processByScale(actor, effect, event, summary) {
   const scale = effect.system.durationScale;
   const label = { effectId: effect.id, name: effect.name };
 
-  if (scale === "turns") {
+  const remaining = effect.system.remainingDuration;
+  const hasTurnCounter = scale === "turns"
+    && typeof remaining === "number"
+    && Number.isInteger(remaining)
+    && remaining >= 0;
+  if (scale === "turns" && !hasTurnCounter) {
     const removed = await removeSw25Effect(actor, effect.id);
     if (!removed.ok && removed.code !== "no-effect") throw new Error(removed.error ?? removed.code);
     summary.expired.push(label);
     return;
   }
 
-  // scale === "rounds" (the combat-scale filter upstream guarantees it).
-  const remaining = effect.system.remainingDuration;
+  // Both counted combat scales write the absolute next counter via the
+  // EffectService. `rounds` requires a counter at application; `turns` without
+  // one retains its existing condition-at-edge behavior above.
   if (typeof remaining !== "number" || !Number.isInteger(remaining) || remaining < 0) {
-    throw new Error(`the effect has no usable rounds counter (remainingDuration = ${JSON.stringify(remaining)}); a rounds effect without an initial counter is rejected at application since T5.3 — correct it manually through EffectService`);
+    throw new Error(`the effect has no usable ${scale} counter (remainingDuration = ${JSON.stringify(remaining)}); correct it manually through EffectService`);
   }
   if (remaining === 0) {
     // A zero counter should already have expired; expiring it now keeps the
@@ -286,8 +294,9 @@ async function processTurnEdge(combat, event, summary) {
  *      DEGRADES to `roundEnd`. A just-degraded effect is NOT discounted in
  *      the same transition (no double processing); it counts down from the
  *      NEXT round end.
- *   2. `roundEnd` regime processing: `rounds` counters decrement by one,
- *      `turns` conditions expire. Effects degraded in phase 1 are excluded.
+ *   2. `roundEnd` regime processing: counted scales decrement by one;
+ *      condition-based `turns` effects expire. Effects degraded in phase 1
+ *      are excluded.
  *
  * @param {Combat} combat - The combat encounter.
  * @param {object} event - The round event ({ kind: "round-end", round }).

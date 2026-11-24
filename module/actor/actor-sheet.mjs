@@ -11,13 +11,16 @@ import { SKILL_DEFINITION_MAP, SKILL_DEFINITIONS } from "../rules/skill-definiti
 import { AUTO_SELECTION, resolveClassAssignment, resolveSkillClass } from "../rules/skill-resolution.mjs";
 import { openRollModifiersDialog } from "../rules/roll-modifiers.mjs";
 import { castSpellAsMajor, castSpellAsMinor, castSpellInCombatPreparation, isCombatPreparationSpell, isMinorActionSpell } from "../rules/spell-cast.mjs";
-import { normalizeSpellData, schoolForClassName, SPELL_SCHOOL_ORDER } from "../rules/spell-data.mjs";
+import { findSw25CanonicalSpellMatches, normalizeSpellData, schoolForClassName, SPELL_SCHOOL_ORDER } from "../rules/spell-data.mjs";
 import { characterWeaponAttackFlow, resolveOptionalMonsterAttackTarget } from "../combat/attack-resolution.mjs";
 import { readMonsterActorCombatStyles } from "./monster-sheet-data.mjs";
 import { rollMonsterKnowledge } from "../combat/monster-knowledge.mjs";
 import { prepareSw25EffectsTab } from "../effects/effects-tab.mjs";
 import { sw25EffectLedger, sw25EffectModifier, sw25EffectiveResourceMaximum } from "../effects/effective-values.mjs";
 import { wireSw25EffectsTabHandlers } from "./effects-tab-ui.mjs";
+import { bindSw25ConfiguredEffectDropTarget } from "../effects/configured-effect.mjs";
+import { featActionId } from "../rules/feat-action-registry.mjs";
+import { executeFeatAction } from "../rules/feat-actions.mjs";
 
 // Combat feat that grants Marksman access to Evasion calculation. Identified
 // by the feat item's canonical name (feats are matched by normalized name).
@@ -126,6 +129,10 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       Number(b.system.level ?? 0) - Number(a.system.level ?? 0) || a.name.localeCompare(b.name)
     );
     context.feats = byType("feat");
+    // Contextual feat actions (T6.3): the registry resolves a stable source
+    // identifier to an implemented mechanical action. Unknown feats keep a
+    // null id and render only their existing chat-publication control.
+    for (const feat of context.feats) feat.executableActionId = featActionId(feat);
     context.racialAbilities = byType("ability").filter(item => item.system.source === "racial");
     context.classAbilities = byType("ability").filter(item => item.system.source === "class");
     context.weapons = byType("weapon");
@@ -636,7 +643,8 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     // `sw25Effect` documents, plus the GM-only repair control flag. All values
     // are prepared by module/effects/effects-tab.mjs (T1.3/T1.4 contracts);
     // nothing here writes and no repair runs implicitly on render.
-    context.effectsTab = prepareSw25EffectsTab(this.actor, game.user.isGM === true);
+    context.isGM = game.user.isGM === true;
+    context.effectsTab = prepareSw25EffectsTab(this.actor, context.isGM);
 
     return context;
   }
@@ -668,6 +676,9 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
     // document write to the T1.3 repair contract (no render-path writes).
     // Shared with the monster sheet's identical Effects section.
     wireSw25EffectsTabHandlers(this, html);
+    // Configured effect entries dropped onto the sheet create the active
+    // instance through EffectService (or the GM relay for players).
+    bindSw25ConfiguredEffectDropTarget(this, html);
 
     const setActiveTab = tabName => {
       html.find(".tab-button").removeClass("active");
@@ -1008,6 +1019,16 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
         speaker:ChatMessage.getSpeaker({ actor:this.actor }),
         content:`<div class="sw25-chat-card"><h3>${escape(item.name)}</h3>${featDetails}${description ? `<p>${escape(description)}</p>` : ""}${recoveryControls}</div>`
       });
+    });
+
+    html.find("[data-action='execute-feat']").on("click", async event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const feat = this.actor.items.get(event.currentTarget.closest("[data-item-id]")?.dataset.itemId);
+      if (!feat) return;
+      // Executable Combat Feats dispatch through the shared registry; the
+      // sheet never reimplements their mechanics.
+      await executeFeatAction({ item: feat, actor: this.actor, targets: [...(game.user.targets ?? [])] });
     });
 
     html.find("[data-action='edit-class-level']").on("change", async event => {
@@ -1602,18 +1623,32 @@ export class SW25ActorSheet extends foundry.appv1.sheets.ActorSheet {
       itemData.system = itemData.system || {};
       const normalized = normalizeSpellData(itemData.system, { name: source.name });
       itemData.system = normalized.system;
+      // Phase 2: the copied spell's document name is the CANONICAL name —
+      // the leading ⏩/△ markers are authoring metadata, already persisted
+      // as system.minorAction/system.combatPreparation by the normalization.
+      if (normalized.nameChanged) itemData.name = normalized.name;
       if (normalized.warnings.length) {
         console.warn(`sw25-taka | Spell "${source.name}" has unrecognized source values (stored as null):`, normalized.warnings);
       }
       itemData.system.classId = destClass.id;
       itemData.system.className = destClass.name;
 
-      // Duplicate check: same spell name already associated with this class.
-      const existing = this.actor.items.find(item =>
-        item.type === "spell" &&
-        item.name.toLowerCase() === source.name.toLowerCase() &&
-        String(item.system.classId || "") === String(destClass.id)
-      );
+      // Duplicate check: the same spell already associated with this class,
+      // compared by CANONICAL name (Phase 2) so a markered and a clean
+      // spelling are recognized as the same spell. Phase 3 corrections: the
+      // shared lookup returns ALL matches — multiple documents collapsing to
+      // one canonical identity are a CONFLICT: reported and preserved, never
+      // merged, never deleted, and nothing new is copied while it stands.
+      const canonicalName = normalized.name;
+      const matches = findSw25CanonicalSpellMatches(this.actor.items, canonicalName, {
+        type: "spell", classId: destClass.id
+      });
+      if (matches.length > 1) {
+        const listing = matches.map(item => `"${item.name}"`).join(", ");
+        ui.notifications.warn(`Canonical identity conflict: ${listing} all resolve to the same spell in ${destClass.name}. Nothing was copied; resolve the duplicate documents manually.`);
+        return null;
+      }
+      const existing = matches[0] ?? null;
       if (existing) {
         ui.notifications.info(`${source.name} is already known by ${destClass.name}.`);
         return existing;

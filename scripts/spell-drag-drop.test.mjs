@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { normalizeSpellData } from "../module/rules/spell-data.mjs";
+import { findSw25CanonicalSpellMatches, normalizeSpellData } from "../module/rules/spell-data.mjs";
 
 // Global Foundry mocks
 let mockDropSource = null;
@@ -174,14 +174,25 @@ class MockSheet {
       itemData.system = itemData.system || {};
       const normalized = normalizeSpellData(itemData.system, { name: source.name });
       itemData.system = normalized.system;
+      // Phase 2 mirror of the production drop handler: canonical name + canonical duplicate check.
+      if (normalized.nameChanged) itemData.name = normalized.name;
       itemData.system.classId = destClass.id;
       itemData.system.className = destClass.name;
 
-      const existing = this.actor.items.find(item =>
-        item.type === "spell" &&
-        item.name.toLowerCase() === source.name.toLowerCase() &&
-        String(item.system.classId || "") === String(destClass.id)
-      );
+      const canonicalName = normalized.name;
+      // Phase 3 corrections mirror: the shared canonical lookup returns ALL
+      // matches — multiple documents collapsing to one canonical identity are
+      // a CONFLICT: reported and preserved (never merged/deleted, nothing new
+      // created), exactly like the production drop handler.
+      const matches = findSw25CanonicalSpellMatches(this.actor.items, canonicalName, {
+        type: "spell", classId: destClass.id
+      });
+      if (matches.length > 1) {
+        const listing = matches.map(item => `"${item.name}"`).join(", ");
+        ui.notifications.warn(`Canonical identity conflict: ${listing} all resolve to the same spell in ${destClass.name}. Nothing was copied; resolve the duplicate documents manually.`);
+        return null;
+      }
+      const existing = matches[0] ?? null;
       if (existing) {
         ui.notifications.info(`${source.name} is already known by ${destClass.name}.`);
         return existing;
@@ -332,6 +343,79 @@ console.log("=== Test: Cross-actor spell drag & drop ===");
   assert.strictEqual(system.classId, "class-wizard", "Destination class association applied");
 
   console.log("  PASS: Old-schema spell normalized to the new schema on drop");
+}
+
+// Test 3b: A dropped MARKERED spell stores the CANONICAL name (metadata stays)
+{
+  const sourceSpell = makeMockSpellItem("spell-quick-shield", "⏩Quick Shield", "", "Wizard", {
+    metadata: "Target: Caster\nRange/Area: Caster\nDuration: 3 rounds\nResistance: None"
+  });
+  const sourceActor = makeMockActor([sourceSpell]);
+  const wizard = makeMockClassItem("class-wizard", "Wizard", 5);
+  const destActor = makeMockActor([wizard]);
+  const sheet = new MockSheet(destActor);
+
+  mockDropSource = sourceSpell;
+  await sheet._onDropItem({}, {});
+
+  const created = destActor.items.filter(i => i.type === "spell");
+  assert.strictEqual(created.length, 1, "The dropped spell is copied");
+  assert.strictEqual(created[0].name, "Quick Shield", "The stored name is canonical: the leading ⏩ is authoring metadata");
+  assert.strictEqual(created[0].system.minorAction, true, "The ⏩ metadata persists in system.minorAction");
+  assert.strictEqual(created[0].system.combatPreparation, false, "No △ marker was present");
+  console.log("  PASS: Markered spell drop stores the canonical name with marker metadata");
+}
+
+// Test 3c: Duplicate detection compares CANONICAL names (both directions)
+{
+  const wizard = makeMockClassItem("class-wizard", "Wizard", 5);
+
+  // Existing clean name, dropped markered spelling.
+  const existingClean = makeMockSpellItem("spell-qs-existing", "Quick Shield", "class-wizard", "Wizard");
+  const destActor = makeMockActor([wizard, existingClean]);
+  const sheet = new MockSheet(destActor);
+  mockDropSource = makeMockSpellItem("spell-qs-drop", "⏩Quick Shield", "class-wizard", "Wizard");
+  const result = await sheet._onDropItem({}, {});
+  assert.strictEqual(result?.id, existingClean.id, "A markered drop matches the clean-named existing spell");
+  assert.strictEqual(destActor.items.filter(i => i.type === "spell").length, 1, "No duplicate created");
+
+  // Existing markered name, dropped clean spelling.
+  const existingMarkered = makeMockSpellItem("spell-qs-markered", "⏩Quick Shield", "class-wizard-2", "Wizard");
+  const destActor2 = makeMockActor([makeMockClassItem("class-wizard-2", "Wizard", 5), existingMarkered]);
+  const sheet2 = new MockSheet(destActor2);
+  mockDropSource = makeMockSpellItem("spell-qs-drop2", "Quick Shield", "class-wizard", "Wizard");
+  const result2 = await sheet2._onDropItem({}, {});
+  assert.strictEqual(result2?.id, existingMarkered.id, "A clean drop matches the markered existing spell");
+  assert.strictEqual(destActor2.items.filter(i => i.type === "spell").length, 1, "No duplicate created");
+
+  console.log("  PASS: Duplicate detection compares canonical names in both directions");
+}
+
+// Test 3d: Multiple documents collapsing to ONE canonical identity are a
+// conflict — reported and preserved; nothing is copied or deleted.
+{
+  const wizard = makeMockClassItem("class-wizard", "Wizard", 5);
+  const first = makeMockSpellItem("spell-qs-legacy", "⏩Quick Shield", "class-wizard", "Wizard");
+  const second = makeMockSpellItem("spell-qs-clean", "Quick Shield", "class-wizard", "Wizard");
+  const destActor = makeMockActor([wizard, first, second]);
+  const sheet = new MockSheet(destActor);
+
+  const warnings = [];
+  const originalWarn = ui.notifications.warn;
+  ui.notifications.warn = message => { warnings.push(String(message)); };
+  try {
+    mockDropSource = makeMockSpellItem("spell-qs-drop", "Quick Shield", "class-wizard", "Wizard");
+    const result = await sheet._onDropItem({}, {});
+    assert.strictEqual(result, null, "the conflict copies nothing");
+  } finally {
+    ui.notifications.warn = originalWarn;
+  }
+  assert.strictEqual(warnings.length, 1, "the conflict is reported once");
+  assert.ok(warnings[0].includes("conflict") && warnings[0].includes("Quick Shield"), "the report names the conflict");
+  const spellsAfter = destActor.items.filter(i => i.type === "spell");
+  assert.strictEqual(spellsAfter.length, 2, "both documents are preserved: never merged, never deleted");
+
+  console.log("  PASS: Canonical identity conflict on drop is reported and preserved");
 }
 
 // Test 3: The original spell remains unchanged after a duplicate is detected on the destination

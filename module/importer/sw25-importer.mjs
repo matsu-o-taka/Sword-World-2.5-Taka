@@ -2,7 +2,7 @@ import { parseMonsterPage, validateMonsterProfile } from "./monster-parser.mjs";
 import { parseClassSpecificItems, parseEquipmentTables } from "./equipment-parser.mjs";
 import { defaultFeatureDefenseModifier } from "../rules/feature-defense.mjs";
 import { selectConcealedMainSection } from "../combat/concealed-main-section.mjs";
-import { deriveSpellFields } from "../rules/spell-data.mjs";
+import { canonicalSpellName, deriveSpellFields, findSw25CanonicalSpellMatches } from "../rules/spell-data.mjs";
 
 export class SW25Importer {
   static async open(actor = null) {
@@ -171,6 +171,9 @@ export class SW25Importer {
     if (!entries.length) throw new Error("No spell links were found at or below that level.");
 
     const normalize = value => this.clean(value).toLowerCase().replace(/[^a-z0-9]/g, "");
+    // Phase 3 corrections: duplicate detection keys on the CANONICAL name, so
+    // a legacy markered spelling of the same spell suppresses its re-import.
+    const canonicalKey = value => normalize(canonicalSpellName(value).name);
     const classId = String(options.classId || "");
     const className = String(options.className || "");
     const existingNames = new Set(actor.items
@@ -178,7 +181,7 @@ export class SW25Importer {
         String(item.system.classId || "") === classId ||
         (!item.system.classId && String(item.system.className || "").toLowerCase() === className.toLowerCase())
       ))
-      .map(item => normalize(item.name)));
+      .map(item => canonicalKey(item.name)));
     const existingUrls = new Set(actor.items
       .filter(item => item.type === "spell")
       .map(item => String(item.system.sourceUrl || "").replace(/^http:/, "https:"))
@@ -217,10 +220,10 @@ export class SW25Importer {
         const parsed = this.parseClassFeature(spellPage.text, entry.url, {
           classId, className, featureType:"spell"
         });
-        if (existingNames.has(normalize(parsed.name))) { skipped++; continue; }
+        if (existingNames.has(canonicalKey(parsed.name))) { skipped++; continue; }
         parsed.level = entry.level;
         await this.createClassFeature(parsed, actor);
-        existingNames.add(normalize(parsed.name));
+        existingNames.add(canonicalKey(parsed.name));
         existingUrls.add(entry.url);
         imported++;
       } catch (error) {
@@ -333,7 +336,7 @@ export class SW25Importer {
     ).join("\n\n").trim();
     // Spell Items carry the structured data model (rules/spell-data.mjs).
     // The shared derivation populates rank/resistance/target/range/area/
-    // duration/damageType and the casting markers; unrecognized source
+    // duration/effectType/damageType and the casting markers; unrecognized source
     // values are REPORTED, never silently assigned an invented meaning.
     // Spell Items no longer receive `featureType`, `cost` or `resourceData`.
     // Their Power is retained as the catalog-row selector.
@@ -344,8 +347,14 @@ export class SW25Importer {
     if (spellFields?.warnings?.length) {
       console.warn(`Sword World 2.5 | Spell "${name}" has unrecognized source values (stored as null):`, spellFields.warnings);
     }
+    // Phase 2: Spell Items are stored under their CANONICAL name — the
+    // leading ⏩/△ markers are authoring metadata, already persisted as the
+    // system booleans by the derivation above (which reads them from the
+    // ORIGINAL name). Abilities keep their authored names.
+    const canonical = isSpellImport ? canonicalSpellName(name) : null;
+    const storedName = canonical?.changed ? canonical.name : name;
     const parsed = {
-      name,
+      name: storedName,
       type: isSpellImport ? "spell" : "ability",
       classId: options.classId || "",
       className: options.className || "",
@@ -370,6 +379,8 @@ export class SW25Importer {
         range: spellFields.range,
         area: spellFields.area,
         duration: spellFields.duration,
+        durationData: spellFields.durationData,
+        effectType: spellFields.effectType,
         damageType: spellFields.damageType,
         minorAction: spellFields.minorAction,
         combatPreparation: spellFields.combatPreparation
@@ -414,6 +425,8 @@ export class SW25Importer {
         range: parsed.range ?? null,
         area: parsed.area ?? null,
         duration: parsed.duration ?? null,
+        durationData: parsed.durationData ?? null,
+        effectType: parsed.effectType ?? null,
         damageType: parsed.damageType ?? null,
         minorAction: parsed.minorAction === true,
         combatPreparation: parsed.combatPreparation === true
@@ -428,10 +441,23 @@ export class SW25Importer {
       });
     }
     if (!actor) return Item.create({ name:parsed.name, type:parsed.type, system });
-    const existing = actor.items.find(item =>
-      item.type === parsed.type && item.name.toLowerCase() === parsed.name.toLowerCase() &&
-      String(item.system.classId || "") === String(parsed.classId || "")
-    );
+    // Phase 2: the duplicate/refresh lookup compares CANONICAL names on BOTH
+    // sides, so an existing markered item is still found by a now-canonical
+    // parse. Phase 3 corrections: the shared lookup returns ALL matches, and
+    //   - one match → the refresh, which now also RENAMES a legacy markered
+    //     document name to its canonical spelling (spells only; abilities
+    //     keep their authored names; †/‡ are preserved by canonicalization);
+    //   - MULTIPLE matches → a canonical identity CONFLICT: reported and
+    //     left completely untouched — never merged, never deleted, nothing
+    //     new created while the conflict stands (resolve it manually).
+    const matches = findSw25CanonicalSpellMatches(actor.items, parsed.name, {
+      type: parsed.type, classId: parsed.classId
+    });
+    if (matches.length > 1) {
+      const listing = matches.map(item => `"${item.name}" (id ${item.id ?? "unknown"})`).join(", ");
+      throw new Error(`Canonical identity conflict: ${listing} all resolve to the same canonical spell name "${canonicalSpellName(parsed.name).name}" in class ${parsed.className || parsed.classId || "unknown"}. Nothing was imported, renamed or deleted; resolve the duplicate documents manually.`);
+    }
+    const existing = matches[0] ?? null;
     if (existing) {
       const update = Object.fromEntries(Object.entries(system).map(([key, value]) => [`system.${key}`, value]));
       if (isSpell) {
@@ -439,6 +465,12 @@ export class SW25Importer {
         for (const key of ["school", "cost", "featureType", "resourceData"]) {
           update[`system.-=${key}`] = null;
         }
+        // Legacy rename: a document still carrying its authored ⏩/△ markers
+        // takes the canonical name (the markers stay persisted as the system
+        // booleans above). Idempotent — already-canonical names get no name
+        // key at all.
+        const canonicalName = canonicalSpellName(parsed.name).name;
+        if (existing.name !== canonicalName) update.name = canonicalName;
       }
       await existing.update(update);
       return existing;

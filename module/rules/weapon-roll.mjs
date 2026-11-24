@@ -1,5 +1,5 @@
 import { isGunWeapon, isWarriorClass, weaponDamageParts } from "./weapon-damage.mjs";
-import { damageApplicationButton } from "../combat/damage-application.mjs";
+import { damageApplicationButton, incomingDamageContext } from "../combat/damage-application.mjs";
 import { automaticFailureButton, isPowerTableCritical, isCriticalFailure, naturalDiceTotal } from "./critical-failure.mjs";
 import { resolveClassAssignment } from "./skill-resolution.mjs";
 import { signedValue } from "./roll-modifiers.mjs";
@@ -77,7 +77,7 @@ export async function rollWeaponDamage({ actor, weapon, attackingClass, combatSt
           <div class="sw25-damage-stat-summary sw25-damage-result-summary" role="button" tabindex="0"><span class="sw25-damage-result-label">Damage</span><span class="sw25-damage-result-value">${total}</span><span class="sw25-damage-result-hint">breakdown</span></div>
           <div class="sw25-damage-stat-detail" id="${totalId}" style="display:none;"><ul class="sw25-roll-breakdown">${chainRows}<li><strong>Accumulated table damage:</strong> ${powerTotal}</li><li><strong>${foundry.utils.escapeHTML(attackingClass?.name ?? "Class")} level:</strong> ${damage.classLevel}</li><li><strong>${damage.gun ? "Intelligence" : "Strength"} bonus:</strong> ${signedValue(damage.bonus)}</li><li><strong>Weapon additional damage:</strong> ${signedValue(damage.additionalDamage)}</li><li><strong>Additional damage:</strong> ${signedValue(situationalDamage)}</li><li><strong>Extra Damage:</strong> ${signedValue(damage.classLevel + damage.bonus + damage.additionalDamage + situationalDamage)}</li><li class="sw25-damage-breakdown-final"><strong>Final damage:</strong> ${total}</li></ul></div>
         </div>
-        ${damageApplicationButton(total, "physical", false, combatStyleId, targetActorUuid)}
+        ${damageApplicationButton(total, "physical", false, combatStyleId, targetActorUuid, incomingDamageContext(weapon))}
       </div>`
   });
   return { criticalFailure:false, total, critical, chain:chain.rolls };

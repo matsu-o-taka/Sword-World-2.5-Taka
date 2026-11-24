@@ -13,8 +13,10 @@
 //   2. Minor action: successValue stays 0.
 //   3. Rounds duration receives a valid casterTurn combat anchor.
 //   4. Turns duration receives a valid casterTurn combat anchor.
-//   5. Manual scales (minutes/other) need no combat anchor and get no
-//      invented counters.
+//   5. Minute-derived durations COUNT their normalized rounds in combat
+//      (18 for "Instant/3 minutes (18 rounds)"); out of combat the cast
+//      falls back to the manual authored-minutes scale (user directive,
+//      2026-11-22). "Instant/Various" stays GM-managed "other".
 //   6. Family/rank identity follows DEC-1/DEC-16 (canonical name + parsed
 //      numeral; `system.school` is never used as family).
 //   7. casterUUID and origin (spell document UUID) are preserved.
@@ -447,11 +449,11 @@ if (process.env.T57C_DEBUG === "1") {
   record("case 4: turns duration with valid casterTurn/begin anchor");
 }
 
-// ── 5. Manual scales: no combat anchor, no invented counters ───────────────
+// ── 5. Minute-derived durations count rounds; out-of-combat fallback ───────
 
 {
   setGm();
-  setActiveCombat(); // combat active, but manual scales must ignore it
+  setActiveCombat(); // combat active: minute-derived durations COUNT their rounds
   const target = new MockActor("target-5", "Target Five");
   actorsCollection.push(target);
   await applyInstantXPersistentEffect(target, {
@@ -462,12 +464,44 @@ if (process.env.T57C_DEBUG === "1") {
   });
   assert.equal(target.effects.length, 1);
   const system = target.effects[0].system;
-  assert.equal(system.durationScale, "minutes", "Manual scale from 'Instant/3 minutes (18 rounds)'");
-  assert.equal(system.durationAnchor, null, "Manual scales never carry combat anchors (D4)");
-  assert.equal(system.initialDuration, null, "No invented counter (DEC-23/DEC-40)");
-  assert.equal(system.remainingDuration, null, "No invented counter (DEC-23/DEC-40)");
+  assert.equal(system.durationScale, "rounds", "Counted combat scale from 'Instant/3 minutes (18 rounds)' (normalized 3 × 6 = 18)");
+  assert.equal(system.initialDuration, 18, "Normalized round counter (user directive, 2026-11-22)");
+  assert.equal(system.remainingDuration, 18);
+  assert.deepEqual(system.durationAnchor, {
+    regime: "casterTurn", edge: "begin", state: "resolved", combatantId: "cmbt-caster", tokenId: "tkn-caster"
+  });
+  // The T5.3 duration engine decrements the minute-derived counter exactly
+  // like an authored-rounds one (same mock combat shape as case 3).
+  const engineCaster = { ...casterCombatant, name: "Caster", actor: caster, defeated: false, token: { id: "tkn-caster" } };
+  const engineTarget = { id: "cmbt-target5", name: "Target Five", actor: target, defeated: false, tokenId: "tkn-target5", token: { id: "tkn-target5" } };
+  const combat = {
+    id: "combat-1", round: 1, turn: null, started: true,
+    combatants: Object.assign([engineCaster, engineTarget], { get: cid => (cid === "cmbt-caster" ? engineCaster : cid === "cmbt-target5" ? engineTarget : null) })
+  };
+  const summary = await processSw25DurationEvent(combat, { kind: "turn-begin", combatantId: "cmbt-caster" });
+  assert.equal(summary.ok, true, "The minute-derived anchored effect is processable by the duration engine");
+  assert.equal(target.effects[0].system.remainingDuration, 17, "The 18-round counter decremented by the engine");
 
-  // "Instant/Various" → GM-managed "other" scale (DEC-32).
+  // Out of combat the same duration falls back to its manual authored
+  // minutes (pre-combat casts keep working, GM-managed; no anchor exists).
+  clearCombat();
+  const targetFallback = new MockActor("target-5c", "Target Five C");
+  actorsCollection.push(targetFallback);
+  await applyInstantXPersistentEffect(targetFallback, {
+    spellUuid: fieldProtection.uuid,
+    casterUuid: CASTER_UUID,
+    successValue: 11,
+    damageType: "magical"
+  });
+  assert.equal(targetFallback.effects.length, 1, "Out-of-combat minute-derived casts still create their component");
+  const fallback = targetFallback.effects[0].system;
+  assert.equal(fallback.durationScale, "minutes", "Out-of-combat fallback keeps the authored minutes");
+  assert.equal(fallback.initialDuration, 3, "Authored minute counters (3 minutes)");
+  assert.equal(fallback.remainingDuration, 3);
+  assert.equal(fallback.durationAnchor, null, "Manual scales never carry combat anchors (D4)");
+
+  // "Instant/Various" → GM-managed "other" scale (DEC-32), no counters.
+  setActiveCombat();
   const target2 = new MockActor("target-5b", "Target Five B");
   actorsCollection.push(target2);
   await applyInstantXPersistentEffect(target2, {
@@ -479,8 +513,9 @@ if (process.env.T57C_DEBUG === "1") {
   assert.equal(target2.effects.length, 1);
   assert.equal(target2.effects[0].system.durationScale, "other", "Unclassifiable duration → 'other' (DEC-32)");
   assert.equal(target2.effects[0].system.durationAnchor, null);
+  assert.equal(target2.effects[0].system.initialDuration, null, "No invented counter (DEC-23)");
   assert.equal(target2.effects[0].system.family, "‡Fear", "Authoring marker stays in the family");
-  record("case 5: manual scales (minutes/other) without combat anchor or invented counters");
+  record("case 5: minute-derived durations count 18 rounds in combat (engine-processed); out-of-combat fallback keeps the authored minutes; Various stays other");
 }
 
 // ── 6. Family/rank identity (DEC-1/DEC-16) ─────────────────────────────────
@@ -492,10 +527,10 @@ if (process.env.T57C_DEBUG === "1") {
   // parser); a plain-name object still parses from the name.
   assert.deepEqual(getInstantXSpellIdentity(fieldProtection), { family: "Field Protection", rank: 2 });
   assert.deepEqual(getInstantXSpellIdentity(shockingWave), { family: "Shocking Wave", rank: 0 });
-  assert.deepEqual(getInstantXSpellIdentity({ name: "△Take the Lead I" }), { family: "△Take the Lead", rank: 1 });
-  assert.deepEqual(getInstantXSpellIdentity({ name: "△Take The Lead II" }), { family: "△Take The Lead", rank: 2 });
+  assert.deepEqual(getInstantXSpellIdentity({ name: "△Take the Lead I" }), { family: "Take the Lead", rank: 1 }, "Leading △ is authoring metadata, never identity");
+  assert.deepEqual(getInstantXSpellIdentity({ name: "△Take The Lead II" }), { family: "Take The Lead", rank: 2 });
   assert.deepEqual(getInstantXSpellIdentity({ name: "Summon Fairy IV" }), { family: "Summon Fairy", rank: 4 });
-  assert.deepEqual(getInstantXSpellIdentity({ name: "⏩△Wing Flyer II" }), { family: "⏩△Wing Flyer", rank: 2 });
+  assert.deepEqual(getInstantXSpellIdentity({ name: "⏩△Wing Flyer II" }), { family: "Wing Flyer", rank: 2 }, "Leading ⏩△ run is authoring metadata, never identity");
   assert.deepEqual(getInstantXSpellIdentity({ name: "Mana Max" }), { family: "Mana Max", rank: 0 }, "Lowercase 'x' is never a numeral");
   assert.deepEqual(getInstantXSpellIdentity({ name: "‡Fear" }), { family: "‡Fear", rank: 0 });
   assert.deepEqual(getInstantXSpellIdentity({ name: "Freeze" }), { family: "Freeze", rank: 0 });
@@ -526,7 +561,7 @@ if (process.env.T57C_DEBUG === "1") {
   assert.equal(target.effects[0].origin, poisonSpell.uuid, "origin is the spell document UUID, not the name");
   assert.notEqual(target.effects[0].origin, poisonSpell.name);
   assert.deepEqual(system.damageType, { nature: "Physical", attribute: "Poison" }, "DEC-9 nature + metadata attribute");
-  assert.equal(system.effectType, null, "effectType stays null when the spell defines none");
+  assert.equal(system.effectType, "Poison", "functional spell Type is stored separately from damageType.attribute");
   record("case 7: casterUUID and origin (spell document UUID) preserved");
 }
 
@@ -676,10 +711,17 @@ if (process.env.T57C_DEBUG === "1") {
   clearCombat();
   assert.equal(resolveSw25CasterAnchor(CASTER_UUID), null, "No anchor outside combat");
 
-  // Duration parsing sanity on the real metadata shapes.
-  assert.deepEqual(getInstantXSpellData(shockingWave), { durationScale: "rounds", initialDuration: 2, remainingDuration: 2 });
-  assert.deepEqual(getInstantXSpellData(fieldProtection), { durationScale: "minutes", initialDuration: null, remainingDuration: null });
-  assert.deepEqual(getInstantXSpellData(fearSpell), { durationScale: "other", initialDuration: null, remainingDuration: null });
+  // Duration mapping sanity on the real metadata shapes (Phase 2: counted
+  // rounds + out-of-combat fallback; Phase 3 corrections: the seconds
+  // fallback preserves the authored identity for the combat-entry flow).
+  assert.deepEqual(getInstantXSpellData(shockingWave),
+    { durationScale: "rounds", initialDuration: 2, remainingDuration: 2,
+      outOfCombat: { durationScale: "other", initialDuration: null, remainingDuration: null,
+        sourceDuration: { unit: "seconds", amount: 20 } } });
+  assert.deepEqual(getInstantXSpellData(fieldProtection),
+    { durationScale: "rounds", initialDuration: 18, remainingDuration: 18, outOfCombat: { durationScale: "minutes", initialDuration: 3, remainingDuration: 3 } });
+  assert.deepEqual(getInstantXSpellData(fearSpell),
+    { durationScale: "other", initialDuration: null, remainingDuration: null, outOfCombat: null });
   record("transport: button attributes, anchor resolution and duration parsing verified");
 }
 

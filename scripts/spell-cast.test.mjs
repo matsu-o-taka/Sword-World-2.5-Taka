@@ -31,6 +31,7 @@ let rollQueue = [];
 const chatCreations = [];
 const rollMessages = [];
 const dialogV2Calls = [];
+const dialogV2Answers = [];
 const socketEmissions = [];
 const registeredHooks = new Map();
 
@@ -165,6 +166,7 @@ globalThis.foundry = {
       DialogV2: class MockDialogV2 {
         static async wait(config) {
           dialogV2Calls.push(config);
+          if (dialogV2Answers.length) return dialogV2Answers.shift();
           return "passive";
         }
       }
@@ -177,14 +179,19 @@ globalThis.foundry = {
   }
 };
 
+// The effect service and relay enforce GM authority, so the tests need to
+// switch client role on demand (default: GM, the normal headless case).
+let mockUserIsGM = true;
+let mockActiveGm = { id: "gm-user" };
+
 globalThis.game = {
   get user() {
-    return { isGM: true, id: "gm-user", get targets() { return gameTargets; } };
+    return { get isGM() { return mockUserIsGM; }, id: "gm-user", get targets() { return gameTargets; } };
   },
   actors: actorsCollection,
   items: { get: uuid => spellCollection.get(uuid) ?? null },
   get targets() { return gameTargets; },
-  users: { get activeGM() { return { id: "gm-user" }; } },
+  users: { get activeGM() { return mockActiveGm; } },
   socket: {
     async emit(_channel, payload) { socketEmissions.push(payload); },
     on() {}
@@ -298,6 +305,24 @@ const fireBolt = SPELL("fire-bolt", "Fire Bolt", {
   resistance: "half"
 });
 
+const healingWater = SPELL("healing-water", "Healing Water", {
+  mpCost: 3,
+  hasPowerTable: false,
+  target: "character",
+  duration: "Instant/3 minutes (18 rounds)",
+  resistance: "none"
+});
+const chillingBreath = SPELL("chilling-breath", "Chilling Breath", {
+  mpCost: 11,
+  hasPowerTable: true,
+  critical: 10,
+  powerTable: { 3: 1, 4: 2, 5: 3, 6: 4, 7: 5, 8: 6, 9: 7, 10: 8, 11: 9, 12: 10 },
+  target: "character",
+  duration: "Instant/10 seconds (1 round)",
+  resistance: "half",
+  damageType: { nature: "magical", attribute: "Water/Ice" }
+});
+
 const monsterOf = (id, name, willpower, activeCombatRolls) => {
   const monster = new MockActor(id, name, {
     type: "monster",
@@ -331,7 +356,14 @@ const assertSingleSv = (card, value) => {
 // Dialog override so each scenario controls Optional decisions without UI.
 // Monster defense is configuration-driven and has no dialog override.
 const dialogs = {
-  askOptional: async (_target, _spell) => dialogs.optionalAnswer ?? false
+  askOptional: async (_target, _spell) => dialogs.optionalAnswer ?? false,
+  // Dispel Magic declares its target effect BEFORE the roll (T6.1). The
+  // default test declaration picks the first eligible candidate; scenarios
+  // that need another choice override it.
+  declareEffect: async ({ candidates }) => {
+    const candidate = candidates[0] ?? null;
+    return { selection: candidate ? { actorUuid: candidate.target.uuid, effectId: candidate.effect.id } : null };
+  }
 };
 function resetDialogs() {
   dialogs.optionalAnswer = null;
@@ -360,7 +392,8 @@ const {
   characterFortitude,
   resolveTargetResistance,
   resolveCastingClass,
-  spellAlreadyCastInCombatPreparation
+  spellAlreadyCastInCombatPreparation,
+  registerSw25InstantXImmediateHandler
 } = spellCastModule;
 const { addNaturalPowerMP, expireNaturalPower, rollSpellPowerTableDamage } = spellDamageModule;
 const { registerAutomaticFailure } = criticalModule;
@@ -609,7 +642,7 @@ record("casting class resolved from the spell assignment");
   assert.ok(card.includes("SV 0"));
   assert.equal(caster.effects.length, 1, "the persistent component IS created at cast time");
   assert.equal(caster.effects[0].system.successValue, 0, "the persistent component carries SV 0");
-  assert.equal(caster.effects[0].system.family, "⏩Quick Shield", "DEC-1 family keeps the authoring marker");
+  assert.equal(caster.effects[0].system.family, "Quick Shield", "Phase 2: the leading ⏩ is authoring metadata, never identity");
   assert.equal(caster.effects[0].system.durationScale, "rounds");
   assert.equal(caster.effects[0].system.remainingDuration, 3);
   record("case 5: Minor Action — no check, SV 0, MP spent, persistent component with SV 0");
@@ -1318,6 +1351,741 @@ record("casting class resolved from the spell assignment");
   assert.equal(detailIds.length, 2, "each damage card has one expandable final-damage breakdown");
   assert.equal(new Set(detailIds).size, detailIds.length, "old and new damage cards never reuse detail ids");
   record("case 18: spell-damage detail anchors remain unique across module reloads");
+}
+
+// ── 19. Explicit Instant/X immediate components stay transient ─────────────
+
+{
+  setCombat();
+  combatState.started = true;
+  caster.system.mp.value = 20;
+  const target = monsterOf("instant-x-chilling", "Ice Troll", "1 (1)");
+  gameTargets = [{ actor: target }];
+  rollQueue = [[4, 4]];
+  chatCreations.length = 0;
+  const result = await castSpellAsMajor({ actor: caster, spell: chillingBreath, dialogs });
+  assert.equal(result.cast, true);
+  const card = lastCastCard();
+  assert.ok(card.includes("Roll Damage"), "Chilling Breath keeps its manual damage action");
+  assert.ok(card.includes(`data-target-id="${target.uuid}"`), "the immediate damage component enables a target-specific manual roll");
+  assert.equal(target.effects.length, 1, "the persistent Instant/X component is still created");
+  assert.equal(target.effects[0].system.changes.length, 0, "immediate data is not stored in the ActiveEffect");
+  assert.ok(!("instantX" in target.effects[0].system), "DEC-49 schema remains unchanged");
+  assert.equal(rollQueue.length, 0, "casting consumed only its spellcasting check; damage was not rolled automatically");
+
+  caster.system.mp.value = 20;
+  const waterRecipient = monsterOf("instant-x-water", "Thirsty Ally", "1 (1)");
+  gameTargets = [{ actor: waterRecipient }];
+  rollQueue = [[3, 4]];
+  chatCreations.length = 0;
+  const waterResult = await castSpellAsMajor({ actor: caster, spell: healingWater, dialogs });
+  assert.equal(waterResult.cast, true);
+  assert.ok(lastCastCard().includes("The Healing Water is created now."), "the non-damage immediate component is resolved during casting");
+  assert.ok(lastCastCard().includes("not automatic"), "drinking and healing remain a later manual action");
+  assert.equal(waterRecipient.effects.length, 1, "the persistent water duration queue remains intact");
+  assert.equal(waterRecipient.effects[0].system.changes.length, 0);
+  assert.equal(rollQueue.length, 0);
+  record("case 19: damage and non-damage immediate components resolve at cast; only persistent data is stored");
+}
+
+{
+  const failingSpell = SPELL("instant-x-failure", "Immediate Failure Probe", {
+    target: "character",
+    duration: "Instant/3 minutes (18 rounds)",
+    resistance: "none"
+  });
+  let attempts = 0;
+  const unregister = registerSw25InstantXImmediateHandler(failingSpell.name, async () => {
+    attempts += 1;
+    throw new Error("simulated immediate failure");
+  });
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    caster.system.mp.value = 20;
+    const target = monsterOf("instant-x-failure-target", "Failure Probe Target", "1 (1)");
+    gameTargets = [{ actor: target }];
+    rollQueue = [[3, 4]];
+    const result = await castSpellAsMajor({ actor: caster, spell: failingSpell, dialogs });
+    assert.equal(result.cast, true, "an immediate-component failure does not abort the cast");
+    assert.equal(attempts, 1, "the failed immediate action is not retried");
+    assert.equal(target.effects.length, 1, "persistent creation continues after an immediate failure");
+  } finally {
+    unregister();
+    console.error = originalError;
+  }
+  record("case 20: immediate failure is not replayed and does not prevent the persistent component");
+}
+
+// ── 21. Dispel Magic: eligibility, strict SV comparison, EffectService ─────
+
+const dispelMagic = SPELL("dispel-magic", "Dispel Magic", {
+  mpCost: 3,
+  hasPowerTable: false,
+  metadata: "Target: 1 Spell\nDuration: Instant\nResistance: Neg",
+  target: "spell",
+  duration: "Instant",
+  resistance: "neg"
+});
+
+const addProbeEffect = (actor, id, overrides = {}) => {
+  const effect = new MockEffect({
+    type: "sw25Effect",
+    id,
+    name: overrides.name ?? id,
+    system: {
+      family: overrides.family ?? id,
+      rank: 0,
+      successValue: 10,
+      durationScale: "rounds",
+      initialDuration: 3,
+      remainingDuration: 3,
+      isMagical: true,
+      resistance: "neg",
+      effectType: null,
+      successValueSource: "check",
+      castId: null,
+      effectScope: null,
+      gmOnly: false,
+      ...overrides.system
+    }
+  });
+  actor.effects.push(effect);
+  return effect;
+};
+
+{
+  clearCombat();
+  const target = monsterOf("dispel-target-a", "Dispel Target", "1 (1)");
+  const effect = addProbeEffect(target, "probe-shield", { name: "Shield Probe" });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: target }];
+  rollQueue = [[4, 4]]; // natural 8 + Magic Power 7 = SV 15
+  chatCreations.length = 0;
+  const result = await castSpellAsMajor({ actor: caster, spell: dispelMagic, dialogs });
+  assert.equal(result.cast, true);
+  assert.equal(result.check.successValue, 15);
+  assert.equal(target.effects.length, 0, "the eligible effect was removed through the effect service");
+  assert.equal(effect.system.successValue, 10, "the stored effect SV was read, never rewritten");
+  const card = lastCastCard();
+  assert.ok(card.includes("Neg (target effect SV comparison)"), "the card states that Dispel Magic compares the effect SV, not a creature resistance");
+  assert.ok(card.includes("Shield Probe"), "the targeted effect is named");
+  assert.ok(card.includes("SV 15 exceeds the effect's SV 10"), "the strict comparison result is explained");
+  assertOutcomeBadge(card, "SUCCESS", "sw25-spell-outcome-success");
+  assert.equal(rollQueue.length, 0, "no resistance roll was made");
+  record("case 21a: Dispel Magic — eligible magical effect removed by a higher SV");
+}
+
+{
+  const target = monsterOf("dispel-target-b", "Dispel Target B", "1 (1)");
+  addProbeEffect(target, "probe-equal", { name: "Equal Probe", system: { successValue: 15 } });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: target }];
+  rollQueue = [[4, 4]]; // SV 15 — exactly equal
+  chatCreations.length = 0;
+  const result = await castSpellAsMajor({ actor: caster, spell: dispelMagic, dialogs });
+  assert.equal(result.cast, true);
+  assert.equal(target.effects.length, 1, "an equal SV does NOT remove the effect");
+  const card = lastCastCard();
+  assert.ok(card.includes("does not exceed the effect's SV 15 (ties do not cancel)"));
+  assertOutcomeBadge(card, "FAILED", "sw25-spell-outcome-failure");
+  record("case 21b: Dispel Magic — equality resists; the effect remains untouched");
+}
+
+{
+  const target = monsterOf("dispel-target-c", "Dispel Target C", "1 (1)");
+  addProbeEffect(target, "probe-magical", { name: "Magical Probe", system: { successValue: 2 } });
+  addProbeEffect(target, "probe-nonmagical", { name: "Technique Probe", system: { isMagical: false, successValue: 2 } });
+  addProbeEffect(target, "probe-curse", { name: "Curse Probe", system: { effectType: "Curse", successValue: 2 } });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: target }];
+  rollQueue = [[5, 5]]; // SV 17
+  chatCreations.length = 0;
+  const result = await castSpellAsMajor({ actor: caster, spell: dispelMagic, dialogs });
+  assert.equal(result.cast, true);
+  assert.equal(target.effects.length, 2, "only the eligible magical effect was removed");
+  assert.ok(target.effects.some(effect => effect.id === "probe-nonmagical"), "non-magical effects are never targeted");
+  assert.ok(target.effects.some(effect => effect.id === "probe-curse"), "Curse effects are never targeted");
+  const card = lastCastCard();
+  assert.ok(card.includes("Technique Probe"), "the ineligible non-magical effect is reported");
+  assert.ok(card.includes("Curse Probe"), "the ineligible Curse effect is reported");
+  assert.ok(card.includes("cannot be removed"));
+  assertOutcomeBadge(card, "SUCCESS", "sw25-spell-outcome-success");
+  record("case 21c: Dispel Magic — non-magical and Curse effects stay untouched regardless of SV");
+}
+
+{
+  const target = monsterOf("dispel-target-d", "Dispel Target D", "1 (1)");
+  addProbeEffect(target, "probe-low", { name: "Low Probe", system: { successValue: 5 } });
+  addProbeEffect(target, "probe-high", { name: "High Probe", system: { successValue: 29 } });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: target }];
+  rollQueue = [[4, 4]]; // SV 15
+  chatCreations.length = 0;
+  const chooserCalls = [];
+  const result = await castSpellAsMajor({
+    actor: caster,
+    spell: dispelMagic,
+    dialogs: {
+      ...dialogs,
+      declareEffect: async ({ candidates }) => {
+        chooserCalls.push({ owners: candidates.map(candidate => candidate.target.name), names: candidates.map(candidate => candidate.effect.name) });
+        const chosen = candidates.find(candidate => candidate.effect.id === "probe-low");
+        return { selection: { actorUuid: chosen.target.uuid, effectId: chosen.effect.id } };
+      }
+    }
+  });
+  assert.equal(result.cast, true);
+  assert.equal(chooserCalls.length, 1, "multiple eligible effects require an explicit single target");
+  assert.deepEqual(chooserCalls[0].names, ["Low Probe", "High Probe"]);
+  assert.equal(target.effects.length, 1);
+  assert.equal(target.effects[0].id, "probe-high", "only the chosen effect is compared and removed");
+  const card = lastCastCard();
+  assert.ok(card.includes("High Probe"), "the unchosen eligible effect is reported");
+  assert.ok(card.includes("was not targeted and remains in place"));
+  record("case 21d: Dispel Magic — the chooser selects the single spell targeted ('Target: 1 spell')");
+}
+
+{
+  const target = monsterOf("dispel-target-e", "Dispel Target E", "1 (1)");
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: target }];
+  rollQueue = [[4, 4]];
+  chatCreations.length = 0;
+  const result = await castSpellAsMajor({ actor: caster, spell: dispelMagic, dialogs });
+  assert.equal(result.cast, true);
+  assert.equal(target.effects.length, 0);
+  const card = lastCastCard();
+  assert.ok(card.includes("there is no system effect to target"));
+  assertOutcomeBadge(card, "NO VALID TARGET", "sw25-spell-outcome-failure");
+  record("case 21e: Dispel Magic — a target with no system effects produces NO VALID TARGET");
+}
+
+{
+  caster.system.mp.value = 20;
+  gameTargets = [];
+  rollQueue = [[4, 4]];
+  chatCreations.length = 0;
+  const result = await castSpellAsMajor({ actor: caster, spell: dispelMagic, dialogs });
+  assert.equal(result.cast, true, "no target does not abort the cast after the MP cost");
+  const card = lastCastCard();
+  assert.ok(card.includes("no effect owner was targeted"), "a targetless Dispel explains that nothing was removed");
+  assertOutcomeBadge(card, "NO VALID TARGET", "sw25-spell-outcome-failure");
+  record("case 21e-bis: Dispel Magic — no selected effect owner is explicit, not a misleading success");
+}
+
+{
+  const target = monsterOf("dispel-target-f", "Dispel Target F", "1 (1)");
+  addProbeEffect(target, "probe-unrecorded", { name: "Unrecorded Probe", system: { isMagical: null, successValue: 1 } });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: target }];
+  rollQueue = [[4, 4]];
+  chatCreations.length = 0;
+  const result = await castSpellAsMajor({ actor: caster, spell: dispelMagic, dialogs });
+  assert.equal(result.cast, true);
+  assert.equal(target.effects.length, 1, "an unrecorded magical status is not guessed as magical");
+  assert.ok(lastCastCard().includes("explicitly classified as magical"));
+  record("case 21f: Dispel Magic — legacy/unrecorded magical status is never inferred");
+}
+
+{
+  const target = monsterOf("dispel-target-g", "Dispel Target G", "1 (1)");
+  addProbeEffect(target, "probe-very-high", { name: "Very High Probe", system: { successValue: 30 } });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: target }];
+  rollQueue = [[6, 6]]; // natural double 6: automatic success, SV 12+7+5 = 24
+  chatCreations.length = 0;
+  const result = await castSpellAsMajor({ actor: caster, spell: dispelMagic, dialogs });
+  assert.equal(result.cast, true);
+  assert.equal(target.effects.length, 0, "automatic success cancels even below the stored SV (CR I p. 166)");
+  const card = lastCastCard();
+  assert.ok(card.includes("Automatic success (natural double 6)"));
+  assertOutcomeBadge(card, "AUTOMATIC SUCCESS", "sw25-spell-outcome-automatic");
+  record("case 21g: Dispel Magic — natural double 6 is an automatic cancellation success");
+}
+
+{
+  // The removal is GM-authoritative: a rejected write is reported, the effect
+  // survives, and the outcome is never presented as a successful cancellation.
+  const target = monsterOf("dispel-target-h", "Dispel Target H", "1 (1)");
+  const effect = addProbeEffect(target, "probe-locked", { name: "Locked Probe", system: { successValue: 2 } });
+  const realDelete = effect.delete.bind(effect);
+  effect.delete = async () => { throw new Error("Database locked"); };
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: target }];
+  rollQueue = [[4, 4]]; // SV 15 > 2
+  chatCreations.length = 0;
+  try {
+    const result = await castSpellAsMajor({ actor: caster, spell: dispelMagic, dialogs });
+    assert.equal(result.cast, true);
+    assert.equal(target.effects.length, 1, "a failed authoritative removal leaves the effect untouched");
+    const card = lastCastCard();
+    assert.ok(card.includes("The removal failed (write-failed)"), "the card reports the rejected write");
+    assertOutcomeBadge(card, "FAILED", "sw25-spell-outcome-failure");
+  } finally {
+    effect.delete = realDelete;
+  }
+  record("case 21h: Dispel Magic — a rejected removal is reported and the effect survives");
+}
+
+{
+  // A player client must not write effects locally. With no connected GM the
+  // relay refuses up front (`no-gm`); nothing is deleted and nothing hangs.
+  const target = monsterOf("dispel-target-i", "Dispel Target I", "1 (1)");
+  addProbeEffect(target, "probe-player", { name: "Player Probe", system: { successValue: 2 } });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: target }];
+  rollQueue = [[4, 4]];
+  chatCreations.length = 0;
+  mockUserIsGM = false;
+  mockActiveGm = null;
+  try {
+    const result = await castSpellAsMajor({ actor: caster, spell: dispelMagic, dialogs });
+    assert.equal(result.cast, true);
+    assert.equal(target.effects.length, 1, "a player client never deletes the effect directly");
+    assert.ok(lastCastCard().includes("The removal failed (no-gm)"), "the missing GM is reported as the removal failure");
+    assert.ok(socketEmissions.length === 0, "without a connected GM no relay request is emitted");
+  } finally {
+    mockUserIsGM = true;
+    mockActiveGm = { id: "gm-user" };
+  }
+  record("case 21i: Dispel Magic — a player client delegates to the relay and never writes locally");
+}
+
+{
+  // CR I p. 167: "only one magic or effect can be removed" — even when the
+  // caster has several effect owners selected, a single cast removes ONE.
+  const first = monsterOf("dispel-owner-1", "Owner One", "1 (1)");
+  const second = monsterOf("dispel-owner-2", "Owner Two", "1 (1)");
+  addProbeEffect(first, "probe-owner-1", { name: "Owner One Probe", system: { successValue: 2 } });
+  addProbeEffect(second, "probe-owner-2", { name: "Owner Two Probe", system: { successValue: 2 } });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: first }, { actor: second }];
+  rollQueue = [[5, 5]]; // SV 17 beats both
+  chatCreations.length = 0;
+  const seen = [];
+  const result = await castSpellAsMajor({
+    actor: caster,
+    spell: dispelMagic,
+    dialogs: {
+      ...dialogs,
+      declareEffect: async ({ candidates }) => {
+        seen.push(candidates.map(candidate => `${candidate.target.name}/${candidate.effect.name}`));
+        const chosen = candidates.find(candidate => candidate.effect.id === "probe-owner-2");
+        return { selection: { actorUuid: chosen.target.uuid, effectId: chosen.effect.id } };
+      }
+    }
+  });
+  assert.equal(result.cast, true);
+  assert.deepEqual(seen, [["Owner One/Owner One Probe", "Owner Two/Owner Two Probe"]],
+    "one chooser sees every eligible effect across the selected owners");
+  assert.equal(first.effects.length, 1, "the effects on the unselected owner survive");
+  assert.equal(second.effects.length, 0, "the chosen effect is removed once");
+  assert.ok(lastCastCard().includes("Owner One Probe"), "the untouched eligible effect is still reported");
+  record("case 21j: Dispel Magic — one cast removes exactly one effect across all selected owners");
+}
+
+// ── 21k. Declaration timing and information hiding ─────────────────────────
+
+{
+  // CR I p. 167: the effect is declared IN ADVANCE, so the declaration runs
+  // before the Spellcasting roll and never shows the passive Success Values.
+  const target = monsterOf("dispel-target-k", "Dispel Target K", "1 (1)");
+  addProbeEffect(target, "probe-declare", { name: "Declared Probe", system: { successValue: 30 } });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: target }];
+  rollQueue = [[4, 4]];
+  chatCreations.length = 0;
+  const rollMessagesBefore = rollMessages.length;
+  let rollsAtDeclaration = null;
+  const result = await castSpellAsMajor({
+    actor: caster,
+    spell: dispelMagic,
+    dialogs: {
+      ...dialogs,
+      declareEffect: async ({ candidates }) => {
+        rollsAtDeclaration = rollMessages.length - rollMessagesBefore;
+        const chosen = candidates[0];
+        return { selection: { actorUuid: chosen.target.uuid, effectId: chosen.effect.id } };
+      }
+    }
+  });
+  assert.equal(result.cast, true);
+  assert.equal(rollsAtDeclaration, 0, "the effect is declared BEFORE the Spellcasting roll");
+  assert.equal(target.effects.length, 1, "SV 15 does not beat the declared SV 30");
+  record("case 21k: Dispel Magic — the target effect is declared before the roll");
+}
+
+{
+  // The DEFAULT declaration dialog lists owners and effect names only: no
+  // passive Success Value is displayed before the attempt.
+  const target = monsterOf("dispel-target-k2", "Dispel Target K2", "1 (1)");
+  addProbeEffect(target, "probe-secret-sv", { name: "Hidden SV Probe", system: { successValue: 30 } });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: target }];
+  rollQueue = [[4, 4]];
+  chatCreations.length = 0;
+  const dialogsBefore = dialogV2Calls.length;
+  dialogV2Answers.push("effect-0");
+  const result = await castSpellAsMajor({ actor: caster, spell: dispelMagic, dialogs: { askOptional: dialogs.askOptional } });
+  assert.equal(result.cast, true);
+  const declaration = dialogV2Calls[dialogsBefore];
+  assert.ok(declaration, "the default declaration dialog was used");
+  assert.ok(declaration.content.includes("BEFORE the Spellcasting check"));
+  for (const button of declaration.buttons) {
+    assert.ok(!/SV\s*\d/.test(button.label), `the declaration hides passive Success Values ("${button.label}")`);
+    assert.ok(!button.label.includes("30"), "the stored SV never appears in a declaration label");
+  }
+  assert.equal(target.effects.length, 1, "SV 15 does not beat SV 30");
+  record("case 21k-bis: Dispel Magic — the declaration never reveals passive Success Values");
+}
+
+// ── 21l. gmOnly effects are never exposed ──────────────────────────────────
+
+{
+  const target = monsterOf("dispel-target-l", "Dispel Target L", "1 (1)");
+  addProbeEffect(target, "probe-visible", { name: "Visible Probe", system: { successValue: 30 } });
+  addProbeEffect(target, "probe-concealed", { name: "Concealed Main Section", system: { successValue: 2, gmOnly: true } });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: target }];
+  rollQueue = [[4, 4]];
+  chatCreations.length = 0;
+  let offered = null;
+  mockUserIsGM = false;
+  try {
+    const result = await castSpellAsMajor({
+      actor: caster,
+      spell: dispelMagic,
+      dialogs: {
+        ...dialogs,
+        declareEffect: async ({ candidates }) => {
+          offered = candidates.map(candidate => candidate.effect.id);
+          return { selection: null }; // no removal: no GM relay is needed
+        }
+      }
+    });
+    assert.equal(result.cast, true);
+    assert.deepEqual(offered, ["probe-visible"], "a player is never offered gmOnly effects");
+    const card = lastCastCard();
+    assert.ok(!card.includes("Concealed Main Section"), "the public card never names the hidden effect");
+    assert.ok(card.includes("Visible Probe"), "the visible effect is still reported");
+    assert.equal(target.effects.length, 2, "nothing was removed without a declaration");
+  } finally {
+    mockUserIsGM = true;
+  }
+  record("case 21l: Dispel Magic — gmOnly effects are hidden from the player selection and the card");
+}
+
+{
+  // The GM view keeps gmOnly effects: they can be declared and removed
+  // through the same GM-authoritative path.
+  const target = monsterOf("dispel-target-l2", "Dispel Target L2", "1 (1)");
+  addProbeEffect(target, "probe-gm-concealed", { name: "Concealed Main Section", system: { successValue: 2, gmOnly: true } });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: target }];
+  rollQueue = [[4, 4]];
+  chatCreations.length = 0;
+  const result = await castSpellAsMajor({ actor: caster, spell: dispelMagic, dialogs });
+  assert.equal(result.cast, true);
+  assert.equal(target.effects.length, 0, "the GM can declare and remove a gmOnly effect");
+  record("case 21l-bis: Dispel Magic — the GM view can still declare gmOnly effects");
+}
+
+// ── 21m. Stale or forged declarations are rejected ─────────────────────────
+
+{
+  const target = monsterOf("dispel-target-m", "Dispel Target M", "1 (1)");
+  const declared = addProbeEffect(target, "probe-stale", { name: "Stale Probe", system: { successValue: 2 } });
+  addProbeEffect(target, "probe-survivor", { name: "Survivor Probe", system: { successValue: 2 } });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: target }];
+  rollQueue = [[5, 5]];
+  chatCreations.length = 0;
+  const result = await castSpellAsMajor({
+    actor: caster,
+    spell: dispelMagic,
+    dialogs: {
+      ...dialogs,
+      declareEffect: async () => {
+        const selection = { actorUuid: target.uuid, effectId: declared.id };
+        await declared.delete(); // the effect disappears between declare and result
+        return { selection };
+      }
+    }
+  });
+  assert.equal(result.cast, true);
+  assert.ok(lastCastCard().includes("no longer a valid target"), "a stale declaration is rejected, not trusted");
+  assert.deepEqual(target.effects.map(effect => effect.id), ["probe-survivor"], "no other effect is removed by a stale declaration");
+  record("case 21m: Dispel Magic — a stale declaration removes nothing");
+}
+
+{
+  const target = monsterOf("dispel-target-m2", "Dispel Target M2", "1 (1)");
+  addProbeEffect(target, "probe-real", { name: "Real Probe", system: { successValue: 2 } });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: target }];
+  rollQueue = [[5, 5]];
+  chatCreations.length = 0;
+  const result = await castSpellAsMajor({
+    actor: caster,
+    spell: dispelMagic,
+    dialogs: {
+      ...dialogs,
+      declareEffect: async () => ({ selection: { actorUuid: target.uuid, effectId: "forged-effect-id" } })
+    }
+  });
+  assert.equal(result.cast, true);
+  assert.ok(lastCastCard().includes("no longer a valid target"), "a forged effect id is rejected");
+  assert.equal(target.effects.length, 1, "a forged id never removes an effect");
+  record("case 21m-bis: Dispel Magic — a forged client selection is rejected");
+}
+
+// ── 21n/21o. Area scope: /Space vs /All and /Z ─────────────────────────────
+
+{
+  const first = monsterOf("dispel-space-a", "Space Owner A", "1 (1)");
+  const second = monsterOf("dispel-space-b", "Space Owner B", "1 (1)");
+  const third = monsterOf("dispel-space-c", "Space Owner C", "1 (1)");
+  addProbeEffect(first, "probe-space-a", { name: "Area Spell", system: { successValue: 2, castId: "cast-space-1", effectScope: "space" } });
+  addProbeEffect(second, "probe-space-b", { name: "Area Spell", system: { successValue: 2, castId: "cast-space-1", effectScope: "space" } });
+  addProbeEffect(third, "probe-space-c", { name: "Area Spell", system: { successValue: 2, castId: "cast-space-2", effectScope: "space" } });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: first }];
+  rollQueue = [[4, 4]];
+  chatCreations.length = 0;
+  const result = await castSpellAsMajor({ actor: caster, spell: dispelMagic, dialogs });
+  assert.equal(result.cast, true);
+  assert.equal(first.effects.length, 0, "the declared representation is removed");
+  assert.equal(second.effects.length, 0, "the SAME casting's other Actor representation is removed too (CR I p. 167)");
+  assert.equal(third.effects.length, 1, "a different casting of the same spell is untouched");
+  assert.ok(lastCastCard().includes("one effect for the whole area"), "the card explains the shared /Space removal");
+  record("case 21n: Dispel Magic — /Space removes every representation of the declared casting");
+}
+
+{
+  const first = monsterOf("dispel-all-a", "All Owner A", "1 (1)");
+  const second = monsterOf("dispel-all-b", "All Owner B", "1 (1)");
+  addProbeEffect(first, "probe-all-a", { name: "Area Spell", system: { successValue: 2, castId: "cast-all-1", effectScope: "all" } });
+  addProbeEffect(second, "probe-all-b", { name: "Area Spell", system: { successValue: 2, castId: "cast-all-1", effectScope: "all" } });
+  addProbeEffect(second, "probe-limited-b", { name: "Limited Spell", system: { successValue: 2, castId: "cast-all-1", effectScope: "limited" } });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: first }];
+  rollQueue = [[4, 4]];
+  chatCreations.length = 0;
+  const result = await castSpellAsMajor({ actor: caster, spell: dispelMagic, dialogs });
+  assert.equal(result.cast, true);
+  assert.equal(first.effects.length, 0, "the declared character's effect is removed");
+  assert.equal(second.effects.length, 2, "/All and /Z effects on other characters are NEVER removed together");
+  record("case 21o: Dispel Magic — /All and /Z stay individual per character");
+}
+
+// ── 21p/21q. Unrecorded Success Value vs legitimate zero ───────────────────
+
+{
+  const target = monsterOf("dispel-target-p", "Dispel Target P", "1 (1)");
+  addProbeEffect(target, "probe-unknown-sv", { name: "Unknown SV Probe", system: { successValue: 0, successValueSource: null } });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: target }];
+  rollQueue = [[4, 4]];
+  chatCreations.length = 0;
+  let recoverCalls = 0;
+  const result = await castSpellAsMajor({
+    actor: caster,
+    spell: dispelMagic,
+    dialogs: {
+      ...dialogs,
+      recoverSuccessValue: async () => { recoverCalls += 1; return 20; }
+    }
+  });
+  assert.equal(result.cast, true);
+  assert.equal(recoverCalls, 1, "the unrecorded SV is determined again at cancellation time (CR I p. 167)");
+  assert.equal(target.effects.length, 1, "the re-determined SV 20 resists SV 15 — no silent zero was used");
+  assert.ok(lastCastCard().includes("does not exceed the effect's SV 20"));
+  record("case 21p: Dispel Magic — an unrecorded SV is re-determined, never treated as 0");
+}
+
+{
+  const target = monsterOf("dispel-target-p2", "Dispel Target P2", "1 (1)");
+  addProbeEffect(target, "probe-no-recovery", { name: "No Recovery Probe", system: { successValue: 0, successValueSource: null } });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: target }];
+  rollQueue = [[4, 4]];
+  chatCreations.length = 0;
+  const result = await castSpellAsMajor({
+    actor: caster,
+    spell: dispelMagic,
+    dialogs: { ...dialogs, recoverSuccessValue: async () => null }
+  });
+  assert.equal(result.cast, true);
+  assert.equal(target.effects.length, 1, "without a re-determined value nothing is removed");
+  assert.ok(lastCastCard().includes("not recorded"), "the card explains the missing Success Value");
+  record("case 21p-bis: Dispel Magic — an unrecoverable SV removes nothing");
+}
+
+{
+  const target = monsterOf("dispel-target-q", "Dispel Target Q", "1 (1)");
+  addProbeEffect(target, "probe-zero", { name: "Zero SV Probe", system: { successValue: 0, successValueSource: "none" } });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: target }];
+  rollQueue = [[4, 4]];
+  chatCreations.length = 0;
+  let recoverCalls = 0;
+  const result = await castSpellAsMajor({
+    actor: caster,
+    spell: dispelMagic,
+    dialogs: { ...dialogs, recoverSuccessValue: async () => { recoverCalls += 1; return 99; } }
+  });
+  assert.equal(result.cast, true);
+  assert.equal(recoverCalls, 0, "a recorded SV 0 is authoritative: no recovery is requested");
+  assert.equal(target.effects.length, 0, "SV 15 beats the legitimate SV 0");
+  record("case 21q: Dispel Magic — a legitimate SV 0 is not confused with a missing value");
+}
+
+// ── 21r. Passive-side automatic success (+5 already stored) ────────────────
+
+{
+  const target = monsterOf("dispel-target-r", "Dispel Target R", "1 (1)");
+  addProbeEffect(target, "probe-auto-origin", { name: "Automatic Origin Probe", system: { successValue: 21, successValueSource: "automatic" } });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: target }];
+  rollQueue = [[7, 7]]; // natural 14 + Magic Power 7 = SV 21, exactly the +5 value
+  chatCreations.length = 0;
+  const result = await castSpellAsMajor({ actor: caster, spell: dispelMagic, dialogs });
+  assert.equal(result.cast, true);
+  assert.equal(target.effects.length, 1, "equality with the automatic-success SV does not cancel");
+  assert.ok(lastCastCard().includes("does not exceed the effect's SV 21"));
+  record("case 21r: Dispel Magic — a passive automatic success keeps its +5 SV and resists equality");
+}
+
+{
+  const target = monsterOf("dispel-target-r2", "Dispel Target R2", "1 (1)");
+  addProbeEffect(target, "probe-auto-origin-2", { name: "Automatic Origin Probe", system: { successValue: 21, successValueSource: "automatic" } });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: target }];
+  rollQueue = [[7, 8]]; // SV 22 > 21
+  chatCreations.length = 0;
+  const result = await castSpellAsMajor({ actor: caster, spell: dispelMagic, dialogs });
+  assert.equal(result.cast, true);
+  assert.equal(target.effects.length, 0, "an automatic-success effect is NOT immune: exceeding its +5 SV cancels it");
+  record("case 21r-bis: Dispel Magic — exceeding the +5 SV cancels an automatic-success effect");
+}
+
+// ── 21s. Separate castings of the same spell stay identifiable ─────────────
+
+{
+  const target = monsterOf("dispel-target-s", "Dispel Target S", "1 (1)");
+  addProbeEffect(target, "probe-cast-1", { name: "Repeated Spell", family: "Repeated Spell", system: { successValue: 2, castId: "cast-repeat-1" } });
+  addProbeEffect(target, "probe-cast-2", { name: "Repeated Spell", family: "Repeated Spell", system: { successValue: 2, castId: "cast-repeat-2" } });
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: target }];
+  rollQueue = [[4, 4]];
+  chatCreations.length = 0;
+  let offered = null;
+  const result = await castSpellAsMajor({
+    actor: caster,
+    spell: dispelMagic,
+    dialogs: {
+      ...dialogs,
+      declareEffect: async ({ candidates }) => {
+        offered = candidates.map(candidate => candidate.effect.system.castId);
+        const chosen = candidates.find(candidate => candidate.effect.system.castId === "cast-repeat-2");
+        return { selection: { actorUuid: chosen.target.uuid, effectId: chosen.effect.id } };
+      }
+    }
+  });
+  assert.equal(result.cast, true);
+  assert.deepEqual(offered, ["cast-repeat-1", "cast-repeat-2"], "two castings of one spell are separate declarations");
+  assert.deepEqual(target.effects.map(effect => effect.id), ["probe-cast-1"], "only the declared casting is removed");
+  record("case 21s: Dispel Magic — separate castings of the same spell remain independently identifiable");
+}
+
+// ── 22. Cancellation eligibility data is recorded when effects are created ─
+
+{
+  setCombat();
+  combatState.started = true;
+  caster.effects = [];
+  caster.system.mp.value = 20;
+  gameTargets = [];
+  rollQueue = [];
+  chatCreations.length = 0;
+  const result = await castSpellAsMinor({ actor: caster, spell: quickShield, applyCost: true });
+  assert.equal(result.cast, true);
+  assert.equal(caster.effects.length, 1);
+  assert.equal(caster.effects[0].system.isMagical, true, "spell effects record their magical status");
+  assert.equal(caster.effects[0].system.resistance, "cant", "the emitting resistance notation is stored as provenance (not as an eligibility condition)");
+  assert.equal(caster.effects[0].system.successValueSource, "none", "a no-check cast records its SV provenance");
+  assert.equal(caster.effects[0].system.successValue, 0, "SV 0 with a recorded source is authoritative");
+  assert.equal(typeof caster.effects[0].system.castId, "string", "every cast records its casting identity");
+  assert.ok(caster.effects[0].system.castId.length > 0);
+  assert.equal(caster.effects[0].system.effectScope, null, "a non-area spell has no area scope");
+  record("case 22: created effects record isMagical, resistance provenance, SV provenance and castId");
+}
+
+// ── 23. Success Value provenance and casting identity at creation ─────────
+
+{
+  setCombat();
+  combatState.started = true;
+  caster.effects = [];
+  caster.system.mp.value = 20;
+  gameTargets = [];
+  rollQueue = [[6, 6]]; // natural double 6: SV 12 + 5 + Magic Power 7 = 24
+  chatCreations.length = 0;
+  const result = await castSpellAsMajor({ actor: caster, spell: quickShield, dialogs });
+  assert.equal(result.cast, true);
+  assert.equal(caster.effects.length, 1);
+  assert.equal(caster.effects[0].system.successValue, 24, "the +5 automatic-success bonus is stored inside the SV (DEC-6)");
+  assert.equal(caster.effects[0].system.successValueSource, "automatic", "the automatic origin is recorded explicitly");
+  record("case 23a: an automatic-success cast stores SV+5 and the automatic provenance");
+}
+
+{
+  caster.effects = [];
+  caster.system.mp.value = 20;
+  gameTargets = [];
+  rollQueue = [[4, 4]]; // SV 15, ordinary check
+  chatCreations.length = 0;
+  const result = await castSpellAsMajor({ actor: caster, spell: quickShield, dialogs });
+  assert.equal(result.cast, true);
+  assert.equal(caster.effects[0].system.successValue, 15);
+  assert.equal(caster.effects[0].system.successValueSource, "check", "an ordinary check records its own provenance");
+  const firstCastId = caster.effects[0].system.castId;
+  caster.system.mp.value = 20;
+  rollQueue = [[4, 4]];
+  await castSpellAsMajor({ actor: caster, spell: quickShield, dialogs });
+  const newEffects = caster.effects.filter(effect => effect.system.castId !== firstCastId);
+  assert.ok(newEffects.length >= 1, "the second casting created its own effect representation");
+  assert.ok(newEffects.every(effect => typeof effect.system.castId === "string" && effect.system.castId === newEffects[0].system.castId),
+    "one casting shares one castId, and it is never the previous casting's id");
+  record("case 23b: ordinary casts record check provenance and distinct casting identities");
+}
+
+{
+  // The area selection mode of the spell is copied onto every representation
+  // of the cast, and one cast shares ONE castId across all its targets.
+  const areaSpell = SPELL("area-space-probe", "Area Space Probe", {
+    mpCost: 4,
+    hasPowerTable: false,
+    metadata: "Target: 1 area (3m radius)/Space\nDuration: Instant/3 rounds\nResistance: Can't",
+    target: { type: "area", areaCount: 1, radius: 3, selection: "space", maxTargets: null },
+    duration: "Instant/3 rounds",
+    resistance: "cant"
+  });
+  const first = monsterOf("area-space-target-1", "Area Target One", "1 (1)");
+  const second = monsterOf("area-space-target-2", "Area Target Two", "1 (1)");
+  caster.system.mp.value = 20;
+  gameTargets = [{ actor: first }, { actor: second }];
+  rollQueue = [[4, 4]];
+  chatCreations.length = 0;
+  const result = await castSpellAsMajor({ actor: caster, spell: areaSpell, dialogs });
+  assert.equal(result.cast, true);
+  assert.equal(first.effects.length, 1);
+  assert.equal(second.effects.length, 1);
+  assert.equal(first.effects[0].system.effectScope, "space", "the /Space selection mode is recorded");
+  assert.equal(first.effects[0].system.castId, second.effects[0].system.castId,
+    "one area cast shares one castId across all its Actor representations");
+  record("case 23c: area casts record their scope and share one castId across targets");
 }
 
 // ── Completion ─────────────────────────────────────────────────────────────

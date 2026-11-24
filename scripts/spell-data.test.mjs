@@ -27,6 +27,7 @@ import {
   parseSpellPropagation,
   spellDamageNature,
   readSpellDamageAttributeFromMetadata,
+  readSpellEffectTypeFromMetadata,
   parseSw25SpellDamageAttribute,
   deriveSpellFields,
   normalizeSpellData
@@ -184,6 +185,9 @@ assert.equal(spellDamageNature([{ damageType: "magical" }], true), "magical");
 assert.equal(spellDamageNature([{ damageType: "physical" }, { damageType: "magical" }], false), null, "Mixed bands: unknown, never guessed");
 assert.equal(readSpellDamageAttributeFromMetadata("Type: Poison"), "Poison");
 assert.equal(readSpellDamageAttributeFromMetadata("Type: Psychic (Weak)"), "Psychic", "Weakness qualifiers are not the attribute");
+assert.equal(readSpellEffectTypeFromMetadata("Type: Curse"), "Curse", "functional Curse type is separate from damage attribute");
+assert.equal(readSpellEffectTypeFromMetadata("Type: Psychic (Weak)"), "Psychic");
+assert.equal(readSpellEffectTypeFromMetadata("Type: Fire"), null);
 assert.equal(readSpellDamageAttributeFromMetadata("Cost: MP6"), null);
 assert.equal(parseSw25SpellDamageAttribute({ system: { damageType: { nature: "magical", attribute: "Poison" } } }), "Poison");
 assert.equal(parseSw25SpellDamageAttribute({ system: { damageType: null } }), null);
@@ -206,6 +210,7 @@ record("damage nature + attribute derivation");
   assert.ok(derived.warnings.some(w => w.includes("Range")), "Unrecognized range is reported");
   assert.equal(derived.area, null);
   assert.equal(derived.duration, "3 minutes (18 rounds)");
+  assert.equal(derived.effectType, "Psychic");
   assert.equal(derived.resistance, "half");
   assert.equal(derived.usesFortitude, false);
   assert.deepEqual(derived.damageType, { nature: null, attribute: "Psychic" });
@@ -221,6 +226,7 @@ record("damage nature + attribute derivation");
   assert.equal(areaSpell.area, "shot");
   assert.equal(areaSpell.duration, "Instant");
   assert.equal(areaSpell.resistance, "cant");
+  assert.equal(areaSpell.effectType, null);
   assert.deepEqual(areaSpell.damageType, { nature: "magical", attribute: null });
 
   const fortSpell = deriveSpellFields({

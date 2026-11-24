@@ -1,13 +1,18 @@
 // Sword World 2.5 - effect family identity and canonical name (T1.4).
 //
-// Pure, dependency-free helpers for the effect stacking identity (DEC-1) and
+// Pure, Foundry-free helpers for the effect stacking identity (DEC-1) and
 // the canonical display name (DEC-16/DEC-49). No Foundry API is used: the
-// module runs identically headless (test suites) and inside the client.
+// module runs identically headless (test suites) and inside the client. Its
+// single import is rules/spell-data.mjs (shared `canonicalSpellName`), which
+// is itself dependency-free and Foundry-free, so no cycle exists.
 //
 // Separation of responsibilities (DEC-1/DEC-16/DEC-49):
 //   - `family` (persisted `system.family`) is the ONLY stacking identity: the
 //     family's canonical base name as authored, e.g. "Protection", without any
-//     rank numeral. Comparison never uses the stored spelling directly: the
+//     rank numeral. Leading ⏩/△ action markers are authoring metadata and are
+//     stripped for the comparison key (they are never part of the identity);
+//     the persisted spelling keeps whatever the creation path stored.
+//     Comparison never uses the stored spelling directly: the
 //     stable rule key is DERIVED at comparison time by
 //     `normalizeSw25FamilyKey` and is never persisted (DEC-49 forbids a
 //     duplicated `canonicalName`, `familyKey` or `stackKey` field).
@@ -25,6 +30,8 @@
 // family and its diacritics are presentation data and are preserved in
 // persistence; only the derived comparison key loses them.
 
+import { canonicalSpellName } from "../rules/spell-data.mjs";
+
 /** Approved rank → Roman numeral table (DEC-16): ranks 1..10 only. */
 const RANK_TO_ROMAN = new Map([
   [1, "I"], [2, "II"], [3, "III"], [4, "IV"], [5, "V"],
@@ -36,8 +43,13 @@ const RANK_TO_ROMAN = new Map([
  *
  * Pure and deterministic: the input value is never modified (strings are
  * immutable), the result is a fresh string, and normalizing an
- * already-normalized key returns it unchanged. The approved normalization is
- * lowercase / NFKD / no diacritics; surrounding whitespace is ignored.
+ * already-normalized key returns it unchanged. The approved normalization is:
+ * leading ⏩/△ action-marker metadata stripped (Phase 2, via the shared
+ * `canonicalSpellName` — the markers are never part of a spell's identity,
+ * so a markered and a clean family name share ONE key) / lowercase / NFKD /
+ * no diacritics; surrounding whitespace is ignored.
+ *
+ * `†`/`‡` are NOT action markers and stay in the key.
  *
  * Non-string inputs return null (identity can never be invented from invalid
  * data); a blank string normalizes to "" (an empty key that the schema's
@@ -48,7 +60,7 @@ const RANK_TO_ROMAN = new Map([
  */
 export function normalizeSw25FamilyKey(family) {
   if (typeof family !== "string") return null;
-  return family
+  return canonicalSpellName(family).name
     .trim()
     .normalize("NFKD")
     .replace(/\p{M}/gu, "")

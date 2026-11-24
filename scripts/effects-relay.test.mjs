@@ -56,6 +56,7 @@ class MockEffect {
     this.img = data.img ?? null;
     this.origin = data.origin ?? null;
     this.duration = data.duration ?? null;
+    this.flags = structuredClone(data.flags ?? {});
     this.disabled = data.disabled ?? undefined;
     this.system = structuredClone(data.system ?? {});
     this.updates = [];
@@ -229,6 +230,11 @@ const service = await import("../module/effects/effect-service.mjs");
 const relay = await import("../module/effects/effect-relay.mjs");
 const { EFFECT_SCHEMA_VERSION } = await import("../module/effects/effect-repair.mjs");
 const { buildSw25CanonicalName } = await import("../module/effects/effect-identity.mjs");
+const {
+  applySw25ConfiguredEffect,
+  buildSw25ConfiguredEffect
+} = await import("../module/effects/configured-effect.mjs");
+const { buildSw25GenericEffectConfiguration } = await import("../module/effects/effect-configurator.mjs");
 
 const {
   applySw25Effect,
@@ -419,6 +425,84 @@ initializeEffectRelay();
   await deliverAs("gm-user", structuredClone(delivered.payload), "player-1");
   assert.equal(actor.writeCount(), writesBefore, "a duplicated delivery must not write twice");
   console.log("  player apply -> GM execution -> ack (with duplicate protection)");
+}
+
+// ── Configured-effect player drop: preserve rules and descriptor metadata ──
+
+{
+  const actor = new MockActor("actor-configured-relay", "Configured Relay Probe");
+  actorsCollection.push(actor);
+  const built = buildSw25ConfiguredEffect({
+    id: "relay-fire-weakness",
+    name: "Relayed Fire Weakness",
+    description: "A player-dragged configured effect.",
+    origin: null,
+    isMagical: true,
+    successValue: 12,
+    successValueSource: "fixed",
+    effectType: "prone",
+    durationScale: "rounds",
+    initialDuration: 2,
+    gmOnly: true,
+    rules: [{
+      key: "damageVulnerability", value: 3, category: "physical", element: "fire", source: null
+    }]
+  });
+  assert.equal(built.ok, true, JSON.stringify(built));
+  const result = await applySw25ConfiguredEffect(actor, built.configured, { notify: false });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  const effect = actor.effects.find(candidate => candidate.id === result.effectId);
+  assert.ok(effect, "the designated GM created the relayed configured effect");
+  assert.deepEqual(effect.system.rules, built.configured.rules, "Damage Vulnerability survives player transport");
+  assert.equal(effect.system.gmOnly, true);
+  assert.deepEqual(effect.flags, {
+    "sw25-taka": {
+      configuredEffectId: "relay-fire-weakness",
+      configuredEffectDescription: "A player-dragged configured effect."
+    }
+  });
+  assert.equal(effect.origin, null, "manual configured effects do not acquire an origin");
+  assert.equal(effect.system.isMagical, true);
+  assert.equal(effect.system.effectType, "prone");
+  assert.equal(effect.system.successValue, 12);
+  assert.equal(effect.system.successValueSource, "fixed");
+  assert.equal(effect.system.durationScale, "rounds");
+  assert.equal(effect.system.initialDuration, 2);
+  assert.equal(effect.system.remainingDuration, 2);
+  assert.deepEqual(effect.system.durationAnchor, {
+    regime: "roundEnd", edge: "begin", combatantId: null, tokenId: null, state: "resolved"
+  });
+
+  const generic = buildSw25GenericEffectConfiguration({
+    id: "relay-generic",
+    name: "Relayed Generic Effect",
+    description: "Generic metadata must survive the same player drop.",
+    magical: "magical",
+    successValue: "9",
+    effectType: "curse",
+    durationScale: "rounds",
+    durationValue: "3"
+  });
+  assert.equal(generic.ok, true, JSON.stringify(generic));
+  const genericResult = await applySw25ConfiguredEffect(actor, generic.configured, { notify: false });
+  assert.equal(genericResult.ok, true, JSON.stringify(genericResult));
+  const genericEffect = actor.effects.find(candidate => candidate.id === genericResult.effectId);
+  assert.ok(genericEffect);
+  assert.deepEqual(genericEffect.system.rules, []);
+  assert.equal(genericEffect.origin, null);
+  assert.equal(genericEffect.system.isMagical, true);
+  assert.equal(genericEffect.system.effectType, "curse");
+  assert.equal(genericEffect.system.successValue, 9);
+  assert.equal(genericEffect.system.successValueSource, "fixed");
+  assert.equal(genericEffect.system.initialDuration, 3);
+  assert.equal(genericEffect.system.remainingDuration, 3);
+  assert.deepEqual(genericEffect.flags, {
+    "sw25-taka": {
+      configuredEffectId: "relay-generic",
+      configuredEffectDescription: "Generic metadata must survive the same player drop."
+    }
+  });
+  console.log("  configured player drops preserve Generic/Damage Vulnerability rules, flags, fixed SV and counted duration");
 }
 
 // ── Native name coherence with Family + Rank (DEC-16/DEC-49) ───────────────

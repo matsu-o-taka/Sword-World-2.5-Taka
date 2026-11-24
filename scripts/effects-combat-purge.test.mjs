@@ -1,19 +1,24 @@
-// Sword World 2.5 - combat-end purge of rounds/turns effects test suite (T5.5).
+// Sword World 2.5 - combat-end conversion of rounds/turns effects test suite.
 //
 // Exercises `purgeSw25CombatDurationEffects` (module/effects/effect-service.mjs):
 // when a Combat document is deleted, every `sw25Effect` with durationScale
-// `rounds` or `turns` is removed from every actor. Other scales and subtypes
+// `rounds` on every actor is either converted to the non-combat `minutes`
+// counter (remaining ≥ 6 rounds, both counters = remaining/6) or removed
+// (remaining < 6); every `turns` effect is removed. Other scales and subtypes
 // survive.
 //
-// Scope (T5.5 ONLY — combat-end purge):
-//   - Purge: rounds / turns effects removed regardless of remaining duration,
-//     anchor, degradation state, or deferred anchor.
+// Scope (combat-end disposition ONLY):
+//   - Conversion: rounds remaining ≥ 6 → minutes (exact, never rounded, from
+//     the REMAINING counter); the effect survives, the anchor is cleared.
+//   - Removal: rounds remaining < 6 / non-finite, and every turns effect,
+//     regardless of anchor or degradation state.
 //   - Survival: minutes / hours / days / permanent / other / native / none,
 //     legacy effects without a recognized scale, non-sw25Effect subtypes.
-//   - Lifecycle: purge runs on combat deletion; not on ordinary combat updates;
+//   - Lifecycle: runs on combat deletion; not on ordinary combat updates;
 //     repeated calls are idempotent; non-GM clients are rejected; no-GM
 //     respects the existing error behavior; partial failure is reported.
-//   - Integration: removal goes through removeSw25Effect (sole write path).
+//   - Integration: writes go through removeSw25Effect /
+//     runAuthorizedServiceWrite (sole write paths).
 //
 // OUT of scope: duration engine (T5.3), stacking (Bloque 4), repair (T1.3),
 // concealed main section, monster knowledge.
@@ -206,31 +211,37 @@ function countByScale(actor, scale) {
 
 // ── Tests ──────────────────────────────────────────────────────────────────
 
-// ── 1. Purge: rounds effect with remaining duration is removed ─────────
+// ── 1. Purge: rounds effect below the conversion threshold is removed ──
 
 {
   clearMocks();
   setGm();
   const actor = new MockActor("hero-1", "Rounds Hero");
-  const eff = await applyEffect(actor, { durationScale: "rounds", initialDuration: 3, remainingDuration: 3 });
+  const eff = await applyEffect(actor, {
+    durationScale: "rounds",
+    system: { initialDuration: 3, remainingDuration: 3 }
+  });
 
   const result = await purgeSw25CombatDurationEffects();
   assert.equal(result.ok, true, `purge should succeed: ${result.error ?? ""}`);
   assert.equal(result.code, "purged");
-  assert.equal(result.removed, 1, "exactly one rounds effect removed");
+  assert.equal(result.removed, 1, "exactly one rounds effect removed (3 remaining rounds < 1 minute)");
   assert.equal(result.scanned, 1);
   assert.equal(actor.effects.includes(eff), false, "the rounds effect is gone from the actor");
   assert.equal(eff.deleted, true, "the effect document is marked deleted");
-  record("1. rounds effect with remaining duration: purged");
+  record("1. rounds effect below the conversion threshold (3 rounds): purged");
 }
 
-// ── 2. Purge: turns effect with remaining duration is removed ──────────
+// ── 2. Purge: turns effect is removed (never converted) ────────────────
 
 {
   clearMocks();
   setGm();
   const actor = new MockActor("hero-2", "Turns Hero");
-  const eff = await applyEffect(actor, { durationScale: "turns" });
+  const eff = await applyEffect(actor, {
+    durationScale: "turns",
+    system: { initialDuration: 3, remainingDuration: 3 }
+  });
 
   const result = await purgeSw25CombatDurationEffects();
   assert.equal(result.ok, true);
@@ -249,8 +260,7 @@ function countByScale(actor, scale) {
   const actor = new MockActor("hero-3", "Degraded Hero");
   const eff = await applyEffect(actor, {
     durationScale: "rounds",
-    initialDuration: 2,
-    remainingDuration: 2,
+    system: { initialDuration: 2, remainingDuration: 2 },
     durationAnchor: { regime: "roundEnd", edge: "end", combatantId: "cmbt-x", tokenId: "tkn-x", state: "resolved" }
   });
 
@@ -270,8 +280,7 @@ function countByScale(actor, scale) {
   const actor = new MockActor("hero-4", "Deferred Hero");
   const eff = await applyEffect(actor, {
     durationScale: "rounds",
-    initialDuration: 3,
-    remainingDuration: 3,
+    system: { initialDuration: 3, remainingDuration: 3 },
     durationAnchor: { regime: "casterTurn", combatantId: null, tokenId: null, state: "deferred" }
   });
 
@@ -289,7 +298,7 @@ function countByScale(actor, scale) {
   clearMocks();
   setGm();
   const actor = new MockActor("hero-5", "Zero Hero");
-  const eff = await applyEffect(actor, { durationScale: "rounds", initialDuration: 1, remainingDuration: 0 });
+  const eff = await applyEffect(actor, { durationScale: "rounds", system: { initialDuration: 1, remainingDuration: 0 } });
 
   const result = await purgeSw25CombatDurationEffects();
   assert.equal(result.ok, true);
@@ -297,6 +306,179 @@ function countByScale(actor, scale) {
   assert.equal(result.removed, 1);
   assert.equal(actor.effects.includes(eff), false);
   record("5. remainingDuration === 0: purged without error");
+}
+
+// ── 5b. Conversion: rounds remaining ≥ 6 → minutes, preserved ──────────
+
+{
+  clearMocks();
+  setGm();
+  const actor = new MockActor("hero-5b", "Long Buff Hero");
+  const eff = await applyEffect(actor, {
+    durationScale: "rounds",
+    system: { initialDuration: 18, remainingDuration: 17 }
+  });
+
+  const result = await purgeSw25CombatDurationEffects();
+  assert.equal(result.ok, true, `purge should succeed: ${result.error ?? ""}`);
+  assert.equal(result.code, "purged");
+  assert.equal(result.removed, 0, "convertible rounds effects are NOT removed");
+  assert.equal(result.converted, 1, "one effect converted");
+  assert.equal(result.scanned, 1);
+  assert.equal(actor.effects.includes(eff), true, "the converted effect survives");
+  assert.equal(eff.system.durationScale, "minutes", "converted to the manual minutes scale");
+  assert.equal(eff.system.initialDuration, 2, "both counters derive from the REMAINING rounds — the initial never decides the conversion");
+  assert.equal(eff.system.remainingDuration, 2, "17 rounds → 2 whole minutes (floored, never fractional)");
+  assert.equal(eff.system.durationAnchor, null, "the manual scale carries no combat anchor");
+  const second = await purgeSw25CombatDurationEffects();
+  assert.equal(second.converted, 0, "idempotent: converted effects are no longer combat-scale");
+  record("5b. rounds remaining ≥ 6: converted to minutes (÷6) from the remaining counter, preserved, anchor cleared");
+}
+
+// ── 5c. Conversion: exactly 6 remaining rounds → 1 minute ──────────────
+
+{
+  clearMocks();
+  setGm();
+  const actor = new MockActor("hero-5c", "Boundary Hero");
+  const eff = await applyEffect(actor, {
+    durationScale: "rounds",
+    system: { initialDuration: 6, remainingDuration: 6 }
+  });
+
+  const result = await purgeSw25CombatDurationEffects();
+  assert.equal(result.ok, true);
+  assert.equal(result.converted, 1);
+  assert.equal(actor.effects.includes(eff), true);
+  assert.equal(eff.system.durationScale, "minutes");
+  assert.equal(eff.system.initialDuration, 1);
+  assert.equal(eff.system.remainingDuration, 1);
+  record("5c. exactly 6 remaining rounds: converted to 1 minute");
+}
+
+// ── 5d. Below threshold: remaining < 6 cannot become a minute ──────────
+
+{
+  clearMocks();
+  setGm();
+  const actor = new MockActor("hero-5d", "Short Buff Hero");
+  const eff = await applyEffect(actor, {
+    durationScale: "rounds",
+    system: { initialDuration: 18, remainingDuration: 5 }
+  });
+
+  const result = await purgeSw25CombatDurationEffects();
+  assert.equal(result.ok, true);
+  assert.equal(result.removed, 1, "fewer than 6 remaining rounds: removed (cannot convert)");
+  assert.equal(result.converted, 0);
+  assert.equal(actor.effects.includes(eff), false);
+  record("5d. remaining < 6: still purged (no convertible minute)");
+}
+
+// ── 5d2. Conversion table: floor(remaining / 6), never fractional ──────
+
+{
+  clearMocks();
+  setGm();
+  // User directive (2026-11-23): the combat exit derives WHOLE minutes from
+  // the remaining rounds — `Math.floor(remaining / 6)`. Fractions are never
+  // stored: 11 rounds → 1 minute, 7 rounds → 1 minute, 12 rounds → 2, 24 → 4.
+  const table = [
+    { initial: 18, remaining: 11, minutes: 1 },
+    { initial: 18, remaining: 7, minutes: 1 },
+    { initial: 24, remaining: 12, minutes: 2 },
+    { initial: 24, remaining: 24, minutes: 4 }
+  ];
+  const actor = new MockActor("hero-5d2", "Floor Table Hero");
+  const effects = [];
+  for (const row of table) {
+    effects.push({ row, eff: await applyEffect(actor, {
+      durationScale: "rounds",
+      system: { initialDuration: row.initial, remainingDuration: row.remaining }
+    }) });
+  }
+
+  const result = await purgeSw25CombatDurationEffects();
+  assert.equal(result.ok, true, `purge should succeed: ${result.error ?? ""}`);
+  assert.equal(result.removed, 0, "every row is convertible to at least one whole minute");
+  assert.equal(result.converted, table.length);
+  for (const { row, eff } of effects) {
+    assert.equal(eff.system.durationScale, "minutes", `${row.remaining} rounds → minutes scale`);
+    assert.equal(eff.system.initialDuration, row.minutes, `${row.remaining} rounds → ${row.minutes} whole minute(s) (initial)`);
+    assert.equal(eff.system.remainingDuration, row.minutes, `${row.remaining} rounds → ${row.minutes} whole minute(s) (remaining)`);
+    assert.equal(Number.isInteger(eff.system.remainingDuration), true, "no fractional minutes are ever persisted");
+  }
+  record("5d2. conversion table: floor(remaining/6) — 11→1, 7→1, 12→2, 24→4, never fractional");
+}
+
+// ── 5e. turns are never converted, regardless of remaining ─────────────
+
+{
+  clearMocks();
+  setGm();
+  const actor = new MockActor("hero-5e", "Turns Hero");
+  const eff = await applyEffect(actor, {
+    durationScale: "turns",
+    system: { initialDuration: 12, remainingDuration: 12 }
+  });
+
+  const result = await purgeSw25CombatDurationEffects();
+  assert.equal(result.ok, true);
+  assert.equal(result.removed, 1, "turns have no temporal meaning outside the encounter: removed");
+  assert.equal(result.converted, 0);
+  assert.equal(actor.effects.includes(eff), false);
+  record("5e. turns: never converted, purged");
+}
+
+// ── 5f. Mixed batch: one converted, one removed, manual minutes intact ──
+
+{
+  clearMocks();
+  setGm();
+  const actor = new MockActor("hero-5f", "Mixed Hero");
+  const longBuff = await applyEffect(actor, { durationScale: "rounds", family: "Long", system: { initialDuration: 24, remainingDuration: 24 } });
+  const shortBuff = await applyEffect(actor, { durationScale: "rounds", family: "Short", system: { initialDuration: 4, remainingDuration: 4 } });
+  const manual = await applyEffect(actor, { durationScale: "minutes", family: "Manual", system: { initialDuration: 2, remainingDuration: 2 } });
+
+  const result = await purgeSw25CombatDurationEffects();
+  assert.equal(result.ok, true);
+  assert.equal(result.removed, 1);
+  assert.equal(result.converted, 1);
+  assert.equal(actor.effects.includes(longBuff), true, "converted effect survives");
+  assert.equal(longBuff.system.durationScale, "minutes");
+  assert.equal(longBuff.system.remainingDuration, 4, "24 rounds → 4 minutes");
+  assert.equal(actor.effects.includes(shortBuff), false, "sub-threshold effect removed");
+  assert.equal(actor.effects.includes(manual), true, "a pre-existing manual minutes effect is untouched");
+  assert.equal(manual.system.remainingDuration, 2, "manual counters untouched");
+  record("5f. mixed batch: conversion and purge coexist; manual minutes untouched");
+}
+
+// ── 5g. Conversion write failure is reported as partial ────────────────
+
+{
+  clearMocks();
+  setGm();
+  const actor = new MockActor("hero-5g", "Failing Hero");
+  const convertible = await applyEffect(actor, {
+    durationScale: "rounds",
+    family: "Convertible",
+    system: { initialDuration: 12, remainingDuration: 12 }
+  });
+
+  Hooks.on("preUpdateActiveEffect", (doc) => {
+    if (doc.id === convertible.id) return false;
+  });
+
+  const result = await purgeSw25CombatDurationEffects();
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "partial", "a failed conversion is reported, never silent");
+  assert.equal(result.converted, 0);
+  assert.equal(result.removed, 0);
+  assert.equal(result.errors.length, 1);
+  assert.equal(result.errors[0].effectId, convertible.id);
+  assert.equal(actor.effects.includes(convertible), true, "the effect survives the failed conversion");
+  assert.equal(convertible.system.durationScale, "rounds", "no partial conversion was written");
+  record("5g. conversion write failure: reported as partial, effect intact");
 }
 
 // ── 6. Survival: minutes effect survives ───────────────────────────────

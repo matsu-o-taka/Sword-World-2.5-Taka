@@ -1,3 +1,5 @@
+import { bindSw25ConfiguredEffectDropTarget } from "../effects/configured-effect.mjs";
+
 /** Fellow-format sheet and action-table roller. */
 export class SW25FellowSheet extends foundry.appv1.sheets.ActorSheet {
   static get defaultOptions() {
@@ -50,6 +52,7 @@ export class SW25FellowSheet extends foundry.appv1.sheets.ActorSheet {
 
   activateListeners(html) {
     super.activateListeners(html);
+    bindSw25ConfiguredEffectDropTarget(this, html);
     html.find("[data-action='set-sheet-style']").on("change", async event => {
       event.preventDefault();
       let style = String(event.currentTarget.value || "light").toLowerCase();

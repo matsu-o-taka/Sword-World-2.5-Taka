@@ -42,7 +42,8 @@ import { applySw25Effect } from "./effect-service.mjs";
  * @param {object} application - Application payload (same shape as
  *   `applySw25Effect`: family, rank, cast, changes, initialDuration,
  *   remainingDuration, durationScale, durationAnchor, effectType, origin,
- *   casterUUID, familyPolicy, damageType, img, flags, acceptReplace). Only
+ *   casterUUID, familyPolicy, damageType, isMagical, resistance, img, flags,
+ *   acceptReplace). Only
  *   the persistent component's fields should be present: the immediate part
  *   is resolved by the caller during casting and is never stored here.
  * @param {object} [options]

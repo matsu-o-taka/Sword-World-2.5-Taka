@@ -9,6 +9,7 @@ import { MONSTER_SPECIAL_RULES, SPECIAL_RULE_LABELS, MAIN_SECTION_POLICIES, reso
 import { concealedSelectionCandidates, getConcealedMainSectionConfig, getConcealedMainSectionSelection, getConcealedMainSectionPresentation, randomizeConcealedMainSection, setConcealedMainSectionSelection, selectConcealedMainSection, setConcealedMainSectionConfig } from "../combat/concealed-main-section.mjs";
 import { prepareSw25EffectsTab, attachSw25ConcealedSelectionLabel, buildSw25BestiaryConcealedSectionRow } from "../effects/effects-tab.mjs";
 import { wireSw25EffectsTabHandlers } from "./effects-tab-ui.mjs";
+import { bindSw25ConfiguredEffectDropTarget } from "../effects/configured-effect.mjs";
 import { rollMonsterKnowledge, findMonsterKnowledgeRoller, speciesWeaknessKnown } from "../combat/monster-knowledge.mjs";
 
 // ── Live Monster Knowledge indicator sync (F2-T2 consumer integration) ─────
@@ -486,6 +487,7 @@ export class SW25MonsterSheet extends foundry.appv1.sheets.ActorSheet {
     // Shared Effects-section listeners (inspect + GM repair), identical to
     // the character sheet's — see module/actor/effects-tab-ui.mjs.
     wireSw25EffectsTabHandlers(this, html);
+    bindSw25ConfiguredEffectDropTarget(this, html);
 
     html.find("[data-action='roll-monster-damage']").on("click", async event => {
       event.preventDefault();

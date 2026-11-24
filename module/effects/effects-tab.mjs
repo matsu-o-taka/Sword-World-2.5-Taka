@@ -28,6 +28,7 @@ import { buildSw25CanonicalName, sw25RankToRoman } from "./effect-identity.mjs";
 import { normalizeSw25EffectSystem, SEVERITY_REVIEW, repairSw25Effect } from "./effect-repair.mjs";
 import {
   SW25_EFFECT_SUBTYPE, SW25_DURATION_SCALES, SW25_COMBAT_DURATION_SCALES,
+  SW25_TIME_DURATION_SCALES, SW25_TIME_SCALE_UNIT_MINUTES,
   SW25_ANCHOR_REGIMES, SW25_ANCHOR_EDGES, SW25_ANCHOR_STATES
 } from "./effect-model.mjs";
 import { sw25AnchorAvailability } from "./duration-engine.mjs";
@@ -74,6 +75,138 @@ function readEffectSource(effect) {
     origin: typeof effect?.origin === "string" ? effect.origin : null,
     img: typeof effect?.img === "string" ? effect.img : null
   };
+}
+
+/**
+ * Build the editable unified time-counter context for one effect (Phase 3
+ * U6): the amount in the scale's unit, the selectable units and whether this
+ * viewer may edit it. Presentation/context only — the write, its unit
+ * conversion and every rejection belong to `setSw25EffectTimeDuration`.
+ *
+ * @param {object} system - The effect's `system` data.
+ * @param {object} viewer - { isGM, isOwner, editableDocument }.
+ * @returns {{canEdit: boolean, scale: string, amount: number|null,
+ *   units: Array<{value: string, label: string, selected: boolean}>}|null}
+ *   `null` when the effect is not on the unified non-combat counter.
+ */
+export function buildSw25TimeCounterEditor(system, { isGM = false, isOwner = false, editableDocument = false } = {}) {
+  const scale = typeof system?.durationScale === "string" ? system.durationScale : null;
+  if (!SW25_TIME_DURATION_SCALES.includes(scale)) return null;
+  const amount = typeof system?.remainingDuration === "number" && Number.isFinite(system.remainingDuration)
+    ? system.remainingDuration
+    : null;
+  return {
+    canEdit: editableDocument && (isGM === true || isOwner === true),
+    scale,
+    amount,
+    units: SW25_TIME_DURATION_SCALES.map(unit => ({
+      value: unit,
+      label: unit.charAt(0).toUpperCase() + unit.slice(1),
+      selected: unit === scale
+    }))
+  };
+}
+
+/**
+ * Presentation-only formatter for duration counters: rounds the DISPLAYED
+ * value to at most four fraction digits (the combat-end conversion of 17
+ * rounds yields 17/6 = 2.8333… minutes, never a screen full of
+ * floating-point noise). No display path ever alters the persisted value.
+ * @param {*} value - Raw stored counter.
+ * @returns {string} Formatted value, or "—" for a non-finite/absent value.
+ */
+export function formatSw25DurationValue(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  return String(Math.round(value * 1e4) / 1e4);
+}
+
+/** Tolerance for "is this counter a whole number of minutes" (IEEE-754). */
+const SW25_WHOLE_MINUTES_EPSILON = 1e-9;
+
+/**
+ * Compound natural display of a non-combat time counter (Phase 3 corrections,
+ * 2026-11-23): a whole number of minutes reads as its natural decomposition
+ * ("90" minutes → "1 hour and 30 minutes", "1500" minutes → "1 day and 1
+ * hour", "60" → "1 hour", "45" → "45 minutes"), with singular units. The
+ * counter of record is the minute; fraction-of-hour/day representations like
+ * "1.5 hours" or "1.25 days" never appear.
+ *
+ * Legacy scales are read through their exact minute equivalent when the
+ * stored value IS a whole number of minutes (1.5 hours → 90 min); a legacy
+ * value that is not (1.234 hours = 74.04 min) falls back to the raw ≤ 4-digit
+ * form in ITS unit — presentation only, the stored data is never rewritten.
+ * @param {*} scale - The effect's `system.durationScale` (minutes/hours/days).
+ * @param {*} value - Raw stored counter.
+ * @returns {string} Compound natural label, raw fallback, or "—".
+ */
+export function formatSw25NaturalDuration(scale, value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  const unit = typeof scale === "string" ? scale : "";
+  const factor = SW25_TIME_SCALE_UNIT_MINUTES[unit];
+  if (typeof factor !== "number") return `${formatSw25DurationValue(value)} ${unit || "?"}`;
+  const totalMinutes = value * factor;
+  const wholeMinutes = Math.round(totalMinutes);
+  if (Math.abs(totalMinutes - wholeMinutes) > SW25_WHOLE_MINUTES_EPSILON) {
+    // Legacy inexact total: raw form in the stored unit, never rounded away.
+    return `${formatSw25DurationValue(value)} ${unit}`;
+  }
+  const parts = [];
+  const days = Math.floor(wholeMinutes / 1440);
+  const hours = Math.floor((wholeMinutes % 1440) / 60);
+  const minutes = wholeMinutes % 60;
+  if (days > 0) parts.push(`${days} day${days === 1 ? "" : "s"}`);
+  if (hours > 0) parts.push(`${hours} hour${hours === 1 ? "" : "s"}`);
+  if (minutes > 0 || parts.length === 0) parts.push(`${minutes} minute${minutes === 1 ? "" : "s"}`);
+  return parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
+/**
+ * Entry-unit conversion for the inspector time counter (Phase 3 corrections):
+ * the amount field is re-expressed in the newly selected unit so a unit
+ * switch never changes the duration behind the user's back. Exact
+ * equivalents are returned exactly; inexact ones (50 min → 0.8333… h) are
+ * rounded for DISPLAY only — persisting them is refused by the service
+ * (`unrepresentable`), so nothing inexact is ever stored silently.
+ * @param {*} value - Current field value (number, or anything for pass-through).
+ * @param {string} fromUnit - Unit the value is currently expressed in.
+ * @param {string} toUnit - Unit to re-express the value in.
+ * @returns {number|string} Converted number, or the input unchanged when it
+ *   is not a finite number (e.g. an empty field).
+ */
+export function convertSw25TimeAmount(value, fromUnit, toUnit) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return value;
+  const from = SW25_TIME_SCALE_UNIT_MINUTES[fromUnit];
+  const to = SW25_TIME_SCALE_UNIT_MINUTES[toUnit];
+  if (typeof from !== "number" || typeof to !== "number" || to === 0) return value;
+  const exact = value * from / to;
+  const rounded = Math.round(exact * 1e6) / 1e6;
+  return Math.abs(exact - rounded) <= SW25_WHOLE_MINUTES_EPSILON ? exact : rounded;
+}
+
+/**
+ * Unit label for one counter value: the persisted scale id, singularized for
+ * exactly one unit ("1 day", "1 round"). A legacy effect without a scale but
+ * with counters keeps the historical rounds reading.
+ * @param {*} scale - The effect's `system.durationScale`.
+ * @param {number} value - Counter value the label refers to.
+ * @returns {string}
+ */
+function durationUnitLabel(scale, value) {
+  const unit = typeof scale === "string" && scale !== "" ? scale : "rounds";
+  return value === 1 ? unit.replace(/s$/, "") : unit;
+}
+
+/**
+ * Counter label for one stored value: the compound natural display on the
+ * non-combat time scales, the numeric unit form everywhere else (rounds,
+ * legacy scale-less counters).
+ * @param {*} scale - The effect's `system.durationScale`.
+ * @param {number} value - Counter value the label refers to.
+ * @returns {string}
+ */
+function describeCounterLabel(scale, value) {
+  if (SW25_TIME_DURATION_SCALES.includes(scale)) return formatSw25NaturalDuration(scale, value);
+  return `${formatSw25DurationValue(value)} ${durationUnitLabel(scale, value)}`;
 }
 
 /**
@@ -141,32 +274,29 @@ function describeDuration(system, nativeDuration) {
     };
   }
 
-  // Manual scales: GM-managed, no timers, no `worldTime`, no calendar, no
-  // automation of any kind.
-  if (scale === "minutes") {
+  // Unified non-combat time counter (minutes / hours / days): ONE editable
+  // amount whose counter of record is the whole minute (Phase 3 corrections).
+  // The display decomposes into natural compound units ("1 hour and 30
+  // minutes"); legacy hour/day scales read through their exact minute
+  // equivalent. GM-managed — no timers, no `worldTime`, no calendar, no
+  // automatic expiry. Rounds remain a separate combat-only representation.
+  if (SW25_TIME_DURATION_SCALES.includes(scale)) {
+    const natural = value => formatSw25NaturalDuration(scale, value);
+    let label;
+    if (remaining !== null && initial !== null) {
+      label = `Remaining ${natural(remaining)} of ${natural(initial)}`;
+    } else if (remaining !== null) {
+      label = `Remaining ${natural(remaining)}`;
+    } else if (initial !== null) {
+      label = `Initial ${natural(initial)}`;
+    } else {
+      label = scale.charAt(0).toUpperCase() + scale.slice(1);
+    }
     return {
-      mode: "minutes",
-      label: "Minutes",
-      title: "Manual duration (minutes). GM-managed; no automatic discounting or expiry.",
-      scale: "minutes",
-      anchor: null
-    };
-  }
-  if (scale === "hours") {
-    return {
-      mode: "hours",
-      label: "Hours",
-      title: "Manual duration (hours). GM-managed; no automatic discounting or expiry.",
-      scale: "hours",
-      anchor: null
-    };
-  }
-  if (scale === "days") {
-    return {
-      mode: "days",
-      label: "Days",
-      title: "Manual duration (days). GM-managed; no automatic discounting or expiry.",
-      scale: "days",
+      mode: scale,
+      label,
+      title: `Manual duration (${scale}). GM-managed; no automatic discounting or expiry.`,
+      scale,
       anchor: null
     };
   }
@@ -340,8 +470,16 @@ export function describeSw25Effect(effect, resolve = null, options = {}) {
     // legitimate value (DEC-6, minor-action casting) and remaining/initial 0
     // rounds are meaningful bookkeeping (DEC-23). Null stays "—".
     successValueLabel: typeof system.successValue === "number" ? String(system.successValue) : "—",
-    initialDurationLabel: typeof system.initialDuration === "number" ? `${system.initialDuration} rounds` : "—",
-    remainingDurationLabel: typeof system.remainingDuration === "number" ? `${system.remainingDuration} rounds` : "—",
+    // Unit-aware counter labels (Phase 3): a minute/hours/days effect shows
+    // its compound natural amount ("1 hour and 30 minutes"); other scales
+    // keep the numeric unit form. Stored data is never rewritten by a
+    // display path.
+    initialDurationLabel: typeof system.initialDuration === "number"
+      ? describeCounterLabel(system.durationScale, system.initialDuration)
+      : "—",
+    remainingDurationLabel: typeof system.remainingDuration === "number"
+      ? describeCounterLabel(system.durationScale, system.remainingDuration)
+      : "—",
     rankLabel: typeof system.rank === "number" && system.rank > 0
       ? `${sw25RankToRoman(system.rank)} (${system.rank})` : "—",
     successValue: typeof system.successValue === "number" ? system.successValue : null,
@@ -438,6 +576,8 @@ export function prepareSw25EffectRows(effects, resolve = null, options = {}) {
       originUUID: description.originUUID,
       originLabel: description.originName,
       casterLabel: description.casterName,
+      disabled: description.disabled,
+      active: description.active,
       stateLabel: description.stateLabel,
       needsReview: description.needsReview,
       futureVersion: description.futureVersion,

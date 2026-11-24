@@ -22,9 +22,12 @@ import { initializeMonsterKnowledgeRegistry, getOrCreateMkRegistryFolder, getOrC
 import { initializeMonsterKnowledgeRelay } from "./module/knowledge/mk-relay.mjs";
 import { MKRegistryManagerApp } from "./module/ui/mk-registry-manager.mjs";
 import { GameRulesApp } from "./module/ui/game-rules.mjs";
+import { EffectsApp } from "./module/ui/effects.mjs";
 import { SW25EffectModel } from "./module/effects/effect-model.mjs";
 import { initializeEffectService, registerSw25StackingResolver } from "./module/effects/effect-service.mjs";
+import { handleSw25CombatStart } from "./module/effects/combat-duration-prompt.mjs";
 import { initializeEffectRelay } from "./module/effects/effect-relay.mjs";
+import { initializeSw25ConfiguredEffects } from "./module/effects/configured-effect.mjs";
 import { resolveSw25Stacking } from "./module/effects/stacking-resolver.mjs";
 import { installSw25EffectiveValues } from "./module/effects/effective-values.mjs";
 import { initializeDefeatedStatusSync } from "./module/actor/defeated-status.mjs";
@@ -132,15 +135,14 @@ Hooks.once("init", () => {
 
   // Game Rules: Enforce Strict Combat Preparation Rules
   //
-  // Foundry V14 has no native settings "group" (no registerGroup API and the
-  // SettingConfig `group` property is ignored), so this setting is surfaced
-  // under a dedicated "Game Rules" submenu via registerMenu below instead of
-  // an invalid `group` key.
+  // `config: false` keeps the setting registered (so the Game Rules submenu
+  // can read/write it) without listing it as a loose entry in the general
+  // settings list outside the three menus. It only lives inside Game Rules.
   game.settings.register("sw25-taka", "enforceStrictCombatPreparationRules", {
     name: "Enforce Strict Combat Preparation Rules",
     hint: "When enabled, during Combat Preparation only spells marked △ can be cast via the special Combat Preparation modality, and Major Action is blocked.",
     scope: "world",
-    config: true,
+    config: false,
     type: Boolean,
     default: false,
     restricted: true
@@ -159,11 +161,22 @@ Hooks.once("init", () => {
     restricted: true
   });
 
+  // Effects configurator: independent GM-only top-level menu for configured
+  // effect tools. This does not alter the Game Rules menu or its behaviour.
+  game.settings.registerMenu("sw25-taka", "effects", {
+    name: "Effects",
+    label: "Effects",
+    hint: "Create, preview and test configured effects.",
+    icon: "fa-solid fa-hand-sparkles",
+    type: EffectsApp,
+    restricted: true
+  });
+
   // Monster Knowledge Manager menu (F3): opens the GM-only registry
   // management window from Configure Settings → Sword World 2.5.
   game.settings.registerMenu("sw25-taka", "mkRegistryManager", {
     name: "Monster Knowledge Manager",
-    label: "Open MKM",
+    label: "MKM",
     hint: "Manage Monster Knowledge discoveries by session and campaign.",
     icon: "fa-solid fa-book-open",
     type: MKRegistryManagerApp,
@@ -197,6 +210,23 @@ Hooks.once("ready", initializeMonsterKnowledgeRelay);
 // channel but dispatch by their own `effect-*` actions.
 Hooks.once("ready", initializeEffectService);
 Hooks.once("ready", initializeEffectRelay);
+// Phase 3: combat entry brings the participants' unified NON-COMBAT time
+// counters (minutes/hours/days) into combat tracking. The window asks whether
+// each pre-existing effect is still active (never a silent assumption) and
+// EffectService performs the conversion/removal with GM authority. Registered
+// in this composition root so the service stays UI-free; GM-gated inside the
+// handler. combatStart fires on the initiating client before the database
+// update, and an async listener does not block that update.
+Hooks.once("ready", () => {
+  Hooks.on("combatStart", combat => {
+    handleSw25CombatStart(combat).catch(error => {
+      console.warn("[SW25 Combat Duration] Combat-entry duration handling failed.", error);
+    });
+  });
+});
+// Configured effect entries: document-level drag transport for the draggable
+// entries embedded in content descriptions (drop targets are bound per sheet).
+Hooks.once("ready", initializeSw25ConfiguredEffects);
 // F2-T2 consumer integration: open monster sheets repaint their Weak Point
 // indicator when the Monster Knowledge Registry setting changes on this client.
 Hooks.once("ready", initializeMonsterSheetKnowledgeSync);

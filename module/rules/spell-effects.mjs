@@ -1,5 +1,5 @@
-import { damageApplicationButton } from "../combat/damage-application.mjs";
-import { getSpellDuration, parseSpellNameIdentity, parseSw25SpellDamageAttribute } from "./spell-data.mjs";
+import { damageApplicationButton, incomingDamageContext } from "../combat/damage-application.mjs";
+import { canonicalSpellName, getSpellDuration, getSpellDurationData, parseSpellNameIdentity, parseSw25SpellDamageAttribute } from "./spell-data.mjs";
 
 const FLAG_SCOPE = "sw25-taka";
 const FLAG_KEY = "timedRegeneration";
@@ -13,7 +13,9 @@ const escape = value => foundry.utils.escapeHTML(String(value ?? ""));
 
 export function regenerationSpellData(spell) {
   const source = String(spell?.system?.sourceUrl || "").toLowerCase();
-  const name = String(spell?.name || "").toLowerCase();
+  // The special matching runs on the CANONICAL name (Phase 2): leading ⏩/△
+  // markers are authoring metadata and never participate in spell matching.
+  const name = canonicalSpellName(spell?.name ?? "").name.toLowerCase();
   if (source.includes("spell:reproducer-bloody-petal") || name.includes("reproducer/bloody petal") || name.includes("bloody petal")) {
     return REGENERATION_SPECS["reproducer-bloody-petal"];
   }
@@ -25,7 +27,11 @@ export function regenerationSpellData(spell) {
 
 export function isExhaustiveSucking(spell) {
   const source = String(spell?.system?.sourceUrl || "").toLowerCase();
-  const name = String(spell?.name || "").trim().toLowerCase();
+  // The name comparison runs on the CANONICAL name (Phase 3 corrections):
+  // leading ⏩/△ markers are authoring metadata and never participate in
+  // spell matching — mirroring regenerationSpellData. Read-only: loading
+  // never renames the document.
+  const name = canonicalSpellName(spell?.name ?? "").name.trim().toLowerCase();
   return source.includes("spell:exhaustive-sucking") || name === "exhaustive sucking";
 }
 
@@ -46,7 +52,7 @@ export async function resolveExhaustiveSucking({ actor, spell, castingClass }) {
   const detailId = `exhaustive-sucking-${exhaustiveCardCounter}`;
   await ChatMessage.create({
     speaker:ChatMessage.getSpeaker({ actor }),
-    content:`<div class="sw25-chat-card sw25-damage-card sw25-spell-damage"><h3>${escape(spell.name)}</h3><div class="sw25-damage-stat" data-target="${detailId}"><div class="sw25-damage-stat-summary" role="button" tabindex="0"><span class="sw25-damage-roll">${Number(previous.total)}</span><span class="sw25-damage-plus">+</span><span class="sw25-damage-bonus">18</span><span class="sw25-damage-equals">=</span><span class="sw25-damage-total">${total}</span></div><div class="sw25-damage-stat-detail" id="${detailId}" style="display:none;"><ul class="sw25-roll-breakdown"><li><strong>Previous Magic Power roll:</strong> ${Number(previous.total)}</li><li><strong>Damage:</strong> 18 + ${Number(previous.total)}</li></ul></div></div><p class="sw25-weapon-total"><strong>Total: ${total} physical damage</strong></p>${damageApplicationButton(total, "physical", false)}<button type="button" data-sw25-chat-action="heal-exhaustive-sucking" data-actor-uuid="${escape(actor.uuid)}" data-healing="${total}"><i class="fas fa-heart"></i> Heal Caster ${total} HP</button><p><em>Do not apply the healing if the target has Poison Immunity.</em></p></div>`
+    content:`<div class="sw25-chat-card sw25-damage-card sw25-spell-damage"><h3>${escape(spell.name)}</h3><div class="sw25-damage-stat" data-target="${detailId}"><div class="sw25-damage-stat-summary" role="button" tabindex="0"><span class="sw25-damage-roll">${Number(previous.total)}</span><span class="sw25-damage-plus">+</span><span class="sw25-damage-bonus">18</span><span class="sw25-damage-equals">=</span><span class="sw25-damage-total">${total}</span></div><div class="sw25-damage-stat-detail" id="${detailId}" style="display:none;"><ul class="sw25-roll-breakdown"><li><strong>Previous Magic Power roll:</strong> ${Number(previous.total)}</li><li><strong>Damage:</strong> 18 + ${Number(previous.total)}</li></ul></div></div><p class="sw25-weapon-total"><strong>Total: ${total} physical damage</strong></p>${damageApplicationButton(total, "physical", false, null, null, incomingDamageContext(spell))}<button type="button" data-sw25-chat-action="heal-exhaustive-sucking" data-actor-uuid="${escape(actor.uuid)}" data-healing="${total}"><i class="fas fa-heart"></i> Heal Caster ${total} HP</button><p><em>Do not apply the healing if the target has Poison Immunity.</em></p></div>`
   });
   return true;
 }
@@ -180,32 +186,48 @@ export { getSpellDuration } from "./spell-data.mjs";
  * part plus a persistent part after the slash (e.g. "Instant/3 rounds").
  * A bare "Instant" duration (immediate only, no persistent queue) is NOT
  * Instant/X.
+ *
+ * Read through the centralized duration-data reader (Phase 2): the
+ * structured `system.durationData` reading recognizes every compendium
+ * spelling of the slash, including the 23 compendium expressions written
+ * with a space before it ("Instant / 10 seconds"), which the previous
+ * raw-text regex (`/^instant\//`) silently missed.
  * @param {object} spell - Spell Item document.
  * @returns {boolean}
  */
 export function isInstantXSpell(spell) {
-  const duration = getSpellDuration(spell);
-  if (!duration) return false;
-  return /^instant\/\s*\S/i.test(duration);
+  const data = getSpellDurationData(spell);
+  return data.immediate === true && data.persistent !== null;
 }
 
 /**
- * Extract the persistent-effect data for an Instant/X spell from its
- * metadata duration. Returns null when the spell is not Instant/X or when
- * no parseable persistent duration exists.
+ * Extract the persistent-effect application data for an Instant/X spell from
+ * its centralized duration reading. Returns null when the spell is not
+ * Instant/X or when no persistent duration exists.
  *
- * Duration parsing (verified against all 38 Instant/X spells of the
- * sw25-library compendium, T5.7-C):
- *   - "Instant/3 rounds" / "Instant/2 turns" → counted combat scale.
- *   - "Instant/10 seconds (1 round)" → the parenthetical is the authoritative
- *     rounds conversion; the scale is combat ("rounds").
- *   - "Instant/3 minutes (18 rounds)", "Instant/1 Day" → manual scale
- *     (minutes/hours/days, DEC-23): no counter is declared, because a combat
- *     counter on a manual scale would make the duration engine purge the
- *     effect at combat end, violating DEC-40 (the persistent part outlives
- *     the combat).
- *   - Bare seconds without a parenthetical conversion and unclassifiable
- *     values ("Instant/Various") → scale "other" (DEC-32): GM-managed.
+ * Mapping (Phase 2; the normalized `durationData.persistent` value is the
+ * single source of truth — no raw-text parsing here):
+ *   - rounds / turns with an INTEGER amount ≥ 1 → counted combat scale whose
+ *     engine counters are the normalized value. Seconds and minutes are both
+ *     converted to rounds by arithmetic in spell-data.mjs (1 round = 10 s;
+ *     minutes via seconds), so a minute-derived duration now COUNTS its
+ *     combat rounds through the existing anchor/counter machinery instead of
+ *     camping on a manual scale with no counters (user directive, 2026-11-22).
+ *   - `outOfCombat` is the fallback mapping for a cast whose caster cannot
+ *     resolve a combat anchor (no active encounter / caster not a combatant):
+ *     minute-derived durations keep their authored minutes on the manual
+ *     "minutes" scale (pre-combat buffs keep working), second-derived ones
+ *     stay GM-managed "other" with no invented counter (the pre-Phase-2
+ *     bare-seconds behavior) and carry their authored identity in
+ *     `sourceDuration` for the combat-entry flow (Phase 3 corrections), and
+ *     authored rounds/turns have none (null) — their D4 anchor-required skip
+ *     stands.
+ *   - A FRACTIONAL normalized round amount cannot drive the integer engine
+ *     counter: GM-managed "other", never silently rounded (documented
+ *     incompatibility).
+ *   - hours / days / permanent / other → the same-named manual scale with no
+ *     invented counter (DEC-23); these never need an anchor, so there is no
+ *     distinct out-of-combat fallback.
  *
  * The returned `durationScale` is always an approved SW25_DURATION_SCALES id;
  * `initialDuration`/`remainingDuration` are positive integers only for the
@@ -213,38 +235,63 @@ export function isInstantXSpell(spell) {
  *
  * @param {object} spell - Spell Item document.
  * @returns {{durationScale: string, initialDuration: number|null,
- *   remainingDuration: number|null}|null}
+ *   remainingDuration: number|null, outOfCombat: object|null}|null}
  */
 export function getInstantXSpellData(spell) {
-  const duration = getSpellDuration(spell);
-  if (!duration) return null;
-  const match = duration.match(/^instant\/\s*(.+)$/i);
-  if (!match) return null;
-  const part = match[1].trim();
-  // Direct combat-scale counter: "Instant/3 rounds", "Instant/2 turns".
-  let m = part.match(/^(\d+)\s*(rounds?|turns?)$/i);
-  if (m) {
-    const count = Number(m[1]);
-    if (!Number.isInteger(count) || count < 1) return null;
-    const durationScale = m[2].toLowerCase().startsWith("turn") ? "turns" : "rounds";
-    return { durationScale, initialDuration: count, remainingDuration: count };
+  const data = getSpellDurationData(spell);
+  if (data.immediate !== true || data.persistent === null) return null;
+  const { scale, amount } = data.persistent;
+  if (scale === "rounds" || scale === "turns") {
+    if (Number.isInteger(amount) && amount >= 1) {
+      return {
+        durationScale: scale,
+        initialDuration: amount,
+        remainingDuration: amount,
+        outOfCombat: scale === "rounds" ? instantXOutOfCombatFallback(data.persistent) : null
+      };
+    }
+    // Fractional or degenerate counter: never rounded, never invented —
+    // the persistent component stays under GM management ("other").
+    return { durationScale: "other", initialDuration: null, remainingDuration: null, outOfCombat: null };
   }
-  // Seconds with an explicit parenthetical rounds conversion.
-  m = part.match(/^(\d+)\s*seconds?\s*\(\s*(\d+)\s*rounds?\s*\)$/i);
-  if (m) {
-    const count = Number(m[2]);
-    if (!Number.isInteger(count) || count < 1) return null;
-    return { durationScale: "rounds", initialDuration: count, remainingDuration: count };
+  return { durationScale: scale, initialDuration: null, remainingDuration: null, outOfCombat: null };
+}
+
+/**
+ * Out-of-combat fallback mapping of a counted-rounds Instant/X duration,
+ * derived from the unit the duration was AUTHORED in (private helper of
+ * `getInstantXSpellData`).
+ *
+ * Phase 3 corrections (2026-11-23): the seconds branch now preserves its
+ * authored identity on the application via `sourceDuration`
+ * (`{ unit: "seconds", amount }`, from the normalized
+ * `durationData.persistent.sourceUnit`/`sourceAmount` — never inferred from
+ * display text). The stored effect keeps `durationScale: "other"` with NO
+ * counters (no countdown outside combat, exactly as before), but the
+ * combat-entry confirmation flow can now recognize it and offer its
+ * combat-equivalent rounds (seconds ÷ 10).
+ * @param {object} persistent - The parsed persistent duration structure.
+ * @returns {object|null} A manual-scale application mapping, or null when the
+ *   D4 anchor-required skip stands (authored rounds).
+ */
+function instantXOutOfCombatFallback(persistent) {
+  const unit = String(persistent.sourceUnit ?? "");
+  if (unit.startsWith("minute") && Number.isInteger(persistent.sourceAmount) && persistent.sourceAmount >= 1) {
+    // The authored minutes survive verbatim on the manual scale.
+    return { durationScale: "minutes", initialDuration: persistent.sourceAmount, remainingDuration: persistent.sourceAmount };
   }
-  // Manual scales (DEC-23): no counters, no combat anchor.
-  m = part.match(/^(\d+)\s*(minutes?|hours?|days?)\b/i);
-  if (m) {
-    const unit = m[2].toLowerCase();
-    const durationScale = unit.startsWith("hour") ? "hours" : unit.startsWith("day") ? "days" : "minutes";
-    return { durationScale, initialDuration: null, remainingDuration: null };
+  if (unit.startsWith("second") && typeof persistent.sourceAmount === "number"
+    && Number.isFinite(persistent.sourceAmount) && persistent.sourceAmount > 0) {
+    // Bare seconds were GM-managed before Phase 2 and remain so; the authored
+    // seconds identity travels with the effect for the combat-entry flow.
+    return {
+      durationScale: "other",
+      initialDuration: null,
+      remainingDuration: null,
+      sourceDuration: { unit: "seconds", amount: persistent.sourceAmount }
+    };
   }
-  // Bare seconds and unclassifiable values ("Various"): GM-managed "other".
-  return { durationScale: "other", initialDuration: null, remainingDuration: null };
+  return null;
 }
 
 // ── Instant/X identity (T5.7-C: DEC-1/DEC-16) ──────────────────────────────
@@ -256,11 +303,13 @@ export function getInstantXSpellData(spell) {
 /**
  * Resolve the stacking identity (DEC-1) of an Instant/X spell.
  *
- * `family` is the canonical base name as authored (authoring markers like
- * ⏩/‡/†/△ stay in the family; DEC-1 comparison normalizes case at
- * comparison time, never at storage). `rank` is the stored integer
- * `system.rank` (0 = base) when present, falling back to the version numeral
- * parsed from the authored name via the SHARED parser
+ * `family` is the CANONICAL base name (Phase 2): the leading ⏩/△
+ * action-marker run is authoring metadata and is stripped through
+ * `canonicalSpellName` (rules/spell-data.mjs) before parsing, so the
+ * markered and clean spellings of a spell share ONE stacking identity.
+ * `†`/`‡` are not action markers and stay in the family. `rank` is the
+ * stored integer `system.rank` (0 = base) when present, falling back to the
+ * version numeral parsed from the authored name via the SHARED parser
  * `parseSpellNameIdentity` (rules/spell-data.mjs) — the same implementation
  * the importer uses to populate `system.rank`. The rank is never taken from
  * the spell level.
@@ -270,13 +319,14 @@ export function getInstantXSpellData(spell) {
  *   - A trailing attached full-width numeral (Ⅰ..Ⅹ) is a rank.
  *   - A trailing SPACE-SEPARATED ASCII Roman numeral in UPPERCASE
  *     (case-sensitive: "Mana Max" never matches) is a rank.
- *   - Everything else: the full authored name is the family, rank 0.
+ *   - Everything else: the full canonical name is the family, rank 0.
  *
  * @param {object} spell - Spell Item document.
  * @returns {{family: string, rank: number}}
  */
 export function getInstantXSpellIdentity(spell) {
-  const parsed = parseSpellNameIdentity(String(spell?.name || "").trim());
+  const canonical = canonicalSpellName(spell?.name ?? "").name;
+  const parsed = parseSpellNameIdentity(canonical.trim());
   const storedRank = Number(spell?.system?.rank);
   const rank = Number.isInteger(storedRank) && storedRank >= 0 ? storedRank : parsed.rank;
   return { family: parsed.family, rank };

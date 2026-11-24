@@ -9,12 +9,13 @@
 //     socket, the GM-relay whisper and the window buttons reach; the engine
 //     is invoked from it after every persisted transition (D9).
 //
-// Covered per the task: casterTurn/targetTurn edges, roundEnd once per
+// Covered per the task: casterTurn/targetTurn edges, counted turns and
+// condition-based turn edges, roundEnd once per
 // confirmed transition, per-combatant independence, two tokens of the same
 // Actor, the four D5 availability cases (not acted / ended / defeated /
 // incapacitated / removed / token gone), degradation without restarting the
-// duration and without reassignment, scale behavior (rounds counter, turns
-// condition, manual scales, legacy, rounds-without-counter per the adopted
+// duration and without reassignment, scale behavior (rounds/turns counters,
+// condition-based turns, manual scales, legacy, rounds-without-counter per the adopted
 // 5.1 decision), direct roundEnd applications (adopted 5.2 decision), the
 // adopted internal per-combat FIFO (5.3), deferred anchors, no double
 // discounts, no writes outside EffectService, failure isolation with visible
@@ -238,6 +239,8 @@ globalThis.Application = class { render() {} async close() {} };
 const engine = await import("../module/effects/duration-engine.mjs");
 const service = await import("../module/effects/effect-service.mjs");
 const side = await import("../module/combat/side-initiative.mjs");
+const configurator = await import("../module/effects/effect-configurator.mjs");
+const configuredEffects = await import("../module/effects/configured-effect.mjs");
 
 const { processSw25DurationEvent, sw25AnchorAvailability } = engine;
 const {
@@ -246,6 +249,8 @@ const {
   initializeEffectService
 } = service;
 const { handleAction } = side;
+const { buildSw25GenericEffectConfiguration } = configurator;
+const { applySw25ConfiguredEffect } = configuredEffects;
 
 // Production wiring equivalent (sw25.mjs ready): the write guard must be
 // active so "no writes outside EffectService" is verified through the REAL
@@ -627,14 +632,16 @@ console.log("=== 11. anchor combatant removed from the tracker degrades (no reas
   record("case D: degraded without inheriting the anchor to another token of the same Actor");
 }
 
-// ── 12. rounds to zero is removed; turns expires without touching counters ──
+// ── 12. counted turns decrement at matching edges; condition turns remain ───
 
-console.log("=== 12. scale behavior: removal at zero, turns expiry, manual and legacy untouched ===");
+console.log("=== 12. counted turns: matching-edge countdown, zero expiry, condition/manual untouched ===");
 {
   const casterActor = new MockActor("scale-c", "Scale Caster");
+  const secondCasterActor = new MockActor("scale-c2", "Second Scale Caster");
   const carrier = new MockActor("scale-t", "Scale Carrier");
   const caster = makeCombatant("cmbt-s1", casterActor);
-  const combat = new MockCombat({ combatants: [caster, makeCombatant("cmbt-s2", carrier)] });
+  const secondCaster = makeCombatant("cmbt-s3", secondCasterActor);
+  const combat = new MockCombat({ combatants: [caster, makeCombatant("cmbt-s2", carrier), secondCaster] });
 
   const lastRound = await applyEffect(carrier, {
     family: "Last",
@@ -646,6 +653,21 @@ console.log("=== 12. scale behavior: removal at zero, turns expiry, manual and l
     durationScale: "turns",
     durationAnchor: { regime: "casterTurn", edge: "begin", combatantId: "cmbt-s1" }
   });
+  const twoTurns = await applyEffect(carrier, {
+    family: "Two Turns",
+    initialDuration: 2, remainingDuration: 2, durationScale: "turns",
+    durationAnchor: { regime: "casterTurn", edge: "begin", combatantId: "cmbt-s1" }
+  });
+  const oneTurn = await applyEffect(carrier, {
+    family: "One Turn",
+    initialDuration: 1, remainingDuration: 1, durationScale: "turns",
+    durationAnchor: { regime: "casterTurn", edge: "begin", combatantId: "cmbt-s1" }
+  });
+  const independent = await applyEffect(carrier, {
+    family: "Independent Turns",
+    initialDuration: 2, remainingDuration: 2, durationScale: "turns",
+    durationAnchor: { regime: "targetTurn", edge: "end", combatantId: "cmbt-s3" }
+  });
   const minutes = await applyEffect(carrier, { family: "Long Ritual", durationScale: "minutes" });
   const hours = await applyEffect(carrier, { family: "Longer Ritual", durationScale: "hours" });
   const days = await applyEffect(carrier, { family: "Longest Ritual", durationScale: "days" });
@@ -656,11 +678,31 @@ console.log("=== 12. scale behavior: removal at zero, turns expiry, manual and l
     initialDuration: 2, remainingDuration: 2
   }, "Legacy Flag Effect");
 
+  // Wrong combatant, wrong edge, and round transition do not consume a
+  // casterTurn/begin counter.
+  await processSw25DurationEvent(combat, { kind: "turn-begin", combatantId: "cmbt-s3" });
+  await processSw25DurationEvent(combat, { kind: "turn-end", combatantId: "cmbt-s1" });
+  await processSw25DurationEvent(combat, { kind: "round-end", round: 2 });
+  assert.equal(twoTurns.system.remainingDuration, 2, "unrelated events do not discount the counted turn duration");
+  assert.equal(independent.system.remainingDuration, 2, "a different anchor and edge do not discount this effect");
+
   await processSw25DurationEvent(combat, { kind: "turn-begin", combatantId: "cmbt-s1" });
 
   assert.equal(lastRound.deleted, true, "a rounds effect reaching zero is removed (via service)");
   assert.equal(condition.deleted, true, "a turns condition expires at its edge");
   assert.equal(condition.system.remainingDuration ?? null, null, "turns never touched a numeric counter");
+  assert.equal(oneTurn.deleted, true, "N=1 expires on its first matching turn edge");
+  assert.equal(twoTurns.deleted, false, "a counted turn effect remains while one turn remains");
+  assert.equal(twoTurns.system.remainingDuration, 1, "the matching caster begin edge decrements exactly once");
+  assert.equal(independent.system.remainingDuration, 2, "the targetTurn/end effect remains untouched");
+
+  await processSw25DurationEvent(combat, { kind: "turn-end", combatantId: "cmbt-s1" });
+  await processSw25DurationEvent(combat, { kind: "turn-begin", combatantId: "cmbt-s1" });
+  assert.equal(twoTurns.deleted, true, "the second distinct matching begin edge removes the N=2 effect");
+  assert.equal(twoTurns.system.remainingDuration, 1, "only the remaining value before removal is retained");
+  await processSw25DurationEvent(combat, { kind: "turn-end", combatantId: "cmbt-s3" });
+  assert.equal(independent.system.remainingDuration, 1, "its own targetTurn/end anchor decrements independently");
+  assert.equal(independent.deleted, false, "independent counted effect remains while turns remain");
   assert.equal(minutes.deleted, false, "minutes untouched");
   assert.equal(hours.deleted, false, "hours untouched");
   assert.equal(days.deleted, false, "days untouched");
@@ -669,7 +711,18 @@ console.log("=== 12. scale behavior: removal at zero, turns expiry, manual and l
   assert.equal(legacy.deleted, false, "legacy scale-less effect untouched");
   assert.equal(legacy.updates.length, 0, "legacy effect received no writes");
   assert.equal(minutes.updates.length + hours.updates.length + days.updates.length + permanent.updates.length + other.updates.length, 0, "manual scales received no writes");
-  record("rounds removal, turns expiry, manual scales and legacy fully untouched");
+
+  const persistedZero = handBuiltEffect(carrier, {
+    schemaVersion: 1, family: "Persisted Zero Turns", rank: 0, successValue: 5,
+    initialDuration: 1, remainingDuration: 0, durationScale: "turns",
+    durationAnchor: { regime: "casterTurn", edge: "begin", combatantId: "cmbt-s1", tokenId: null, state: "resolved" }
+  }, "Persisted Zero Turns");
+  await processSw25DurationEvent(combat, { kind: "turn-end", combatantId: "cmbt-s1" });
+  assert.equal(persistedZero.deleted, false, "a persisted zero counter ignores a non-matching edge");
+  const zeroSummary = await processSw25DurationEvent(combat, { kind: "turn-begin", combatantId: "cmbt-s1" });
+  assert.equal(persistedZero.deleted, true, "a persisted zero counted-turn effect expires at its next matching event");
+  assert.ok(zeroSummary.expired.some(entry => entry.effectId === persistedZero.id), "zero-counter expiry is reported through the normal summary");
+  record("rounds and counted turns expire at zero; condition turns/manual scales/legacy behavior preserved");
 }
 
 // ── 13. Deferred anchors are never processed or degraded ────────────────────
@@ -766,7 +819,7 @@ console.log("=== 15. finish-turn then end-player: no second turn-end event ===")
 
   const effect = await applyEffect(targetActor, {
     family: "OnceOnly",
-    initialDuration: 5, remainingDuration: 5, durationScale: "rounds",
+    initialDuration: 5, remainingDuration: 5, durationScale: "turns",
     durationAnchor: { regime: "casterTurn", edge: "end", combatantId: "cmbt-x1" }
   });
 
@@ -972,6 +1025,54 @@ console.log("=== 20. all writes go through EffectService; native expiry stays un
   assert.ok(!/duration\.value\s*=/.test(engineSource), "the engine never assigns duration.value");
   assert.ok(!/duration\.expiry\s*=/.test(engineSource), "the engine never assigns duration.expiry");
   record("engine source sweep: no native expiry machinery, no direct document writes");
+}
+
+// ── 21. Generic creator: fixed SV + counted roundEnd descriptor integration ─
+
+console.log("=== 21. Generic creator descriptors persist and expire through the real roundEnd flow ===");
+{
+  const actor = new MockActor("generic-duration", "Generic Duration Carrier");
+  const carrier = makeCombatant("cmbt-generic-duration", actor);
+  const combat = new MockCombat({ combatants: [carrier] });
+  const built = buildSw25GenericEffectConfiguration({
+    id: "generic-roundend",
+    name: "Generic Round Ward",
+    description: "A configured persistent effect.",
+    magical: "magical",
+    successValue: "14",
+    effectType: "",
+    durationScale: "rounds",
+    durationValue: "2"
+  });
+  assert.equal(built.ok, true, JSON.stringify(built));
+  assert.equal(built.configured.initialDuration, 2);
+  assert.deepEqual(built.configured.durationAnchor, { regime: "roundEnd" });
+
+  // This is the same application entry point used by the configurator and by
+  // drag-and-drop; no direct ActiveEffect write is introduced for the test.
+  const applied = await applySw25ConfiguredEffect(actor, built.configured, { notify: false });
+  assert.equal(applied.ok, true, JSON.stringify(applied));
+  const effect = actor.effects.find(candidate => candidate.id === applied.effectId);
+  assert.ok(effect);
+  assert.equal(effect.system.successValue, 14);
+  assert.equal(effect.system.successValueSource, "fixed");
+  assert.equal(effect.system.isMagical, true);
+  assert.equal(effect.system.initialDuration, 2);
+  assert.equal(effect.system.remainingDuration, 2, "fresh remaining counter initialized by EffectService");
+  assert.deepEqual(effect.system.durationAnchor, {
+    regime: "roundEnd", edge: "begin", combatantId: null, tokenId: null, state: "resolved"
+  });
+
+  const discounted = await processSw25DurationEvent(combat, { kind: "round-end", round: 2 });
+  assert.equal(discounted.discounted.length, 1);
+  assert.equal(effect.system.remainingDuration, 1);
+  assert.equal(effect.system.initialDuration, 2, "the initial counter is not restarted or overwritten");
+  const expired = await processSw25DurationEvent(combat, { kind: "round-end", round: 3 });
+  assert.equal(expired.expired.length, 1);
+  assert.equal(effect.deleted, true, "zero rounds removes the configured effect through EffectService");
+  assert.equal(effect.duration?.value ?? null, null);
+  assert.equal(effect.duration?.expiry ?? null, null);
+  record("generic descriptor → configured application → persisted fixed SV/counters → roundEnd discount and removal");
 }
 
 console.log("\nAll duration engine checks passed.");

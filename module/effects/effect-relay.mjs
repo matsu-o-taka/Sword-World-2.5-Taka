@@ -50,7 +50,8 @@ import {
   applySw25Effect,
   removeSw25Effect,
   toggleSw25Effect,
-  refreshSw25Effect
+  refreshSw25Effect,
+  setSw25EffectTimeDuration
 } from "./effect-service.mjs";
 
 const SYSTEM_ID = "sw25-taka";
@@ -154,6 +155,19 @@ const OPERATION_FIELDS = new Map([
   ["apply", ["actorUuid", "family", "rank", "cast", "changes", "initialDuration",
     "remainingDuration", "img", "effectType", "origin", "casterUUID", "duration",
     "familyPolicy", "damageType", "durationScale", "durationAnchor", "acceptReplace",
+    // Configured-effect drag-and-drop uses this same relay for players. Keep
+    // its validated rules, presentation visibility and provenance metadata;
+    // EffectService remains the sole semantic validator and document writer.
+    "rules", "gmOnly", "flags",
+    // Cancellation eligibility (DEC-7/§55): the stored magical flag and the
+    // emitting effect's resistance notation. This is NOT the resistance
+    // outcome: `resisted` below remains the ONLY resolution result that
+    // crosses the transport, and the service still never interprets rolls.
+    "isMagical", "resistance",
+    // T6.1/DEC-7: Success Value provenance and casting identity/scope. A
+    // relayed application must keep them, otherwise the transport would
+    // silently downgrade it to an unrecorded, ungrouped effect.
+    "successValueSource", "castId", "effectScope",
     // Resistance boundary (DEC-R): the cast flow resolves every resistance;
     // only the boolean outcome crosses to the effect engine, which never
     // interprets resistance types, difficulties or rolls (the field is
@@ -161,7 +175,11 @@ const OPERATION_FIELDS = new Map([
     "resisted"]],
   ["remove", ["actorUuid", "effectId"]],
   ["toggle", ["actorUuid", "effectId", "active"]],
-  ["refresh", ["actorUuid", "effectId", "cast", "successValue", "remainingDuration"]]
+  ["refresh", ["actorUuid", "effectId", "cast", "successValue", "remainingDuration"]],
+  // Phase 3: the owning user edits the unified NON-COMBAT time counter
+  // (amount + unit) through the GM. Unit conversion and validation belong to
+  // the service; the transport carries only the requested unit and amount.
+  ["set-duration", ["actorUuid", "effectId", "unit", "amount"]]
 ]);
 
 /**
@@ -209,7 +227,8 @@ function relayRequestPayload(requestId, gid, operation, request) {
  * On a GM client the operation executes locally through the EffectService
  * (the GM holds direct authority; see the module header comment).
  *
- * @param {string} operation - "apply" | "remove" | "toggle" | "refresh".
+ * @param {string} operation - "apply" | "remove" | "toggle" | "refresh" |
+ *   "set-duration".
  * @param {object} request - Operation payload (see the service contract).
  * @param {object} [options]
  * @param {boolean} [options.notify] - Notify the requester of the outcome.
@@ -281,9 +300,14 @@ async function executeEffectOperationLocally(operation, request, { notify: notif
   if (operation === "apply") result = await applySw25Effect(actor, payload, { notify: notifyEnabled });
   else if (operation === "remove") result = await removeSw25Effect(actor, payload.effectId, { notify: notifyEnabled });
   else if (operation === "toggle") result = await toggleSw25Effect(actor, payload.effectId, { active: payload.active ?? null, notify: notifyEnabled });
-  else result = await refreshSw25Effect(actor, payload.effectId, { cast: payload.cast, successValue: payload.successValue, remainingDuration: payload.remainingDuration }, { notify: notifyEnabled });
+  else if (operation === "refresh") result = await refreshSw25Effect(actor, payload.effectId, { cast: payload.cast, successValue: payload.successValue, remainingDuration: payload.remainingDuration }, { notify: notifyEnabled });
+  else result = await setSw25EffectTimeDuration(actor, payload.effectId, { unit: payload.unit, amount: payload.amount }, { notify: notifyEnabled });
   if (result.ok) {
-    return { ok: true, status: `${operation === "apply" ? "applied" : operation === "remove" ? "removed" : operation === "toggle" ? "toggled" : "refreshed"}`, ...result };
+    const status = operation === "apply" ? "applied"
+      : operation === "remove" ? "removed"
+      : operation === "toggle" ? "toggled"
+      : operation === "refresh" ? "refreshed" : "updated";
+    return { ok: true, status, ...result };
   }
   return result;
 }

@@ -6,7 +6,7 @@ This is a fork of [Sword-World-2.5-Foundry](https://github.com/DaedaIus/Sword-Wo
 
 A note from me: I am not a programmer. I am building and maintaining this fork as a hobby, with the help of AI, purely as a fan of Sword World 2.5. I test everything as I go hoping it works, but expect rough edges.
 
-![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sw25--taka%200.20.0%2B-blue)
+![Foundry VTT version](https://img.shields.io/badge/Foundry-V14%2B-orange) ![System](https://img.shields.io/badge/System-sw25--taka%200.21.0%2B-blue)
 
 ## Features at a glance
 
@@ -20,6 +20,15 @@ A note from me: I am not a programmer. I am building and maintaining this fork a
 - **Skill checks** — reorganized catalogue with per-check class lists and automatic highest-level selection.
 - **Spell drag & drop** — spells dropped on a character go straight to the viewed class page or open a wizard-type picker.
 - **Standard combat maps** — Combat A, Combat B and Coliseum scenes auto-created in a Simplified Combat Battlefields folder.
+
+## v0.21.0 - Unified non-combat duration, combat round transitions and canonical spell identity
+
+- **Unified non-combat duration counter** — effects now share one editable time counter: a natural amount and unit (minutes, hours or days) in the effect inspector. Values are stored as whole minutes, unit changes preserve the equivalent duration without silent rounding, and the display uses natural compound wording such as "1 hour and 30 minutes" or "1 day and 1 hour". GM and the owning player can edit it.
+- **Combat start confirmation** — when combat begins, every participant effect with a non-combat duration opens one confirmation window asking whether it is still active. Confirmed effects under 10 minutes convert to counted combat rounds; expired ones are removed; dismissed ones stay untouched. Effects whose duration was authored in seconds (for example Instant/X persistent components) join the same window and convert to their exact equivalent rounds (10 seconds = 1 round), never rounded when the result is fractional.
+- **Combat end conversion** — remaining combat rounds return to the non-combat counter as whole minutes derived from the actual remaining rounds; fewer than six rounds expire the effect and turn-based effects end with the encounter.
+- **Canonical spell identity in the importer** — imported spells always store their canonical name: the leading ⏩/△ action markers become the Minor Action / Combat Preparation booleans, while †/‡ remain part of the name. Refreshing a legacy markered spell renames it to its canonical name, duplicate detection compares canonical names in both single and bulk imports, and the spell-drop duplicate check follows the same rule. If several documents collapse to the same canonical spell in one class, the system reports the conflict and preserves every document instead of merging or deleting anything.
+- **Special spell matching** — regeneration and Exhaustive Sucking matching now runs on the canonical spell name, so legacy markered spellings keep working without being renamed by loading or matching.
+- **Automated coverage** — a new importer-identity suite plus expanded unified-duration, combat-purge, schema, Instant/X and drag-and-drop checks; the full battery (67 suites) and `npm run check` pass.
 
 ## v0.20.0 - Spell data and rules, Power Tables, recovery and combat improvements
 

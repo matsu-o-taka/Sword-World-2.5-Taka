@@ -55,14 +55,22 @@ import {
   SW25_EFFECT_SUBTYPE,
   SW25_DURATION_SCALES,
   SW25_COMBAT_DURATION_SCALES,
+  SW25_TIME_DURATION_SCALES,
+  SW25_TIME_SCALE_UNIT_MINUTES,
+  SW25_COMBAT_ENTRY_THRESHOLD_MINUTES,
+  SW25_ROUNDS_PER_MINUTE,
+  SW25_SECONDS_PER_ROUND,
   SW25_ANCHOR_REGIMES,
   SW25_ANCHOR_EDGES,
-  SW25_ANCHOR_STATES
+  SW25_ANCHOR_STATES,
+  SW25_SUCCESS_VALUE_SOURCES,
+  SW25_EFFECT_SCOPES
 } from "./effect-model.mjs";
 import { prepareSw25EffectRows } from "./effects-tab.mjs";
+import { normalizeSw25RuleElements } from "./rule-elements.mjs";
 
 /** Operations the service implements (relay + report vocabulary). */
-export const SW25_EFFECT_OPERATIONS = ["apply", "remove", "toggle", "refresh"];
+export const SW25_EFFECT_OPERATIONS = ["apply", "remove", "toggle", "refresh", "set-duration"];
 
 /** Approved rank range (DEC-16 table: 1..10, 0 = no numeral). */
 const RANK_MIN = 0;
@@ -187,6 +195,25 @@ export function resolveSw25CastSuccessValue(cast) {
   return { ok: false, code: "invalid-cast", error: `Unknown casting mode "${String(cast.mode)}" (approved modes: "major", "minor").` };
 }
 
+/**
+ * Provenance of the Success Value derived from the casting context (T6.1,
+ * DEC-7; SW25_SUCCESS_VALUE_SOURCES). A checked major cast records `check`
+ * (or `automatic` on a natural 12, whose +5 is already inside the SV); a
+ * no-check minor/preparation cast records `none`. A DIRECT `successValue`
+ * carries no derivable provenance: the caller must declare it explicitly
+ * through the application payload's `successValueSource`, otherwise the value
+ * stays "not recorded" (null) and forced removal re-determines it at
+ * cancellation time (CR I p. 167) instead of guessing.
+ * @param {*} cast - The casting context provided by the caller.
+ * @returns {string|null}
+ */
+export function resolveSw25CastSuccessValueSource(cast) {
+  if (!cast || typeof cast !== "object" || Array.isArray(cast)) return null;
+  if (cast.mode === "minor") return "none";
+  if (cast.mode === "major") return cast.dieTotal === 12 ? "automatic" : "check";
+  return null;
+}
+
 // ── Write authorization: EffectService is the only writer (DEC-36) ──────────
 //
 // Module-private authorization window. `serviceWriteDepth` is incremented
@@ -271,9 +298,12 @@ export function initializeEffectService() {
     Hooks.on("preCreateActiveEffect", guardSw25EffectWrite);
     Hooks.on("preUpdateActiveEffect", guardSw25EffectWrite);
     Hooks.on("preDeleteActiveEffect", guardSw25EffectWrite);
-    // T5.5: purge combat-lifecycle duration effects (rounds / turns) when a
-    // Combat document is deleted (endCombat, programmatic delete, etc.).
-    // Fires on all clients; purgeSw25CombatDurationEffects gates writes on GM.
+    // T5.5: end-of-combat disposition of combat-lifecycle duration effects
+    // (rounds / turns) when a Combat document is deleted (endCombat,
+    // programmatic delete, etc.): rounds with ≥ 6 remaining rounds are
+    // converted to manual minutes (both counters = remaining / 6, exact) and
+    // preserved; the rest are removed. Fires on all clients;
+    // purgeSw25CombatDurationEffects gates writes on GM.
     Hooks.on("deleteCombat", async () => {
       if (game?.user?.isGM !== true) return;
       const result = await purgeSw25CombatDurationEffects();
@@ -325,6 +355,39 @@ function durationRejection(application) {
     return "invalid-duration";
   }
   return null;
+}
+
+/**
+ * Validate the optional authored `sourceDuration` identity (Phase 3
+ * corrections): shape-level only. null/absent is the normal case; when
+ * present it must be `{ unit: non-blank string, amount: positive finite
+ * number }`. WHICH units are meaningful is the rules layer's question
+ * (spell-effects.mjs writes "seconds" today); the service transports it.
+ * @param {*} sourceDuration - Candidate payload field.
+ * @returns {string|null} Rejection code, or null when valid.
+ */
+function sourceDurationRejection(sourceDuration) {
+  if (sourceDuration === undefined || sourceDuration === null) return null;
+  if (typeof sourceDuration !== "object" || Array.isArray(sourceDuration)) return "invalid-source-duration";
+  const { unit, amount } = sourceDuration;
+  if (typeof unit !== "string" || unit.trim() === "") return "invalid-source-duration";
+  if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) return "invalid-source-duration";
+  return null;
+}
+
+/**
+ * Normalized `sourceDuration` for the persisted system payload: the approved
+ * two-key shape or null (an absent field is never invented).
+ * @param {*} sourceDuration - Validated payload field.
+ * @returns {{unit: string, amount: number}|null}
+ */
+function normalizeSourceDurationField(sourceDuration) {
+  if (sourceDuration === undefined || sourceDuration === null) return null;
+  if (typeof sourceDuration !== "object" || Array.isArray(sourceDuration)) return null;
+  const { unit, amount } = sourceDuration;
+  if (typeof unit !== "string" || unit.trim() === ""
+    || typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) return null;
+  return { unit: unit.trim(), amount };
 }
 
 /**
@@ -648,12 +711,18 @@ function replaceDiscardedResult() {
  *   (optional round bookkeeping, DEC-23), img, effectType, origin,
  *   casterUUID (optional provenance), familyPolicy (optional stacking policy
  *   id; absent means "spell", DEC-3), damageType (optional {nature,
- *   attribute}, DEC-9), durationScale (optional approved scale id, T5.2 —
+ *   attribute}, DEC-9), isMagical (optional boolean cancellation eligibility
+ *   flag; null/absent legacy input defaults to false, DEC-7), resistance (optional emitting-effect
+ *   resistance notation for cancellation eligibility, e.g. "cant", DEC-7),
+ *   durationScale (optional approved scale id, T5.2 —
  *   never inferred from the durations), durationAnchor (optional combat
  *   anchor {regime, edge?, combatantId?, tokenId?, state?}, T5.2 — required
  *   for combat scales, per combatant; "deferred" reserved for preparation),
  *   duration (optional native document duration — must NOT carry a finite
- *   `value` or an `expiry` on a system effect, D1/D6/D11). `acceptReplace`
+ *   `value` or an `expiry` on a system effect, D1/D6/D11). T6.1 adds
+ *   `successValueSource` (optional SV provenance id, DEC-7), `castId`
+ *   (optional identity of one casting) and `effectScope` (optional target
+ *   scope "space"/"all"/"limited", DEC-8). `acceptReplace`
  *   (optional boolean) carries the
  *   decision for a pending stacking choice (DEC-3) and is NEVER persisted.
  *   The document `name` is NOT accepted: it is always the canonical name
@@ -691,6 +760,12 @@ export async function applySw25Effect(actor, application, { notify = false, deci
   if (durationProblem) {
     return { ok: false, code: durationProblem, error: "initialDuration/remainingDuration must be integers >= 0, with remaining <= initial (DEC-23)." };
   }
+  // Authored source duration identity (Phase 3 corrections): shape-level
+  // transport validation; the units are the rules layer's business.
+  const sourceDurationProblem = sourceDurationRejection(payload.sourceDuration);
+  if (sourceDurationProblem) {
+    return { ok: false, code: sourceDurationProblem, error: "sourceDuration, when present, must be { unit: non-blank string, amount: positive finite number }." };
+  }
   const changesProblem = changesRejection(payload.changes);
   if (changesProblem) {
     return { ok: false, code: changesProblem, error: "changes must be an array of { key (non-blank string), value } entries; type/phase/priority are optional." };
@@ -702,6 +777,34 @@ export async function applySw25Effect(actor, application, { notify = false, deci
   const damageTypeProblem = damageTypeRejection(payload);
   if (damageTypeProblem) {
     return { ok: false, code: damageTypeProblem, error: "damageType must be an object with optional non-blank string nature/attribute when present (DEC-9)." };
+  }
+  // Configured rule elements (reusable effects architecture): validated
+  // through the central registry, never by per-effect special cases. An absent
+  // array means "no configured rules" and writes an empty array.
+  const rules = normalizeSw25RuleElements(payload.rules);
+  if (!rules.ok) {
+    return { ok: false, code: rules.code, error: rules.error };
+  }
+  if (payload.isMagical !== undefined && payload.isMagical !== null && typeof payload.isMagical !== "boolean") {
+    return { ok: false, code: "invalid-application", error: "isMagical must be a boolean when supplied; null/absent legacy values default to false (DEC-7 cancellation eligibility)." };
+  }
+  if (payload.resistance !== undefined && payload.resistance !== null
+    && (typeof payload.resistance !== "string" || payload.resistance.trim() === "")) {
+    return { ok: false, code: "invalid-application", error: "resistance, when present, must be a non-blank string (the emitting effect's resistance notation, DEC-7)." };
+  }
+  // T6.1/DEC-7: the Success Value provenance is validated as an approved id;
+  // absent means "not recorded" and is never invented from the numeric value.
+  if (payload.successValueSource !== undefined && payload.successValueSource !== null
+    && !SW25_SUCCESS_VALUE_SOURCES.includes(payload.successValueSource)) {
+    return { ok: false, code: "invalid-application", error: `successValueSource, when present, must be an approved provenance id (${SW25_SUCCESS_VALUE_SOURCES.join(", ")}); absent means "not recorded".` };
+  }
+  if (payload.castId !== undefined && payload.castId !== null
+    && (typeof payload.castId !== "string" || payload.castId.trim() === "")) {
+    return { ok: false, code: "invalid-application", error: "castId, when present, must be a non-blank string identifying one casting (DEC-7/DEC-8)." };
+  }
+  if (payload.effectScope !== undefined && payload.effectScope !== null
+    && !SW25_EFFECT_SCOPES.includes(payload.effectScope)) {
+    return { ok: false, code: "invalid-application", error: `effectScope, when present, must be an approved target scope id (${SW25_EFFECT_SCOPES.join(", ")}); absent means no recorded area selection mode.` };
   }
   const durationScaleProblem = durationScaleRejection(payload);
   if (durationScaleProblem) {
@@ -793,21 +896,40 @@ export async function applySw25Effect(actor, application, { notify = false, deci
     family: payload.family,
     rank: payload.rank ?? 0,
     successValue: cast.successValue,
+    // T6.1/DEC-7: the SV provenance comes from the explicit payload when the
+    // caller knows it (a cast flow that already resolved its own check), and
+    // otherwise from the casting context itself. It is never inferred from
+    // the numeric value; a direct SV without either stays "not recorded".
+    successValueSource: payload.successValueSource ?? resolveSw25CastSuccessValueSource(payload.cast),
+    // T6.1/DEC-8: casting instance identity and target scope (area rule).
+    castId: typeof payload.castId === "string" && payload.castId.trim() !== "" ? payload.castId.trim() : null,
+    effectScope: typeof payload.effectScope === "string" && payload.effectScope.trim() !== "" ? payload.effectScope.trim() : null,
     initialDuration: effectiveDurations.initialDuration ?? null,
     remainingDuration: effectiveDurations.remainingDuration ?? null,
     casterUUID: typeof payload.casterUUID === "string" && payload.casterUUID.trim() !== "" ? payload.casterUUID.trim() : null,
     effectType: typeof payload.effectType === "string" && payload.effectType.trim() !== "" ? payload.effectType.trim() : null,
+    // Cancellation eligibility (DEC-7/§55): the stored magical status is the
+    // Dispel Magic gate. New effects always persist a boolean; absent/null
+    // legacy input defaults to false (non-magical or unconfirmed).
+    // `resistance` is source provenance only, NOT an eligibility condition.
+    isMagical: typeof payload.isMagical === "boolean" ? payload.isMagical : false,
+    resistance: typeof payload.resistance === "string" && payload.resistance.trim() !== "" ? payload.resistance.trim() : null,
     familyPolicy: typeof payload.familyPolicy === "string" && payload.familyPolicy.trim() !== "" ? payload.familyPolicy.trim() : null,
     damageType: normalizeDamageType(payload.damageType),
     // Bloque 5 (T5.2): the scale is never inferred from the durations; the
     // anchor is stamped only when the validation above accepted it.
     durationScale: typeof payload.durationScale === "string" && payload.durationScale.trim() !== "" ? payload.durationScale.trim() : null,
     durationAnchor: normalizeDurationAnchor(payload.durationAnchor),
+    // Authored source duration identity (Phase 3 corrections): the normalized
+    // two-key shape or null. No countdown semantics of its own — the
+    // combat-entry flow reads it to offer the combat-equivalent conversion.
+    sourceDuration: normalizeSourceDurationField(payload.sourceDuration),
     // Presentation visibility (gmOnly): an effect the system's own interfaces
     // show only to GM users. Nothing mechanical derives from it (the duration
     // engine and effective values read documents directly); see the schema
     // field documentation in effect-model.mjs.
     gmOnly: payload.gmOnly === true,
+    rules: rules.rules,
     changes: normalizeChanges(payload.changes)
   };
   const { data, issues, futureVersion } = normalizeSw25EffectSystem(structuredClone(rawSystem));
@@ -919,7 +1041,16 @@ export async function removeSw25Effect(actor, effectId, { notify = false } = {})
     return { ok: false, code: "no-effect", error: "No system effect with that id exists on the actor." };
   }
   try {
-    await runAuthorizedServiceWrite(() => effect.delete());
+    const deleted = await runAuthorizedServiceWrite(() => effect.delete());
+    // Foundry v14 resolves Document.delete() to undefined when a pre-delete
+    // hook cancels the operation. That is not an exception, but it is still a
+    // failed removal and must never be acknowledged as a deleted effect. If
+    // the document is nevertheless absent, the deletion did persist (this
+    // also preserves compatibility with document doubles returning undefined
+    // after a successful deletion).
+    if (!deleted && findSw25Effect(actor, effectId)) {
+      return { ok: false, code: "write-failed", error: "The effect deletion was cancelled before it was persisted." };
+    }
     if (notify) ui?.notifications?.info?.("Effect removed.");
     return { ok: true, code: "removed", effectId };
   } catch (error) {
@@ -997,12 +1128,33 @@ export async function refreshSw25Effect(actor, effectId, patch = {}, { notify = 
 
   // Remaining duration (DEC-23). If the document keeps an initialDuration,
   // remaining must stay <= initial for the bookkeeping to stay coherent.
+  // Counted COMBAT scales (rounds/turns, and legacy scale-less counters)
+  // keep integer counters — the duration engine counts them. The unified
+  // NON-COMBAT time counter (minutes/hours/days) stores WHOLE MINUTES only
+  // (Phase 3 corrections, 2026-11-23): a minutes value must be an integer,
+  // and a legacy hours/days value must equal a whole number of minutes
+  // (1.5 h = 90 min is accepted; 1.234 h = 74.04 min is refused). No
+  // fractional minute total is ever persisted.
   if (patch.remainingDuration !== undefined) {
     const value = patch.remainingDuration;
+    const scale = typeof effect.system?.durationScale === "string" ? effect.system.durationScale : null;
+    const timeScale = SW25_TIME_DURATION_SCALES.includes(scale);
+    let wholeMinuteFailure = false;
+    if (timeScale && typeof value === "number" && Number.isFinite(value) && value >= 0) {
+      const totalMinutes = value * SW25_TIME_SCALE_UNIT_MINUTES[scale];
+      wholeMinuteFailure = Math.abs(totalMinutes - Math.round(totalMinutes)) > 1e-9;
+    }
     if (value === null) {
       updateData["system.remainingDuration"] = null;
-    } else if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
-      return { ok: false, code: "invalid-duration", error: "remainingDuration must be an integer >= 0 (or null to clear the round bookkeeping)." };
+    } else if (typeof value !== "number" || !Number.isFinite(value) || value < 0
+      || (!timeScale && !Number.isInteger(value)) || wholeMinuteFailure) {
+      return {
+        ok: false,
+        code: "invalid-duration",
+        error: timeScale
+          ? "remainingDuration must be a whole number of minutes in the effect's unit (or null to clear the time counter)."
+          : "remainingDuration must be an integer >= 0 (or null to clear the round bookkeeping)."
+      };
     } else {
       const initial = typeof effect.system?.initialDuration === "number" ? effect.system.initialDuration : null;
       if (initial !== null && value > initial) {
@@ -1033,6 +1185,158 @@ export async function refreshSw25Effect(actor, effectId, patch = {}, { notify = 
     return { ok: true, code: "refreshed", effectId, updated: updateData };
   } catch (error) {
     return { ok: false, code: "write-failed", error: String(error?.message ?? error) };
+  }
+}
+
+/**
+ * `set-duration`: edit the unified NON-COMBAT time counter of one effect —
+ * the GM and the owning user adjust the remaining amount, expressed in a
+ * chosen entry unit (minutes / hours / days). The counter IS the DEC-23
+ * `initialDuration` / `remainingDuration` pair; no parallel field exists.
+ *
+ * Whole-minute storage (Phase 3 corrections, 2026-11-23): the counter of
+ * record is the MINUTE. Every successful edit stores
+ * `durationScale: "minutes"` with integer counters — fractional hour/day
+ * representations ("1.5 hours", "1.25 days") and fractional minutes
+ * ("2.78 minutes") never exist as stored values.
+ *
+ *   - The `unit` is the unit the `amount` is EXPRESSED in, not the stored
+ *     scale: `amount × 60` (hours) or `× 1440` (days) must be a whole number
+ *     of minutes, otherwise the edit is refused (`unrepresentable`) — never
+ *     silently rounded.
+ *   - An edit without `amount` migrates the stored counters to whole minutes
+ *     (legacy hours/days with exact minute totals; duration preserved
+ *     exactly). Inexact legacy counters are refused (`unrepresentable`):
+ *     they need an explicit amount. An already-minutes effect is `no-change`.
+ *   - An explicit `amount` replaces the remaining value (in whole minutes);
+ *     the initial is raised when the amount exceeds it so the bookkeeping
+ *     stays coherent (remaining ≤ initial). A legacy inexact initial becomes
+ *     its whole-minute CEILING — an upper bound may only extend.
+ *
+ * Combat rounds are a SEPARATE representation: `rounds`/`turns` effects are
+ * rejected (`combat-scale`), and manual `other`/`permanent` scales are outside
+ * the unified counter (`not-time-scale`). The write goes through
+ * runAuthorizedServiceWrite (the sole write path, DEC-36/DEC-45).
+ *
+ * @param {Actor} actor - Owning actor.
+ * @param {string} effectId - Id of the effect document to edit.
+ * @param {object} patch - { unit: "minutes"|"hours"|"days", amount?: number }.
+ * @param {object} [options]
+ * @param {boolean} [options.notify] - Notify this client of the outcome.
+ * @returns {Promise<{ok: boolean, code: string, updated?: object, error?: string}>}
+ */
+export async function setSw25EffectTimeDuration(actor, effectId, patch = {}, { notify = false } = {}) {
+  if (game?.user?.isGM !== true) return notGmResult();
+  if (!actor?.effects) return notActorResult();
+  const effect = findSw25Effect(actor, effectId);
+  if (!effect) {
+    return { ok: false, code: "no-effect", error: "No system effect with that id exists on the actor." };
+  }
+  const unit = typeof patch?.unit === "string" ? patch.unit.trim() : "";
+  if (!SW25_TIME_DURATION_SCALES.includes(unit)) {
+    return { ok: false, code: "invalid-unit", error: "unit must be one of: minutes, hours, days." };
+  }
+  const scale = typeof effect.system?.durationScale === "string" ? effect.system.durationScale : null;
+  if (SW25_COMBAT_DURATION_SCALES.includes(scale)) {
+    return {
+      ok: false,
+      code: "combat-scale",
+      error: "Combat rounds keep a SEPARATE representation: this operation edits only the non-combat time counter (minutes/hours/days)."
+    };
+  }
+  if (!SW25_TIME_DURATION_SCALES.includes(scale)) {
+    return { ok: false, code: "not-time-scale", error: "The effect is not on the unified non-combat time counter (minutes/hours/days)." };
+  }
+  const amount = patch.amount;
+  if (amount !== undefined && (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0)) {
+    return { ok: false, code: "invalid-amount", error: "amount must be a positive finite number." };
+  }
+
+  // Whole-minute conversion with IEEE-754 tolerance: the entry amount and
+  // every migrated counter must land on an exact whole minute.
+  const WHOLE_MINUTES_EPSILON = 1e-9;
+  const wholeMinutes = total => {
+    const rounded = Math.round(total);
+    return Math.abs(total - rounded) <= WHOLE_MINUTES_EPSILON ? rounded : null;
+  };
+  const storedToMinutes = value => {
+    // Legacy counters read through their exact minute equivalent; `null`
+    // marks a value that is not a whole number of minutes.
+    return wholeMinutes(value * SW25_TIME_SCALE_UNIT_MINUTES[scale]);
+  };
+
+  // The explicit amount is authoritative: it must BE a whole number of
+  // minutes in the chosen entry unit.
+  let amountMinutes = null;
+  if (amount !== undefined) {
+    amountMinutes = wholeMinutes(amount * SW25_TIME_SCALE_UNIT_MINUTES[unit]);
+    if (amountMinutes === null) {
+      return {
+        ok: false,
+        code: "unrepresentable",
+        error: `The amount must be a whole number of minutes (${amount} ${unit} is not). Fractional minute durations are never stored.`
+      };
+    }
+  }
+
+  const storedInitial = typeof effect.system?.initialDuration === "number" && Number.isFinite(effect.system.initialDuration)
+    ? effect.system.initialDuration : null;
+  const storedRemaining = typeof effect.system?.remainingDuration === "number" && Number.isFinite(effect.system.remainingDuration)
+    ? effect.system.remainingDuration : null;
+
+  // Without an amount the operation preserves the duration: migrate the
+  // stored counters to whole minutes (a minutes effect is already canonical).
+  let nextInitial;
+  let nextRemaining;
+  if (amountMinutes === null) {
+    if (scale === "minutes") {
+      return { ok: false, code: "no-change", error: "The effect already uses that unit; provide an amount to change the counter." };
+    }
+    const migratedInitial = storedInitial === null ? null : storedToMinutes(storedInitial);
+    const migratedRemaining = storedRemaining === null ? null : storedToMinutes(storedRemaining);
+    if ((storedInitial !== null && migratedInitial === null)
+      || (storedRemaining !== null && migratedRemaining === null)) {
+      return {
+        ok: false,
+        code: "unrepresentable",
+        error: "The stored counters are not a whole number of minutes and cannot be migrated without an explicit amount."
+      };
+    }
+    nextInitial = migratedInitial;
+    nextRemaining = migratedRemaining;
+  } else {
+    nextRemaining = amountMinutes;
+    if (storedInitial === null) {
+      nextInitial = amountMinutes;
+    } else {
+      const initialMinutes = storedToMinutes(storedInitial);
+      // An inexact legacy initial becomes its whole-minute ceiling: the
+      // initial is an upper bound (remaining ≤ initial) and a ceiling can
+      // only extend it, never truncate the real duration.
+      nextInitial = initialMinutes ?? Math.ceil(storedInitial * SW25_TIME_SCALE_UNIT_MINUTES[scale]);
+      if (nextInitial < amountMinutes) nextInitial = amountMinutes;
+    }
+  }
+
+  try {
+    const updated = await runAuthorizedServiceWrite(() => effect.update({
+      "system.durationScale": "minutes",
+      "system.initialDuration": nextInitial,
+      "system.remainingDuration": nextRemaining
+    }));
+    // A cancelled update resolves to undefined/null (Foundry v14): report the
+    // failure instead of claiming a change that was never persisted.
+    if (!updated && effect.system?.durationScale !== "minutes") {
+      return { ok: false, code: "update-failed", error: "The duration edit was cancelled before it was persisted." };
+    }
+    if (notify) ui?.notifications?.info?.("Effect duration updated.");
+    return {
+      ok: true,
+      code: "updated",
+      updated: { durationScale: "minutes", initialDuration: nextInitial, remainingDuration: nextRemaining }
+    };
+  } catch (error) {
+    return { ok: false, code: "update-failed", error: String(error?.message ?? error) };
   }
 }
 
@@ -1105,30 +1409,48 @@ export function getSw25Effect(actor, effectId, resolve = null) {
   return prepareSw25EffectRows([effect], resolve).rows[0] ?? null;
 }
 
-// ── T5.5: combat-end purge of rounds/turns scale effects ─────────────────────
+// ── T5.5: combat-end disposition of rounds/turns scale effects ──────────────
 
 /**
- * `purgeSw25CombatDurationEffects`: delete every `sw25Effect` document whose
- * `system.durationScale` is `rounds` or `turns` (the combat-lifecycle scales)
- * from every actor in the world. Called when a combat encounter ends: these
- * scales have no valid temporal frame outside an active encounter.
+ * `purgeSw25CombatDurationEffects`: end-of-combat disposition of every
+ * `sw25Effect` document whose `system.durationScale` is `rounds` or `turns`
+ * (the combat-lifecycle scales), from every actor in the world. Called when a
+ * Combat encounter ends.
  *
- * Survives: minutes, hours, days, permanent, other, native, none, legacy
- * effects without a recognized scale, and non-sw25Effect subtypes.
- * Based on durationScale only — not on anchor availability or state.
- * No anchor completion, no degradation recalculation, no partial expiry.
+ * Disposition (user directive, 2026-11-22 — minute-preserving purge; whole
+ * minute semantics per the 2026-11-23 corrections directive):
+ *   - `rounds` with a finite remainingDuration ≥ 6 (≥ 1 minute) is CONVERTED
+ *     in place to the manual `minutes` scale. The result derives from the
+ *     REMAINING counter only — NEVER from `initialDuration` (task §3): BOTH
+ *     counters receive `Math.floor(remaining / 6)` WHOLE minutes (never
+ *     fractional — 11 rounds → 1, 12 → 2, 17 → 2, 24 → 4) and the combat
+ *     anchor is cleared. The effect survives the combat and continues as
+ *     GM-managed time (DEC-39/DEC-42). This closes the loop with the T5.6
+ *     combat-entry conversion (minutes → rounds below the 10-minute
+ *     threshold), and no whitelist restricts the minute value.
+ *   - `rounds` with a remaining below 6 (less than one convertible minute)
+ *     or a non-finite/absent counter, and every `turns` effect (turns have no
+ *     temporal meaning outside the encounter's turn structure), is REMOVED.
  *
- * GM authority: writes go through removeSw25Effect (the sole write path).
- * Idempotent: a second call on the same world finds nothing to remove.
- * No retries, no queues, no parallel storage, no deletion ledger.
- * @returns {Promise<{ok: boolean, code: string, removed: number, scanned: number, errors: Array}>}
+ * Survives untouched: minutes, hours, days, permanent, other, native, none,
+ * legacy effects without a recognized scale, and non-sw25Effect subtypes.
+ * Disposition is based on durationScale + counters only — not on anchor
+ * availability or state. No anchor completion, no degradation recalculation,
+ * no partial expiry.
+ *
+ * GM authority: writes go through removeSw25Effect and
+ * runAuthorizedServiceWrite (the sole write paths). Idempotent: a second call
+ * finds nothing combat-scale. No retries, no queues, no parallel storage, no
+ * deletion ledger.
+ * @returns {Promise<{ok: boolean, code: string, removed: number, converted: number, scanned: number, errors: Array}>}
  */
 export async function purgeSw25CombatDurationEffects() {
   if (game?.user?.isGM !== true) return notGmResult();
-  if (!game?.actors) return { ok: false, code: "no-actors", error: "No actor collection available.", removed: 0, scanned: 0, errors: [] };
+  if (!game?.actors) return { ok: false, code: "no-actors", error: "No actor collection available.", removed: 0, converted: 0, scanned: 0, errors: [] };
 
   const combatScales = new Set(SW25_COMBAT_DURATION_SCALES); // ["rounds", "turns"]
   let removed = 0;
+  let converted = 0;
   let scanned = 0;
   const errors = [];
 
@@ -1140,6 +1462,32 @@ export async function purgeSw25CombatDurationEffects() {
       const scale = effect.system?.durationScale;
       if (!combatScales.has(scale)) continue;
       scanned += 1;
+      if (scale === "rounds") {
+        const remaining = Number(effect.system?.remainingDuration);
+        if (Number.isFinite(remaining) && remaining >= SW25_ROUNDS_PER_MINUTE) {
+          // Both counters derive from the REMAINING rounds (task §3): a
+          // conversion never reports an initial duration that no longer
+          // corresponds to what is left. WHOLE minutes only (corrections
+          // directive, 2026-11-23): `Math.floor(remaining / 6)` — fractional
+          // minutes (2.8333…, 1.5) are never persisted.
+          const minutes = Math.floor(remaining / SW25_ROUNDS_PER_MINUTE);
+          const updated = await runAuthorizedServiceWrite(() => effect.update({
+            "system.durationScale": "minutes",
+            "system.durationAnchor": null,
+            "system.initialDuration": minutes,
+            "system.remainingDuration": minutes
+          }));
+          // A cancelled update resolves to undefined/null (Foundry v14):
+          // the document keeps its combat scale and the failure is reported,
+          // never silent.
+          if (!updated && effect.system?.durationScale === "rounds") {
+            errors.push({ actorId: actor.id, effectId: effect.id, code: "convert-failed", error: "The minutes conversion was cancelled before it was persisted." });
+            continue;
+          }
+          converted += 1;
+          continue;
+        }
+      }
       const result = await removeSw25Effect(actor, effect.id);
       if (result.ok) {
         removed += 1;
@@ -1149,5 +1497,306 @@ export async function purgeSw25CombatDurationEffects() {
     }
   }
 
-  return { ok: errors.length === 0, code: errors.length === 0 ? "purged" : "partial", removed, scanned, errors };
+  return { ok: errors.length === 0, code: errors.length === 0 ? "purged" : "partial", removed, converted, scanned, errors };
+}
+
+// ── T5.6: combat-start entry of the non-combat time counter ─────────────────
+
+/**
+ * Tolerance for exact floating-point conversions: 17/6 minutes × 6 rounds is
+ * 17.000000000000004 in IEEE-754 and must be read as the exact 17; a real
+ * fractional value (1.7 × 6 = 10.2) is far outside this window.
+ */
+const EXACT_COUNTER_EPSILON = 1e-9;
+
+/**
+ * Collapse floating-point noise around an exact integer WITHOUT ever rounding
+ * a genuinely fractional value.
+ * @param {*} value - Candidate counter.
+ * @returns {number|null} The exact integer, or null when not finite/integral.
+ */
+function exactCounter(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  const rounded = Math.round(value);
+  return Math.abs(value - rounded) <= EXACT_COUNTER_EPSILON ? rounded : null;
+}
+
+/**
+ * The authored seconds identity of an effect (Phase 3 corrections): the
+ * normalized `system.sourceDuration` (`{ unit, amount }`, written only by the
+ * Instant/X out-of-combat fallback — never inferred from display text) when
+ * it marks a positive seconds amount.
+ * @param {object} effect - Candidate effect document.
+ * @returns {{amount: number}|null} `{ amount }` for a seconds-based effect,
+ *   null otherwise.
+ */
+function sw25SecondsSourceDuration(effect) {
+  const source = effect.system?.sourceDuration;
+  if (!source || typeof source !== "object" || Array.isArray(source)) return null;
+  if (source.unit !== "seconds") return null;
+  const amount = source.amount;
+  if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) return null;
+  return { amount };
+}
+
+/**
+ * Collect the combat-entry candidates of one encounter (read-only; no writes,
+ * no prompts), from the participant actors' `sw25Effect` documents:
+ *   - effects on the unified NON-COMBAT counter (`minutes`) with a finite
+ *     remaining amount > 0;
+ *   - seconds-based effects applied OUTSIDE combat (`durationScale: "other"`
+ *     with a positive `system.sourceDuration` of unit "seconds", Phase 3
+ *     corrections): they have no countdown of their own, but combat start is
+ *     where their combat-equivalent rounds are (re)established through the
+ *     SAME confirmation flow.
+ *
+ * Hours/days never convert to rounds; counterless time effects have no
+ * computable remaining duration and stay under manual GM management (DEC-39/
+ * DEC-42) — there is nothing to convert and nothing to ask. Combat-scale
+ * effects (rounds/turns) are already in combat representation. Plain "other"
+ * effects without a seconds identity stay GM-managed with no invented
+ * semantics.
+ * @param {Combat} combat - The starting encounter.
+ * @returns {{participants: Array<{actor: object, combatant: object}>, candidates: Array<{actor: object, effect: object}>}}
+ */
+export function collectSw25CombatEntryCandidates(combat) {
+  const participants = [];
+  const seen = new Set();
+  for (const combatant of [...(combat?.combatants ?? [])]) {
+    const actor = combatant?.actor;
+    const key = actor?.id ?? actor?.uuid;
+    if (!actor?.effects || !key || seen.has(key)) continue;
+    seen.add(key);
+    participants.push({ actor, combatant });
+  }
+  const candidates = [];
+  for (const { actor } of participants) {
+    const effects = actor.effects?.contents ?? actor.effects ?? [];
+    for (const effect of [...effects]) {
+      if (effect?.type !== SW25_EFFECT_SUBTYPE) continue;
+      if (effect.system?.durationScale === "minutes") {
+        const remaining = effect.system?.remainingDuration;
+        if (typeof remaining !== "number" || !Number.isFinite(remaining) || remaining <= 0) continue;
+      } else if (!sw25SecondsSourceDuration(effect)) {
+        continue;
+      }
+      candidates.push({ actor, effect });
+    }
+  }
+  return { participants, candidates };
+}
+
+/**
+ * `combat-start`: bring the participants' non-combat durations into combat
+ * tracking through ONE confirmation window (2026-11-23 unification directive;
+ * seconds-based effects per the Phase 3 corrections).
+ *
+ * For every participant effect that is a candidate — a `minutes` effect with
+ * a finite remaining amount, OR a seconds-based effect applied outside combat
+ * (`durationScale: "other"` + positive `system.sourceDuration` of unit
+ * "seconds"):
+ *   1. The user is ASKED whether the effect is still active (`decide`
+ *      callback). Outside combat the elapsed wall-clock time cannot be
+ *      established, so the system never silently assumes the original
+ *      duration is fully available: `false` → the effect is REMOVED through
+ *      EffectService; no answer (null) → untouched (`undecided`).
+ *   2. A confirmed `minutes` effect is thresholded on its STORED remaining:
+ *      strictly below 10 minutes converts to counted `rounds` (×6) with the
+ *      D5 default anchor; at or above 10 minutes it stays on the time counter
+ *      (`kept`).
+ *   3. A confirmed SECONDS-based effect is ALREADY combat-equivalent: the
+ *      minute threshold never applies. It converts to its exact equivalent
+ *      rounds (10 s = 1 round, both counters; seconds ÷ 10). A non-integer
+ *      result is REPORTED as incompatible and the effect is left untouched —
+ *      never rounded.
+ *   4. A conversion yielding a non-integer round count (minutes: only with
+ *      arbitrary fractional legacy minutes, e.g. 1.7 → 10.2) is REPORTED as
+ *      incompatible and the effect is left untouched — never rounded.
+ *
+ * The minutes initial counter converts proportionally when it yields an exact
+ * round count; otherwise it falls back to the (integer) remaining rounds.
+ * Hours and days never convert; plain "other" effects without a seconds
+ * identity are never touched. The engine's anchors, its decrement and the D5
+ * degradation are untouched — a converted effect is an ordinary counted
+ * rounds effect from then on.
+ *
+ * @param {Combat} combat - The starting encounter.
+ * @param {object} [options]
+ * @param {Function|null} [options.decide] - async (actor, effect) =>
+ *   true (still active) | false (remove) | null (no answer). Without it every
+ *   candidate stays undecided — never converted, never removed.
+ * @returns {Promise<{ok: boolean, code: string, scanned: number,
+ *   converted: number, kept: number, removed: number, undecided: number,
+ *   skipped: number, unresolved: Array, errors: Array}>}
+ */
+export async function enterSw25CombatDurationEffects(combat, { decide = null } = {}) {
+  if (game?.user?.isGM !== true) return notGmResult();
+  if (!combat?.combatants) {
+    return {
+      ok: false, code: "no-combat", error: "A combat encounter with combatants is required.",
+      scanned: 0, converted: 0, kept: 0, removed: 0, undecided: 0, skipped: 0, unresolved: [], errors: []
+    };
+  }
+  const { participants } = collectSw25CombatEntryCandidates(combat);
+
+  // Combatant identity maps. Two tokens of the same Actor are independent
+  // combatants; the first is a stable, documented choice for the anchor.
+  const byCasterUuid = new Map();
+  const byActorId = new Map();
+  for (const combatant of [...combat.combatants]) {
+    const actor = combatant?.actor;
+    if (actor?.uuid && !byCasterUuid.has(actor.uuid)) byCasterUuid.set(actor.uuid, combatant);
+    if (actor?.id && !byActorId.has(actor.id)) byActorId.set(actor.id, combatant);
+  }
+
+  let scanned = 0;
+  let converted = 0;
+  let kept = 0;
+  let removed = 0;
+  let undecided = 0;
+  let skipped = 0;
+  const unresolved = [];
+  const errors = [];
+
+  // The ONE conversion writer of this flow (minutes below the threshold and
+  // confirmed seconds-based effects share it — no duplicated transition
+  // logic): counted rounds + the D5 default anchor (`casterTurn`/`begin`;
+  // combatant resolved from the effect's `casterUUID` when that actor
+  // participates, otherwise the effect's OWNER, a participant by
+  // construction). Returns true when the conversion was persisted.
+  async function convertCandidateToRounds(actor, effect, rounds, initialRounds, reportRemaining) {
+    const casterUUID = typeof effect.system?.casterUUID === "string" ? effect.system.casterUUID : null;
+    const anchorCombatant = (casterUUID ? byCasterUuid.get(casterUUID) : null) ?? byActorId.get(actor.id) ?? null;
+    if (!anchorCombatant) {
+      unresolved.push({
+        actorId: actor.id, effectId: effect.id, name: effect.name ?? null,
+        remaining: reportRemaining, reason: "no-anchor-combatant"
+      });
+      return false;
+    }
+    try {
+      const updated = await runAuthorizedServiceWrite(() => effect.update({
+        "system.durationScale": "rounds",
+        "system.initialDuration": initialRounds,
+        "system.remainingDuration": rounds,
+        "system.durationAnchor": {
+          regime: "casterTurn",
+          edge: "begin",
+          combatantId: anchorCombatant.id ?? null,
+          tokenId: anchorCombatant.tokenId ?? null,
+          state: "resolved"
+        }
+      }));
+      // A cancelled update resolves to undefined/null (Foundry v14): the
+      // document keeps its time counter and the failure is reported.
+      if (!updated && effect.system?.durationScale !== "rounds") {
+        errors.push({ actorId: actor.id, effectId: effect.id, code: "convert-failed", error: "The rounds conversion was cancelled before it was persisted." });
+        return false;
+      }
+      return true;
+    } catch (error) {
+      errors.push({ actorId: actor.id, effectId: effect.id, code: "convert-failed", error: String(error?.message ?? error) });
+      return false;
+    }
+  }
+
+  for (const { actor } of participants) {
+    const effects = actor.effects?.contents ?? actor.effects ?? [];
+    for (const effect of [...effects]) {
+      if (effect?.type !== SW25_EFFECT_SUBTYPE) continue;
+      scanned += 1;
+      const seconds = sw25SecondsSourceDuration(effect);
+      let remaining = null;
+      if (effect.system?.durationScale === "minutes") {
+        remaining = effect.system?.remainingDuration;
+        if (typeof remaining !== "number" || !Number.isFinite(remaining) || remaining <= 0) {
+          skipped += 1;
+          continue;
+        }
+      } else if (!seconds) {
+        skipped += 1;
+        continue;
+      }
+
+      let answer = null;
+      if (typeof decide === "function") {
+        try {
+          answer = await decide(actor, effect);
+        } catch (error) {
+          answer = null;
+          console.warn("[SW25 EffectService] Combat-entry decision failed; the effect stays undecided.", error);
+        }
+      }
+      if (answer === false) {
+        const result = await removeSw25Effect(actor, effect.id);
+        if (result.ok) removed += 1;
+        else errors.push({ actorId: actor.id, effectId: effect.id, code: result.code, error: result.error });
+        continue;
+      }
+      if (answer !== true) {
+        undecided += 1;
+        continue;
+      }
+
+      if (seconds) {
+        // A seconds-authored duration is ALREADY combat-equivalent: the
+        // 10-minute minute-based threshold never applies to it (corrections
+        // directive, 2026-11-23). The confirmed-active conversion is the
+        // exact equivalent rounds (10 s = 1 round); a non-integer result is
+        // reported, never rounded. Both counters become those rounds.
+        const rounds = exactCounter(seconds.amount / SW25_SECONDS_PER_ROUND);
+        if (rounds === null || rounds < 1) {
+          unresolved.push({
+            actorId: actor.id, effectId: effect.id, name: effect.name ?? null,
+            remaining: seconds.amount, rounds: seconds.amount / SW25_SECONDS_PER_ROUND, reason: "fractional-rounds"
+          });
+          continue;
+        }
+        if (await convertCandidateToRounds(actor, effect, rounds, rounds, seconds.amount)) converted += 1;
+        continue;
+      }
+
+      if (remaining >= SW25_COMBAT_ENTRY_THRESHOLD_MINUTES) {
+        kept += 1;
+        continue;
+      }
+
+      const rounds = exactCounter(remaining * SW25_ROUNDS_PER_MINUTE);
+      if (rounds === null || rounds < 1) {
+        unresolved.push({
+          actorId: actor.id, effectId: effect.id, name: effect.name ?? null,
+          remaining, rounds: remaining * SW25_ROUNDS_PER_MINUTE, reason: "fractional-rounds"
+        });
+        continue;
+      }
+      const storedInitial = effect.system?.initialDuration;
+      const initialRounds = exactCounter(typeof storedInitial === "number"
+        ? storedInitial * SW25_ROUNDS_PER_MINUTE
+        : null) ?? rounds;
+      if (await convertCandidateToRounds(actor, effect, rounds, initialRounds, remaining)) converted += 1;
+    }
+  }
+
+  // Visible summary (D10 discrete level): never silent, never a dialog
+  // without a result.
+  if (converted > 0) {
+    ui?.notifications?.info?.(`Combat duration: ${converted} effect${converted === 1 ? "" : "s"} entered round-based tracking.`);
+  }
+  if (removed > 0) {
+    ui?.notifications?.info?.(`Combat duration: ${removed} expired effect${removed === 1 ? "" : "s"} removed after confirmation.`);
+  }
+  if (unresolved.length > 0) {
+    ui?.notifications?.warn?.(`Combat duration: ${unresolved.length} effect${unresolved.length === 1 ? "" : "s"} cannot be represented in rounds (fractional result or no anchor); left on the time counter for GM review.`);
+    console.warn("[SW25 EffectService] Combat-entry conversions left unresolved:", unresolved);
+  }
+  if (errors.length > 0) {
+    ui?.notifications?.error?.("Combat duration: some effects could not be updated; correct them manually through EffectService.");
+    console.warn("[SW25 EffectService] Combat-entry errors:", errors);
+  }
+
+  return {
+    ok: errors.length === 0,
+    code: errors.length === 0 ? "entered" : "partial",
+    scanned, converted, kept, removed, undecided, skipped, unresolved, errors
+  };
 }

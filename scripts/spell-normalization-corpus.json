@@ -1,0 +1,3942 @@
+{
+  "source": "sw25-library v1.3.0 packs/spells — 656 Spell Items (read-only LevelDB extraction)",
+  "extractedAt": "2026-11-22",
+  "spells": [
+    {
+      "name": "Absorb Magic",
+      "duration": "1 day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Abyss Corridor",
+      "duration": "10 minutes (60 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Abyssal Leap",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Abyssal Legion",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Abyssal Storm",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Abyssal Vortex",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Abyssal Zone",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Acid Cloud",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Adiposity",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Advanced Healing",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Affirmation of Faith",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Air Walk",
+      "duration": "10 minutes (60 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Air Walking",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Airtight Armor",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Anaconda Constrictor",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Analyze Enchantment",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Apport",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Appraisal",
+      "duration": "10 minutes (60 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Astral Burn",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Automobile",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Automobile II",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Autonomous Shield",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Avenger",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Avoid Fairy",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Avoid Healing",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Awaken",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Bad Halation",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Bad Steam",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Bad Vibes",
+      "duration": "1 day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Balance Time",
+      "duration": "1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Balance Weapon",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Barrier Circle",
+      "duration": "1 Day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Basic Healing",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Battle Hymn",
+      "duration": "Special",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Beam Strike",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Become Dragon",
+      "duration": "1 day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Big Flight",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Bind Operation",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Binding Thorn",
+      "duration": "30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Blade Barrier",
+      "duration": "30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Blast",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Blast the Wall",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Blaze Shower",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Bless",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Bless II",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Blindness",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Blizzard",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Blood Bath",
+      "duration": "1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Blood Branded",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Blood Marker",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Blood Mist",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Boar Rush",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Brave Heart",
+      "duration": "30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Burning Soul",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Burst Gate",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Call Daemon",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Call God",
+      "duration": "1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Calm",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Canine Perception",
+      "duration": "10 minutes (60 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Chaff Grenade",
+      "duration": "Instant/10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Change Fraud",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Chaos Blast",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Chaos Bomb",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Chaos Explosion",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Chaos Shot",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Chaos Smash",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Charm",
+      "duration": "6 Hours",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Chill Rain",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Chilling Breath",
+      "duration": "Instant/10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Clean Clothes",
+      "duration": "Instant/1 Day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Clipping Weapon",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Cold Rain",
+      "duration": "Instant/10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Command",
+      "duration": "1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Command Doll",
+      "duration": "One day or until order is completed",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Completed Trap",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Conceal Self",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Confusing Fog",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Confusion",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Contact Portal",
+      "duration": "1 Day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Control Train",
+      "duration": "1 Hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Copy Doll",
+      "duration": "1 year",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Cornucopia",
+      "duration": "1 Hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Count of Death",
+      "duration": "1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Counter Daemon",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Counter Magic",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Counter Sense",
+      "duration": "1 day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Crack",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Create Device",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Create Golem",
+      "duration": "1 day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Create Undead",
+      "duration": "1 day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Create Weapon",
+      "duration": "1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Cremation",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Crescent Shine",
+      "duration": "Instant / 10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Crimson Fang",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Cryo Bolt",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Cure Blindness",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Cure Disease",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Cure Heart",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Cure Injury",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Cure Mortality",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Cure Poison",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Cure Stone",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Cure Wounds",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Current",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Cursed Doll",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Cyclone",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Daemon Buster",
+      "duration": "Instant / 10 seconds",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Daemon Swap",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Daemon's Arm",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Daemon's Flight",
+      "duration": "1 Hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Daemon's Hand",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Daemon's Legion",
+      "duration": "1 Day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Daemon's Potential",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Daemon's Scream",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Daemon's Seed",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Daemon's Sense",
+      "duration": "1 Hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Daemon's Snap",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Daemonic Skin",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Dark Mist",
+      "duration": "Instant/10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Dark Soul",
+      "duration": "Instant / 10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Daybreak",
+      "duration": "3 Hours",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Deafness",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Death Cloud",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Death Ray",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Deep Block",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Defense Master",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Delicious Satisfaction",
+      "duration": "6 Hours",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Delude Enchantment",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Desultory",
+      "duration": "30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Detect Enemy",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Detect Faith",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Detect True Coin",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Dexterous Fingers",
+      "duration": "1 Hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Dimension Gate",
+      "duration": "30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Dimension Sword",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Discriminate",
+      "duration": "Instant / 3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Disguise",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Dispel Magic",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Distraction",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Distress Reading",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Divine Hand",
+      "duration": "1 Hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Doll Sight",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Dominating Might",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Double Stomp",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Down Burst",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Drain Touch",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Draw Out",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Drive Away",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Dull Weapon",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Eagle Vision",
+      "duration": "10 minutes (60 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Earth Hammer",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Earth Heal",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Earth Heal II",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Earth Shield",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Earthquake",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Effect Protector",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Effect Weapon",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Emergency Arrival",
+      "duration": "Instant/1 day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Enchant Weapon",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Energy Bolt",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Energy Javelin",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Enticing Aroma",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Entrapment",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Erase Magic",
+      "duration": "30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Escape",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Evangel",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Evil Dream",
+      "duration": "Permanent (but see below)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Evil Silhouette",
+      "duration": "1 Hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Execution",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Exhaustive Sucking",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Exorcism",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Explore Abyss",
+      "duration": "1 Day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Extended Healing",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Fair Price",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Fairy Lord",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Fairy Support",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Fairy Wish",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Fairy Wish II",
+      "duration": "6 hours",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Fake Gamel",
+      "duration": "7 Days",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Fake Memory",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Familiar",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Familiar II",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Fanaticism",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Far Command",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Fatal Explosion",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Field Protection",
+      "duration": "Instant/3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Field Protection II",
+      "duration": "Instant/3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Field Resistance",
+      "duration": "Instant/3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Fine Weather",
+      "duration": "3 Hours",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Fire Blast",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Fire Bolt",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Fire Break",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Fire Javelin",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Fire Mauler",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Fire Wall",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Fire Weapon",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Fireball",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Fireport",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Firestorm",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Fist of God",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Flame Arrow",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Flame Burst",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Flame Coat",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Flame Geyser",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Flare",
+      "duration": "Instant/10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Flash Bomb",
+      "duration": "Instant / 1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Flash Shield",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Flashlight",
+      "duration": "6 hours",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Flexible Command",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Flight",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Floating Eye",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Forbid Magic",
+      "duration": "30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Force",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Force Explosion",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Forest Path",
+      "duration": "3 Hours",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Forget",
+      "duration": "7 days",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Free Flight",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Freeze",
+      "duration": "Instant/10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Freezing Breath",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Frenzy",
+      "duration": "Instant / 3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Fulfillment",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Gain Trust",
+      "duration": "1 Day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Geas",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Giant Kick",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Glue Bomb",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Go the Way",
+      "duration": "1 Hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Gold Bridge",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Goof Adventurer",
+      "duration": "1 Day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Grace of Lumiere",
+      "duration": "1 Hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Grease",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Great Capture",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Great Snare",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Grenade",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Guard Trading",
+      "duration": "1 Day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Hallucinogenic Spores",
+      "duration": "Instant/10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Handle Fairy",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Hard Lock",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Hard Water",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Haste",
+      "duration": "1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Healing Image",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Healing Water",
+      "duration": "Instant/3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Heat Metal",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Hidden Stranger",
+      "duration": "1 Day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Hide Value",
+      "duration": "1 Hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Hide in Nature",
+      "duration": "1 Hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Hide in Shadow",
+      "duration": "1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Hold Portal",
+      "duration": "6 hours",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Hollow Tree Gate",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Holography",
+      "duration": "3 minutes",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Holy Blessing",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Holy Cradle",
+      "duration": "3 Hours",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Holy Light",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Holy Light II",
+      "duration": "Instant / 3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Holy Tree",
+      "duration": "Instant / 1 Hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Holy War",
+      "duration": "6 Hours",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Hovering",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Ice Bolt",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Ice Coffin",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Ice Storm",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Ice Wall",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Icicle Weapon",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Illusion",
+      "duration": "1 day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Imitating Shadow",
+      "duration": "1 Day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Immortal Image",
+      "duration": "Instant / 10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Incineration",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Infinity Circle",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Insanity",
+      "duration": "Instant/Various (see below)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Inspiration",
+      "duration": "1 Day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Instant Abyssal Zone",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Instant Golem",
+      "duration": "1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Instant Undead",
+      "duration": "1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Intense Control",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Invisible Storage",
+      "duration": "Instant / Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Jealousy",
+      "duration": "1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Jump Boots",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Knocker Bomb",
+      "duration": "Instant/10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Kong Smash",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Leap to Gate",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Lethal Dimension",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Levitation",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Life Delivery",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Life Insurance",
+      "duration": "1 Day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Life Search",
+      "duration": "1 Hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Life Sensor",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Life Signal",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Life Support",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Light",
+      "duration": "3 hours",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Light Trapper",
+      "duration": "Instant / 10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Lightning",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Lightning Bind",
+      "duration": "1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Lightning March",
+      "duration": "1 day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Lock",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Lucky Coin",
+      "duration": "1 Day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Lunar Attack",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Machina Armor",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Machina Cannon",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Machina Hammer",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Machina Wings",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Machine Repair",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Maelstrom",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Magic Reflection",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Magician",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Mana Absorb",
+      "duration": "Instant / 30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Mana Camera",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Mana Dictionary",
+      "duration": "10 minutes (60 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Mana House",
+      "duration": "1 day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Mana Integration",
+      "duration": "Instant/3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Mana Seal",
+      "duration": "1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Mana Search",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Mana Sink",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Manapoly",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Marking",
+      "duration": "3 days",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Marsavra Smash",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Masking",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Medical Kit",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Mental Boost",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Mental Healing",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Meteor Strike",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Miasma Grenade",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Mighty Daemon",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Mind Blank",
+      "duration": "Instant/3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Mind Bomb",
+      "duration": "Instant / 30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Mind Crush",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Mind Link",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Mind Sending",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Mindread",
+      "duration": "Special",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Minor Illusion",
+      "duration": "Instant/10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Missile Protection",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Mist Hide",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Mitigate Fairy",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Money Distraction",
+      "duration": "Instant / 1 Hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Mother Cloak",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Multiple Actor/Crash Bear",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Nap",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Natural Haven",
+      "duration": "1 day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Natural Power",
+      "duration": "Special",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Natural Power II",
+      "duration": "Special",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Nature's Reprisal",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Neutralize",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Nightwalker",
+      "duration": "1 Hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Noisy Disturbance",
+      "duration": "Instant/10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Nursing",
+      "duration": "1 day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Observe the Abyss",
+      "duration": "10 minutes (60 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Offensive Fire",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Oracle",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Overblow",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Pack Camouflage",
+      "duration": "10 minutes (60 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Panacea Light",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Panic",
+      "duration": "Instant/3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Panic Run",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Paralyze",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Peace",
+      "duration": "Instant/1 Hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Peaceful Nature",
+      "duration": "Instant / 1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Pebble Shot",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Perfect Cancellation",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Pessimism",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Petri-Cloud",
+      "duration": "Instant / 1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Petrovenom",
+      "duration": "Instant/3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Phantom Blur",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Physical Gimmick",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Pigeon Form",
+      "duration": "3 Hours",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Pigeon Mail",
+      "duration": "Instant/1 day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Plant Regrowth",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Poison Cloud",
+      "duration": "Instant/1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Poison Spread",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Possession",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Preservation",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Prism Effect",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Promise Circle",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Protection",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Protection II",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Protection III",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Purification",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Purification Wave",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Purify Soul",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Quest",
+      "duration": "Special",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Quick Resurrection",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Raging Earth",
+      "duration": "30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Raging Earth II",
+      "duration": "30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Ray",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Reaping Slash",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Reboot",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Recall Soul",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Refresh",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Refresh Image",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Regeneration",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Reincarnation",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Remote Doll",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Remote Key",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Remove Curse",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Rescue",
+      "duration": "1 Day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Rescue from Shallow Abyss",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Resist Bomb",
+      "duration": "Instant/3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Resistant Clothes",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Restoration",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Restore Health",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Resurrection",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Retry",
+      "duration": "1 Hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Return",
+      "duration": "1 year",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Revelation",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Revenant Curse",
+      "duration": "1 day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Revenge Trigger",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Rich Heal",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Ring Protection",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Sacred Bandage",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Sacred Jail",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Safety Zone",
+      "duration": "12 Hours",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Sanity",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Savage Discord",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Save the World",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Scape Doll",
+      "duration": "1 day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Scapegoat",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Seabed Walk",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Seal Enchantment",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Search Abyss",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Search Barbarous",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Search Daemon",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Secret Voice",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "See-Through",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Send from Abyss",
+      "duration": "Instant / Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Sense Abyss",
+      "duration": "6 Hours",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Sense Enemy",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Sense Magic",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Set Disguise",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Shadow Body",
+      "duration": "1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Shallow Preservation",
+      "duration": "1 Day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Shatter Symbol",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Shield Circle",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Shining Spot",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Shock",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Shock Bomb",
+      "duration": "Instant/30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Shocking Wave",
+      "duration": "Instant/20 seconds (2 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Shoot Arrow",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Signature Torch",
+      "duration": "1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Silent Move",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Sink",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Skybike",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Skyship",
+      "duration": "1 day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Slash Image",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Sleep Cloud",
+      "duration": "Instant/30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Slow",
+      "duration": "1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Smoke Bomb",
+      "duration": "Instant/30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Snare",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Sneak",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Sonic Weapon",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Soul Drain",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Soul Eater",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Soul Sacrifice",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Sound Bomb",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Sound Pocket",
+      "duration": "30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Sound Recorder",
+      "duration": "Special",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Spark",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Spell Enhance",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Sphere Shed",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Spirit Domination",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Spirit Knife",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Splinter",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Star Guide",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Steal Memory",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Steal Mind",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Sterile Tent",
+      "duration": "1 Day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Stone Blast",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Stone Guard",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Stone Wall",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Storm Friend",
+      "duration": "Instant/3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Stun",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Stun Cloud",
+      "duration": "Instant/30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Summon Aetherbeast",
+      "duration": "Permanent",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Summon Fairy",
+      "duration": "30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Summon Fairy II",
+      "duration": "30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Summon Fairy III",
+      "duration": "30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Summon Fairy IV",
+      "duration": "30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Summon Fairy V",
+      "duration": "30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Summon Fairy VI",
+      "duration": "30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Summon Fairy VII",
+      "duration": "30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Summon Insects",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Sunlight",
+      "duration": "12 Hours",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Sunshade",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Supernova Bomb",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Suppressing Gaze",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Surrounding Attackers",
+      "duration": "10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Tactile Illusion",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Technical Trap",
+      "duration": "10 minutes (60 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Telekinesis",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Teleoperate Doll",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Telephony",
+      "duration": "6 hours",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Teleport",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Telescope",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Thermal Illusion",
+      "duration": "1 day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Thorn Bash",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Three Shot Lightning",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Three Storms",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Thunder Bolt",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Tinder",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Tongues",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Tornado",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Total Sanity",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Tough Power",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Toxic Breeze",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Trail Guide",
+      "duration": "1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Transfer HP",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Transfer Mana",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Translate",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Treat Pain",
+      "duration": "10 minutes (60 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Troops of Ignis",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Tunnel",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Twister",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Ultimate Healing",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Unchained Bomb",
+      "duration": "Instant/3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Unlock",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Unsummon Gate",
+      "duration": "10 minutes (60 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Vampiric Weapon",
+      "duration": "Instant / 3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Venom Breath",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Venom Espada",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Violent Storm",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Virtual Friend",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Virtual Toughness",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Virtual Toughness II",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Vitality",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Wall Walking",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "War Cry",
+      "duration": "Instant / 10 seconds (1 round)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "War Spirit",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Water Binding",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Water Bridge",
+      "duration": "1 Hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Water Edge",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Water Hammer",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Water Screen",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Weak Point",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Weakness",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Weapon Mastery",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Weather Forecast",
+      "duration": "1 Day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Whirlwind",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Whisper Heal",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Wind Circulation",
+      "duration": "3 Hours",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Wind Guard",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Wind Voice",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Windcutter",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Windstorm",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Wire Anchor",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Wishing Star",
+      "duration": "30 seconds (3 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Wizard Sign",
+      "duration": "1 hour",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Wolf's Bite",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Worthless Magic",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "Wraith Form",
+      "duration": "1 day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "†Banish",
+      "duration": "Instant/Various",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "†Erase Soulscar",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "†Sacred Field",
+      "duration": "Instant/1 Day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "†Sacred Shield",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "†Sacred Weapon",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "†Surrender",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "‡Fear",
+      "duration": "Instant/Various",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "‡Instant Soulscar",
+      "duration": "1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "‡Resignation",
+      "duration": "1 minute (6 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "‡Vice Field",
+      "duration": "Instant/1 Day",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "‡Vice Shield",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "‡Vice Weapon",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Accurate Hits",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Auto Guard",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Auto Guard II",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Berserk",
+      "duration": "Instant / 3 minutes (18 rounds)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Burst Shot",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Cannon Bullet",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Critical Bullet",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Critical Preparation",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Daemon's Tail",
+      "duration": "10 Seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Double Up",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Element Bullet",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Evil Contract",
+      "duration": "10 Seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Explorer Aid",
+      "duration": "10 minutes (60 rounds)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Fall Lightning",
+      "duration": "Instant",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Fast Pain",
+      "duration": "Instant",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Genocide Bullet",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Glider Cloak",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Harvest Field",
+      "duration": "Instant / 10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Healing Bullet",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Homing Laser",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Hybrid",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Laser Bullet",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Lock On",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Long Strider",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Machina Greaves",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Mana Convergence",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Multiple Actor/Giant Crab",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Multitarget",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Omega Shooter",
+      "duration": "Instant/10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Phantom Flood",
+      "duration": "Instant / 3 minutes (18 rounds)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Piercer",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Pile Shooter",
+      "duration": "Instant/10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Poisonous Attacker",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Presage Disaster",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Quick Loader",
+      "duration": "Instant",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Re-Command",
+      "duration": "30 seconds (3 rounds)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Replace Sound",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Reproducer/Bloody Petal",
+      "duration": "1 minute (6 rounds)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Reproducer/Living Tree",
+      "duration": "1 minute (6 rounds)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Retreat",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Sacred Aura",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Sharp Attacker",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Shotgun Bullet",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Shower of Healing Bullets",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Signal Bullet",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Sniper Range",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Solid Bullet",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Stun Bullet",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Targeting Sight",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Tear Gas Bullet",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Timer Clock",
+      "duration": "1 hour",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Treat Bullet",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Ultimate Being",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩Vital Force",
+      "duration": "Instant",
+      "minorAction": true,
+      "combatPreparation": false
+    },
+    {
+      "name": "⏩△Analyze",
+      "duration": "Instant",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Another's Knowledge",
+      "duration": "Special",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Anti-Magic Barrier",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Big Defender/Dinos",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Big Defender/Hydra",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Big Defender/Roc",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Big Defender/Sea Serpent",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Blink",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Change Position",
+      "duration": "Instant",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Cold Protector",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Completion",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Daemon's Blade",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Daemon's Dodge",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Daemon's Tax",
+      "duration": "30 seconds (3 rounds)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Daemons' Spread",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Deficiency",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Double Indicate",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Fire Protector",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Fossil Absorber",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Heat Weapon",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Hyper Acceleration",
+      "duration": "Instant / 10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Ideal Costume",
+      "duration": "Instant",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Invisibility",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Mind Protector",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Minimum Leap",
+      "duration": "Instant",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Nature Master",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Photonic Barrier",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Plants Gift",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Precognition",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Quick Giving",
+      "duration": "Instant",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Rare Runner",
+      "duration": "10 minutes (60 rounds)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Redirect Wounds",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Revenge Force",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Sharp Tactics",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Stubborn Survivor",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Water Dweller",
+      "duration": "10 minutes (60 rounds)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Wave Riding",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Wing Flyer",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "⏩△Wing Flyer II",
+      "duration": "10 seconds (1 round)",
+      "minorAction": true,
+      "combatPreparation": true
+    },
+    {
+      "name": "△Atrophy",
+      "duration": "3 minutes (18 rounds)",
+      "minorAction": false,
+      "combatPreparation": true
+    },
+    {
+      "name": "△Disclose Daemons",
+      "duration": "Special",
+      "minorAction": false,
+      "combatPreparation": true
+    },
+    {
+      "name": "△Penetrate",
+      "duration": "Special",
+      "minorAction": false,
+      "combatPreparation": true
+    },
+    {
+      "name": "△Sharp Eye/Giant Eagle",
+      "duration": "Special",
+      "minorAction": false,
+      "combatPreparation": true
+    },
+    {
+      "name": "△Sharp Eye/Tiger",
+      "duration": "Special",
+      "minorAction": false,
+      "combatPreparation": true
+    },
+    {
+      "name": "△Take The Lead II",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": true
+    },
+    {
+      "name": "△Take the Lead I",
+      "duration": "Instant",
+      "minorAction": false,
+      "combatPreparation": true
+    }
+  ]
+}
